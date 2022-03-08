@@ -1,0 +1,36 @@
+{
+  "flakes": [
+    {
+      "from": {
+        "id": "flox-lib",
+        "type": "indirect"
+      },
+      "to": {
+        "ref": "experimental",
+        "type": "git",
+        "url": "ssh://git@github.com/flox/deltapkgs"
+      }
+    },
+    {
+      "from": {
+        "id": "versions",
+        "type": "indirect"
+      },
+      "to": {
+        "type": "git",
+        "url": "ssh://git@github.com/flox/versions"
+      }
+    },
+    {
+      "from": {
+        "id": "builtpkgs",
+        "type": "indirect"
+      },
+      "to": {
+        "type": "git",
+        "url": "ssh://git@github.com/flox/builtpkgs"
+      }
+    }
+  ],
+  "version": 2
+}
