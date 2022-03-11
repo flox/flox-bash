@@ -7,6 +7,7 @@ let
     glibc
     nix-proxy
     nixUnstable
+    pandoc
     which;
   nix = nixUnstable;
 
@@ -14,7 +15,7 @@ in stdenv.mkDerivation {
   pname = "flox";
   version = "0.0.1";
   src = ./.;
-  nativeBuildInputs = [ which ];
+  nativeBuildInputs = [ pandoc which ];
   buildInputs = [ coreutils dasel glibc.bin nix ];
   postPatch = ''
     substituteInPlace flox.sh \
