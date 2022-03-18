@@ -11,6 +11,8 @@ LIBEXEC = \
 	libexec/config.sh \
 	libexec/builtpkgs/flake.nix \
 	libexec/versions/flake.nix
+SHARE = \
+	share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here
 
 DASEL = $(shell which dasel)
@@ -53,8 +55,13 @@ $(PREFIX)/share/man/man1/%: %
 	@mkdir -p $(@D)
 	cp $< $@
 
+$(PREFIX)/share/bash-completion/completions/%: %
+	-@rm -f $@
+	@mkdir -p $(@D)
+	cp share/bash-completion/completions/flox $@
+
 .PHONY: install
-install: $(addprefix $(PREFIX)/bin/,$(BIN)) $(addprefix $(PREFIX)/,$(LIBEXEC) $(ETC))
+install: $(addprefix $(PREFIX)/bin/,$(BIN)) $(addprefix $(PREFIX)/,$(LIBEXEC) $(ETC)) $(addprefix $(PREFIX)/,$(SHARE))
 
 define LINK_template =
   $(PREFIX)/bin/$(link):

@@ -77,6 +77,9 @@ floxpm_profile_dir=/nix/profiles
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$(id -un)
 export HOME=$(getent passwd ${USER} | cut -d: -f6)
+export FLOX_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}/flox
+mkdir -p "$FLOX_DATA_HOME"
+export XDG_DATA_DIRS="$FLOX_DATA_HOME/flox-profile/share/:${XDG_DATA_DIRS}"
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable
@@ -183,6 +186,16 @@ export NIX_USER_CONF_FILES=@@PREFIX@@/etc/nix.conf
 nixcmd="$nix_package_bin/nix"
 case "$subcommand" in
 	activate)
+		# FLOX_DATA_HOME/flox-profile
+		# FLOX_DATA_HOME/flox-profile/bin/activate
+		# FLOX_DATA_HOME/flox-profile/etc/hooks
+		# FLOX_DATA_HOME/flox-profile/etc/environment
+		# FLOX_DATA_HOME/flox-profile/etc/profile
+		# FLOX_DATA_HOME/flox-profile/etc/systemd
+		# or put these mechanisms behind a "flox-support" dir?
+		# open new shell?
+		cmd=("$FLOX_DATA_HOME"/flox-profile/activate)
+		cmd=("$SHELL")
 		;;
 
 	build)
@@ -195,20 +208,29 @@ case "$subcommand" in
 		;;
 
 	develop)
+		cmd=($nixcmd "$subcommand" "$@")
 		;;
 
 	install)
+		cmd=($nixcmd profile "$subcommand" --profile "$FLOX_DATA_HOME"/flox-profile "$@")
 		;;
 
 	packages)
+		## Assumption of jq and bat
 		cmd=(sh -c "$nixcmd eval flox-lib#builtPackages.x86_64-linux --apply builtins.attrNames --json | jq -r '.[]' | bat")
 
 		;;
 
 	shell)
+		cmd=($nixcmd "$subcommand" "$@")
 		;;
 
 	upgrade)
+		cmd=($nixcmd profile "$subcommand" --profile "$FLOX_DATA_HOME"/flox-profile "$@")
+		;;
+
+	rollback)
+		cmd=($nixcmd profile "$subcommand" --profile "$FLOX_DATA_HOME"/flox-profile "$@")
 		;;
 
 	*)
