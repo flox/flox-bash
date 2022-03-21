@@ -214,7 +214,7 @@ case "$subcommand" in
 
 	packages)
 		## Assumption of jq and bat
-		cmd=(sh -c "$nixcmd eval flox-lib#builtPackages.x86_64-linux --apply builtins.attrNames --json | jq -r '.[]' | bat")
+		cmd=(sh -c "$nixcmd eval builtpkgs#attrnames.x86_64-linux --json | jq --stream -r '.[0]|join(\".\")'")
 
 		;;
 
