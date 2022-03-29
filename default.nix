@@ -7,7 +7,9 @@ let
     nix-proxy
     nixUnstable
     pandoc
-    which;
+    which
+    jq
+    ;
   inherit (pkgs.unixtools) getent;
   nix = nixUnstable;
 
@@ -23,6 +25,7 @@ in stdenv.mkDerivation {
       --replace @@DASEL@@ ${dasel} \
       --replace @@NIX@@ ${nix} \
       --replace @@COREUTILS@@ ${coreutils} \
+      --replace @@JQ@@ ${jq}/bin/jq \
       --replace getent ${getent}/bin/getent
 
     substituteInPlace libexec/config.sh \

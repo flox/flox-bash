@@ -213,8 +213,7 @@ case "$subcommand" in
 		;;
 
 	packages)
-		## Assumption of jq and bat
-		cmd=(sh -c "$nixcmd eval builtpkgs#attrnames.x86_64-linux --json | jq -r .[]")
+		cmd=(sh -c "$nixcmd eval builtpkgs#attrnames.x86_64-linux --json | @@JQ@@ -r .[]")
 
 		;;
 
