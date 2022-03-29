@@ -4,11 +4,11 @@ let
     stdenv
     coreutils
     dasel
-    glibc
     nix-proxy
     nixUnstable
     pandoc
     which;
+  inherit (pkgs.unixtools) getent;
   nix = nixUnstable;
 
 in stdenv.mkDerivation {
@@ -16,14 +16,14 @@ in stdenv.mkDerivation {
   version = "0.0.1";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
-  buildInputs = [ coreutils dasel glibc.bin nix ];
+  buildInputs = [ coreutils dasel getent nix ];
   postPatch = ''
     substituteInPlace flox.sh \
       --replace @@PREFIX@@ "$out" \
       --replace @@DASEL@@ ${dasel} \
       --replace @@NIX@@ ${nix} \
       --replace @@COREUTILS@@ ${coreutils} \
-      --replace getent ${glibc.bin}/bin/getent
+      --replace getent ${getent}/bin/getent
 
     substituteInPlace libexec/config.sh \
       --replace @@DASEL@@ ${dasel}
