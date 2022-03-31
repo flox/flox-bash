@@ -10,11 +10,11 @@ function sync_repo() {
     mkdir -p "$FLOX_CACHE"
     # TODO: ensure repo is initialized and/or created
     if [ ! -d "$PROFILE_DIR" ]; then
-        git clone "$GIT_REMOTE" "$FLOX_CACHE"
+        $_git clone "$GIT_REMOTE" "$FLOX_CACHE"
         pushd "$FLOX_CACHE"/profiles || return 1
     else
         pushd "$FLOX_CACHE"/profiles || return 1
-        git pull
+        $_git pull
     fi
 }
 

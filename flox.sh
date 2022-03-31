@@ -1,8 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 #
 # flox.sh - Flox CLI
-#
-# Michael Brantley Tue Mar  8 09:53:36 AM UTC 2022
 #
 
 # Ensure that the script dies on any error.
@@ -33,6 +31,30 @@ function error() {
 	exit 1;
 }
 
+# Before doing anything take inventory of all commands required by the
+# script, taking particular note to ensure we use those from the UNCLE
+# or from the base O/S as required. Note that we specifically avoid the
+# typical method of modifying the PATH environment variable to avoid
+# leaking Nix/UNCLE paths into the commands we invoke.
+
+function hash_commands() {
+	for i in "$@"
+	do
+		hash $i # Dies with useful/precise error on failure when not found.
+		declare -g _$i=$(type -P $i)
+	done
+}
+
+function uncle_commands() {
+	local PATH=@@FLOXPATH@@:$PATH
+	hash_commands "$@"
+}
+
+# Hash commands we expect from UNCLE.
+uncle_commands dasel id jq getent nix
+
+# Hash commands we expect from base O/S.
+hash_commands cat
 
 # If the first arguments are any of -d|--date, -v|--verbose or --debug
 # then we consume this (and in the case of --date, its argument) as
@@ -64,19 +86,18 @@ while [ $# -ne 0 ]; do
 done
 
 # Parse flox configuration files.
-prefix="@@PREFIX@@"
-prefix=${prefix:-.}
-libexec=$prefix/libexec
+_prefix="@@PREFIX@@"
+_prefix=${_prefix:-.}
+libexec=$_prefix/libexec
 . $libexec/config.sh
 eval $(read_flox_conf nix-wrapper floxpkgs)
 
 # Some defaults.
-nix_package_bin=${NIX_PACKAGE_BIN:-@@NIX@@/bin}
 floxpm_profile_dir=/nix/profiles
 
 # NIX honors ${USER} over the euid, so make them match.
-export USER=$(id -un)
-export HOME=$(getent passwd ${USER} | cut -d: -f6)
+export USER=$($_id -un)
+export HOME=$($_getent passwd ${USER} | cut -d: -f6)
 export FLOX_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}/flox
 mkdir -p "$FLOX_DATA_HOME"
 export XDG_DATA_DIRS="$FLOX_DATA_HOME/default/share/:${XDG_DATA_DIRS}"
@@ -181,9 +202,8 @@ shift
 
 # Determine handling based on command invoked.
 # Start by setting base nix invocation.
-export NIX_USER_CONF_FILES=@@PREFIX@@/etc/nix.conf
+export NIX_USER_CONF_FILES=$_prefix/etc/nix.conf
 
-nixcmd="$nix_package_bin/nix"
 case "$subcommand" in
 	activate)
 		#export XDG_OTHER
@@ -200,33 +220,33 @@ case "$subcommand" in
 		;;
 
 	build)
-		cmd=($nixcmd $subcommand "$@")
+		cmd=($_nix $subcommand "$@")
 		;;
 
 	# Special "cut-thru" mode to invoke Nix directly.
 	nix)
-		cmd=($nixcmd "$@")
+		cmd=($_nix "$@")
 		;;
 
 	develop)
-		cmd=($nixcmd "$subcommand" "$@")
+		cmd=($_nix "$subcommand" "$@")
 		;;
 
 	packages)
-		cmd=(sh -c "$nixcmd eval builtpkgs#attrnames.x86_64-linux --json | @@JQ@@ -r .[]")
+		cmd=(sh -c "$_nix eval builtpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
 
 		;;
 
 	shell)
-		cmd=($nixcmd "$subcommand" "$@")
+		cmd=($_nix "$subcommand" "$@")
 		;;
 
 	install|list|remove|upgrade|rollback|history)
-		cmd=($nixcmd profile "$subcommand" --profile "$FLOX_DATA_HOME"/default "$@")
+		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default "$@")
 		;;
 
 	*)
-		cmd=($nixcmd $subcommand "$@")
+		cmd=($_nix $subcommand "$@")
 		# error "unknown command: $subcommand"
 		;;
 esac
@@ -235,7 +255,7 @@ if [ -n "$verbose" ]; then
 	# First turn off set -x (if set) to prevent double-printing.
 	set +x
 	# pprint "NIX_PATH=$NIX_PATH" "exec" "${cmd[@]}" 1>&2
-	pprint NIX_USER_CONF_FILES=@@PREFIX@@/etc/nix.conf "${cmd[@]}" 1>&2
+	pprint NIX_USER_CONF_FILES=$_prefix/etc/nix.conf "${cmd[@]}" 1>&2
 fi
 
 exec "${cmd[@]}"

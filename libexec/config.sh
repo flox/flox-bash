@@ -14,7 +14,7 @@ read_flox_conf()
 	# because it only accepts one query per invocation.  In benchmarks it claims
 	# to be 3x faster than jq so this is better than converting to json in a
 	# single invocation and then selecting multiple values using jq.
-	for f in "@@PREFIX@@/libexec/flox.toml" "/etc/flox.toml" "$HOME/.floxrc"
+	for f in "$_prefix/libexec/flox.toml" "/etc/flox.toml" "$HOME/.floxrc"
 	do
 		if [ -f "$f" ]; then
 		for i in "$@"
@@ -22,7 +22,7 @@ read_flox_conf()
 				# Use `cat` to open files because it produces a clear and concise
 				# message when file is not found or not readable. By comparison
 				# the equivalent dasel output is to report "unknown parser".
-				cat "$f" | @@DASEL@@/bin/dasel -p toml $i | while read _cline
+				$_cat "$f" | $_dasel -p toml $i | while read _cline
 				do
 					local _xline=$(echo "$_cline" | tr -d ' \t')
 					local _i=${i/-/_}

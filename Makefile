@@ -1,6 +1,7 @@
 .DEFAULT_GOAL = all
 PKGNAME = flox
 VERSION = 0.0.1
+PREFIX ?= ./build
 BIN = flox
 MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)
@@ -15,16 +16,6 @@ SHARE = \
 	share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here
 
-DASEL = $(shell which dasel)
-ifeq (,$(DASEL))
-  $(error dasel: command not found)
-endif
-
-NIX = $(shell which nix)
-ifeq (,$(NIX))
-  $(error nix: command not found)
-endif
-
 all: $(BIN) $(MAN)
 
 .SUFFIXES: .md .sh
@@ -33,10 +24,10 @@ all: $(BIN) $(MAN)
 	pandoc -s -t man $< -o $@
 
 .sh:
+	-@rm -f $@
 	sed \
-	  -e 's%@@NIX@@%$(realpath $(NIX))%' \
-	  -e 's%@@DASEL@@%$(realpath $(DASEL))%' \
-	  -e 's%@@PREFIX@@%$(realpath $(PREFIX))%' \
+	  -e 's%@@PREFIX@@%$(PREFIX)%' \
+	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
 	  $< > $@
 	chmod +x $@
 
@@ -50,18 +41,18 @@ $(PREFIX)/%: %
 	@mkdir -p $(@D)
 	cp $< $@
 
+$(PREFIX)/etc/nix.conf: etc/nix.conf
+	-@rm -f $@
+	@mkdir -p $(@D)
+	sed -e 's%@@PREFIX@@%$(PREFIX)%' $< > $@
+
 $(PREFIX)/share/man/man1/%: %
 	-@rm -f $@
 	@mkdir -p $(@D)
 	cp $< $@
 
-$(PREFIX)/share/bash-completion/completions/%: %
-	-@rm -f $@
-	@mkdir -p $(@D)
-	cp share/bash-completion/completions/flox $@
-
 .PHONY: install
-install: $(addprefix $(PREFIX)/bin/,$(BIN)) $(addprefix $(PREFIX)/,$(LIBEXEC) $(ETC)) $(addprefix $(PREFIX)/,$(SHARE))
+install: $(addprefix $(PREFIX)/bin/,$(BIN)) $(addprefix $(PREFIX)/,$(LIBEXEC) $(ETC) $(SHARE))
 
 define LINK_template =
   $(PREFIX)/bin/$(link):
