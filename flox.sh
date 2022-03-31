@@ -261,10 +261,10 @@ case "$subcommand" in
 		cmd=($_nix "$subcommand" "$@")
 		;;
 	install)
-			cmd=($nixcmd profile "$subcommand" --profile "$FLOX_DATA_HOME"/default $(floxpkgs_to_flakeref "$@"))
+			cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default $(floxpkgs_to_flakeref "$@"))
 		;;
 	list|remove|upgrade|rollback|history)
-			cmd=($nixcmd profile "$subcommand" --profile "$FLOX_DATA_HOME"/default "$@")
+			cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default "$@")
 		;;
 
 
