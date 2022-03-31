@@ -30,6 +30,26 @@ function error() {
 	usage
 	exit 1;
 }
+#We need to rewrite nixpkgs.stable.nyancat to nixpkgs#stable.nyancat
+#to conform with the flake interface + account for nixpkgs#nyancat etc
+function floxpkgs_to_flakeref() {
+    local IFS='.'
+    declare -a package 'arr=($1)'
+    local channel="${arr[0]}"
+    local stability="stable"
+    case "${arr[1]}" in
+        stable|staging|unstable)
+            stability="${arr[1]}"
+            package=(${arr[@]:2})
+    		echo "${channel}#${stability}.${package}"
+            ;;
+        *)
+            package=(${arr[@]:1})
+    		echo "${channel}#${package}"
+            ;;
+    esac
+    #echo channel=$channel stability=$stability "${namespaces[*]}"
+}
 
 # Before doing anything take inventory of all commands required by the
 # script, taking particular note to ensure we use those from the UNCLE
@@ -90,7 +110,7 @@ _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
 libexec=$_prefix/libexec
 . $libexec/config.sh
-eval $(read_flox_conf nix-wrapper floxpkgs)
+eval $(read_flox_conf nix-wrapper floxpkgs floxpkgs_to_flakeref)
 
 # Some defaults.
 floxpm_profile_dir=/nix/profiles
@@ -240,10 +260,13 @@ case "$subcommand" in
 	shell)
 		cmd=($_nix "$subcommand" "$@")
 		;;
-
-	install|list|remove|upgrade|rollback|history)
-		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default "$@")
+	install)
+			cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default $(floxpkgs_to_flakeref "$@"))
 		;;
+	list|remove|upgrade|rollback|history)
+			cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default "$@")
+		;;
+
 
 	*)
 		cmd=($_nix $subcommand "$@")
