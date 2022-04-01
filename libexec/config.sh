@@ -14,7 +14,7 @@ read_flox_conf()
 	# because it only accepts one query per invocation.  In benchmarks it claims
 	# to be 3x faster than jq so this is better than converting to json in a
 	# single invocation and then selecting multiple values using jq.
-	for f in "$_prefix/libexec/flox.toml" "/etc/flox.toml" "$HOME/.floxrc"
+	for f in "$_prefix/etc/flox.toml" "/etc/flox.toml" "$HOME/.floxrc"
 	do
 		if [ -f "$f" ]; then
 		for i in "$@"
