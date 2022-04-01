@@ -71,7 +71,7 @@ function uncle_commands() {
 }
 
 # Hash commands we expect from UNCLE.
-uncle_commands dasel id jq getent nix
+uncle_commands dasel id jq getent nix sh
 
 # Hash commands we expect from base O/S.
 hash_commands cat
@@ -253,7 +253,7 @@ case "$subcommand" in
 		;;
 
 	packages)
-		cmd=(sh -c "$_nix eval builtpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
+		cmd=($_sh -c "$_nix eval builtpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
 
 		;;
 
