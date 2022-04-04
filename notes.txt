@@ -1,0 +1,16 @@
+nix profile command wrapping
+
+
+diff-closure 1:1
+
+install 1:1
+
+list 1:1
+
+remove 1:1
+
+rollback  1:1
+
+upgrade  re-implement
+
+wipe-history re-implement (or not use at all pending discussion)

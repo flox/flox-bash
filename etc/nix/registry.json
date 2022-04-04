@@ -1,34 +1,39 @@
 {
   "flakes": [
-    {
+   {
       "from": {
-        "id": "flox-lib",
+        "id": "stable",
         "type": "indirect"
       },
       "to": {
-        "ref": "experimental",
-        "type": "git",
-        "url": "ssh://git@github.com/flox/deltapkgs"
+        "owner": "flox",
+        "ref": "staging",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     },
     {
       "from": {
-        "id": "versions",
+        "id": "staging",
         "type": "indirect"
       },
       "to": {
-        "type": "git",
-        "url": "ssh://git@github.com/flox/versions"
+        "owner": "flox",
+        "ref": "staging",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     },
     {
       "from": {
-        "id": "builtpkgs",
+        "id": "unstable",
         "type": "indirect"
       },
       "to": {
-        "type": "git",
-        "url": "ssh://git@github.com/flox/builtpkgs"
+        "owner": "flox",
+        "ref": "unstable",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     }
   ],

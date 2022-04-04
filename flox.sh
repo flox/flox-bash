@@ -110,17 +110,22 @@ _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
 libexec=$_prefix/libexec
 . $libexec/config.sh
-eval $(read_flox_conf nix-wrapper floxpkgs floxpkgs_to_flakeref)
+#. $libexec/convert.sh
+eval $(read_flox_conf nix-wrapper floxpkgs floxpkgs_to_flakeref sync_repo)
 
 # Some defaults.
 floxpm_profile_dir=/nix/profiles
 
 # NIX honors ${USER} over the euid, so make them match.
+if [ -z "$CURR_PROFILE_DIR" ]
+then
+  export CURR_PROFILE_DIR="default"
+fi
 export USER=$($_id -un)
 export HOME=$($_getent passwd ${USER} | cut -d: -f6)
 export FLOX_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}/flox
 mkdir -p "$FLOX_DATA_HOME"
-export XDG_DATA_DIRS="$FLOX_DATA_HOME/default/share/:${XDG_DATA_DIRS}"
+export XDG_DATA_DIRS="$FLOX_DATA_HOME/$CURR_PROFILE_DIR/share/:${XDG_DATA_DIRS}"
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable
@@ -234,7 +239,7 @@ case "$subcommand" in
 		# FLOX_DATA_HOME/flox-profile/default/nix-support/etc/systemd
 		# or put these mechanisms behind a "flox-support" dir?
 		# open new shell?
-		export PATH="$FLOX_DATA_HOME/default/bin:$PATH"
+		export PATH="$FLOX_DATA_HOME/$CURR_PROFILE_DIR/bin:$PATH"
 		#cmd=("$FLOX_DATA_HOME"/flox-profile/default/nix-support/flox/bin/activate)
 		cmd=("$SHELL")
 		;;
@@ -253,7 +258,7 @@ case "$subcommand" in
 		;;
 
 	packages)
-		cmd=($_sh -c "$_nix eval builtpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
+		cmd=($_sh -c "$_nix eval nixpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
 
 		;;
 
@@ -261,10 +266,10 @@ case "$subcommand" in
 		cmd=($_nix "$subcommand" "$@")
 		;;
 	install)
-			cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default $(floxpkgs_to_flakeref "$@"))
+		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(floxpkgs_to_flakeref "$@"))
 		;;
 	list|remove|upgrade|rollback|history)
-			cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME"/default "$@")
+		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" "$@")
 		;;
 
 
