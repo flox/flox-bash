@@ -13,14 +13,40 @@ set -o pipefail
 test -z "${DEBUG_FLOX}" || FLOX_DEBUG="${DEBUG_FLOX}"
 test -z "${FLOX_DEBUG}" || set -x
 
+# Similar for verbose.
+test -z "${FLOX_VERBOSE}" || verbose=1
+
 # Store the invocation arguments for reporting
 invocation_args="$@"
 
 # Short name for this script, derived from $0.
 me="${0##*/}"
+mespaces=$(echo $me | tr '[a-z]' ' ')
+medashes=$(echo $me | tr '[a-z]' '-')
 
 function usage() {
-	echo "usage: $me TODO ..." 1>&2
+	cat <<EOF 1>&2
+usage: $me [ --stability (stable|staging|unstable) ]
+       $mespaces [ (-d|--date) <date_string> ]
+       $mespaces [ (-v|--verbose) ] [ --debug ] <command>
+       $medashes
+       $me [ (-h|--help) ] [ --version ]
+
+Profile commands:
+    flox activate - fix me
+    flox diff-closures - show the closure difference between each version of a profile
+    flox history - show all versions of a profile
+    flox install - install a package into a profile
+    flox list - list installed packages
+    flox remove - remove packages from a profile
+    flox rollback - roll back to the previous version or a specified version of a profile
+    flox upgrade - upgrade packages using their most recent flake
+    flox wipe-history - delete non-current versions of a profile
+
+Developer environment commands:
+    flox develop
+
+EOF
 }
 
 function error() {
@@ -30,26 +56,6 @@ function error() {
 	usage
 	exit 1;
 }
-#We need to rewrite nixpkgs.stable.nyancat to nixpkgs#stable.nyancat
-#to conform with the flake interface + account for nixpkgs#nyancat etc
-function floxpkgs_to_flakeref() {
-    local IFS='.'
-    declare -a package 'arr=($1)'
-    local channel="${arr[0]}"
-    local stability="stable"
-    case "${arr[1]}" in
-        stable|staging|unstable)
-            stability="${arr[1]}"
-            package=(${arr[@]:2})
-    		echo "${channel}#${stability}.${package}"
-            ;;
-        *)
-            package=(${arr[@]:1})
-    		echo "${channel}#${package}"
-            ;;
-    esac
-    #echo channel=$channel stability=$stability "${namespaces[*]}"
-}
 
 # Before doing anything take inventory of all commands required by the
 # script, taking particular note to ensure we use those from the UNCLE
@@ -58,6 +64,7 @@ function floxpkgs_to_flakeref() {
 # leaking Nix/UNCLE paths into the commands we invoke.
 
 function hash_commands() {
+	local PATH=@@FLOXPATH@@:$PATH
 	for i in "$@"
 	do
 		hash $i # Dies with useful/precise error on failure when not found.
@@ -65,16 +72,8 @@ function hash_commands() {
 	done
 }
 
-function uncle_commands() {
-	local PATH=@@FLOXPATH@@:$PATH
-	hash_commands "$@"
-}
-
-# Hash commands we expect from UNCLE.
-uncle_commands dasel id jq getent nix sh
-
-# Hash commands we expect from base O/S.
-hash_commands cat
+# Hash commands we expect to find.
+hash_commands cat dasel id jq getent nix sh
 
 # If the first arguments are any of -d|--date, -v|--verbose or --debug
 # then we consume this (and in the case of --date, its argument) as
@@ -110,35 +109,45 @@ _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
 libexec=$_prefix/libexec
 . $libexec/config.sh
-#. $libexec/convert.sh
-eval $(read_flox_conf nix-wrapper floxpkgs floxpkgs_to_flakeref sync_repo)
-
-# Some defaults.
-floxpm_profile_dir=/nix/profiles
+eval $(read_flox_conf npfs floxpkgs)
 
 # NIX honors ${USER} over the euid, so make them match.
-if [ -z "$CURR_PROFILE_DIR" ]
-then
-  export CURR_PROFILE_DIR="default"
-fi
 export USER=$($_id -un)
 export HOME=$($_getent passwd ${USER} | cut -d: -f6)
-export FLOX_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}/flox
-mkdir -p "$FLOX_DATA_HOME"
-export XDG_DATA_DIRS="$FLOX_DATA_HOME/$CURR_PROFILE_DIR/share/:${XDG_DATA_DIRS}"
+
+# FLOX_USER can be completely different, e.g. the GitHub user,
+# or can be the same as the UNIX $USER. Only flox knows!
+export FLOX_USER=$USER # XXX FIXME $(flox whoami)
+
+# Define and create flox metadata cache, data, and profiles directories.
+export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"
+export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
+export FLOX_PROFILES="${FLOX_PROFILES:-$FLOX_DATA_HOME/profiles}"
+mkdir -p "$FLOX_CACHE_HOME" "$FLOX_DATA_HOME" "$FLOX_PROFILES"
+
+# Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why?
+export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable
-# over STDIN (to reproduce, try running `TAPE=none nix-shell`).
+# over STDIN (to reproduce, try running `TAPE=none flox shell`).
+# XXX Still needed???
 if [ -n "$TAPE" ]; then
 	unset TAPE
 fi
 
+# Import other utility functions.
+#. $libexec/convert.sh
+
+#
+# Subroutines
+#
+
 function profile_arg {
-	# flox profiles must resolve to fully-qualified paths within the
-	# floxpm_profile_dir. Resolve paths in a variety of ways:
+	# flox profiles must resolve to fully-qualified paths within
+	# $FLOX_PROFILES. Resolve paths in a variety of ways:
 	if [[ ${1:0:1} = "/" ]]; then
-		if [[ "$1" =~ ^$floxpm_profile_dir ]]; then
+		if [[ "$1" =~ ^$FLOX_PROFILES ]]; then
 			# Path already a floxpm profile - use it.
 			echo "$1"
 		elif [[ "$1" =~ ^/nix/store/.*-user-environment ]]; then
@@ -156,7 +165,7 @@ function profile_arg {
 		exit 2
 	else
 		# Return default path for the profile directory.
-		echo "$floxpm_profile_dir/${FLOXUSER}/$1"
+		echo "$FLOX_PROFILES/${FLOX_USER}/$1"
 	fi
 }
 
@@ -173,75 +182,126 @@ function pprint {
 	echo $result
 }
 
-# Step through supplied nix_path redacting missing paths and duplicate
-# namespaces.
-function clean_nix_path {
-	_path="$1"
-	# Create variable for holding new path.
-	newpath=
-	# Keep track of namespaces encountered and redact duplicates.
-	declare -A _namespaces_seen
-	# Split _path on colons.
-	local IFS=:
-	# Iterate over components of path keeping those that exist.
-	for i in $_path; do
-		# NIX_PATH components can be of the form "foo=/path", in which case
-		# we only want to verify the right-hand side of the string.
-		path_element=""
-		path_to_verify="$i"
-		if [[ "$i" =~ ^([^/]*)=(.*)$ ]]; then
-			path_element=${BASH_REMATCH[1]}
-			if [ -n "${_namespaces_seen[$path_element]}" ]; then
-				# Already seen this one - clear path_to_verify to skip.
-				path_to_verify=""
-			else
-				_namespaces_seen["$path_element"]=1
-				path_to_verify=${BASH_REMATCH[2]}
-			fi
-		fi
-		if [ -n "$path_to_verify" -a -e "$path_to_verify" ]; then
-			# Append colon, but not on first iteration
-			[ -z "$newpath" ] || newpath="${newpath}:"
-			newpath="${newpath}${path_element:+$path_element=}${path_to_verify}"
-		fi
-	done
-	# Return updated path.
-	echo "$newpath"
+# Convert floxpkgs "channel.stability.attrPath" tuple to flox catalog
+# flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
+function floxpkgs_to_flakeref() {
+	local IFS='.'
+	declare -a attrPath 'arr=($1)'
+	local channel="${arr[0]}"
+	local stability="stable"
+	case "${arr[1]}" in
+		stable|staging|unstable)
+			stability="${arr[1]}"
+			attrPath=(${arr[@]:2})
+			;;
+		*)
+			attrPath=(${arr[@]:1})
+			;;
+	esac
+	echo "${channel}#${stability}.${attrPath}"
 }
 
+#
 # main()
+#
 
-# Nix trips over nonexistent elements in the NIX_PATH - take this
-# opportunity to remove them and any duplicate namespaces we find.
-NIX_PATH=$(clean_nix_path "$NIX_PATH")
-
-# Export the final NIX_PATH to be used.
-export NIX_PATH
-
-# Identify subcommand to be invoked.
-subcommand="$1"
+# Start by identifying subcommand to be invoked.
+# FIXME: use getopts to properly scan args for first non-option arg.
+while test $# -gt 0; do
+	case "$1" in
+		-*)
+			error "unrecognised option before subcommand"
+			;;
+		*)
+			subcommand="$1"
+			shift
+			break;;
+	esac
+done
 if [ -z "$subcommand" ]; then
 	error "command not provided"
 fi
-shift
-
-# Determine handling based on command invoked.
-# Start by setting base nix invocation.
-export NIX_USER_CONF_FILES=$_prefix/etc/nix.conf
 
 case "$subcommand" in
-	activate)
-		#export XDG_OTHER
-		# FLOX_DATA_HOME/flox-profile/default/nix-support/bin/activate
-		# FLOX_DATA_HOME/flox-profile/default/nix-support/etc/hooks
-		# FLOX_DATA_HOME/flox-profile/default/nix-support/etc/environment
-		# FLOX_DATA_HOME/flox-profile/default/nix-support/etc/profile
-		# FLOX_DATA_HOME/flox-profile/default/nix-support/etc/systemd
-		# or put these mechanisms behind a "flox-support" dir?
-		# open new shell?
-		export PATH="$FLOX_DATA_HOME/$CURR_PROFILE_DIR/bin:$PATH"
-		#cmd=("$FLOX_DATA_HOME"/flox-profile/default/nix-support/flox/bin/activate)
-		cmd=("$SHELL")
+
+	# Commands which take a (-p|--profile) profile argument.
+	activate|history|install|list|remove|rollback|upgrade|wipe-history)
+
+		# Look for the --profile argument.
+		profile=""
+		args=()
+		opts=()
+		while test $# -gt 0; do
+			case "$1" in
+				-p|--profile)
+					profile=$(profile_arg $2)
+					shift 2;;
+				-*)
+					# FIXME: wrong to assume options take no arguments
+					opts+=("$1")
+					shift;;
+				*)
+					args+=("$1")
+					shift;;
+			esac
+		done
+		if [ "$profile" == "" ]; then
+			profile=$(profile_arg "default")
+		fi
+		opts=(--profile "$profile" "${opts[@]}")
+		echo Using profile: $profile >&2
+
+		case "$subcommand" in
+
+			activate)
+				#export XDG_OTHER
+				# FLOX_PROFILES/default/nix-support/bin/activate
+				# FLOX_PROFILES/default/nix-support/etc/hooks
+				# FLOX_PROFILES/default/nix-support/etc/environment
+				# FLOX_PROFILES/default/nix-support/etc/profile
+				# FLOX_PROFILES/default/nix-support/etc/systemd
+				# or put these mechanisms behind a "flox-support" dir?
+				# open new shell?
+
+				#cmd=("$profile/nix-support/flox/bin/activate) ?
+
+				export PATH="$profile/bin:$PATH"
+				cmd=("$SHELL")
+				;;
+
+			# Commands which accept a flox package reference.
+			install|remove|upgrade)
+				pkgargs=()
+				for pkg in "${args[@]}"; do
+					pkgargs+=($(floxpkgs_to_flakeref "$pkg"))
+				done
+				cmd=($_nix profile $subcommand "${opts[@]}" "${pkgargs[@]}")
+				;;
+
+			history|list|rollback|wipe-history)
+				cmd=($_nix profile $subcommand "${opts[@]}" "${args[@]}")
+				;;
+
+		esac
+		;;
+
+	# The diff-closures command takes two profile arguments.
+	diff-closures)
+
+		# Step through remaining arguments sorting options from args.
+		opts=()
+		args=()
+		for arg in "$@"; do
+			case "$arg" in
+				-*)
+					opts+=("$1")
+					;;
+				*)
+					args+=$(profile_arg "$1")
+					;;
+			esac
+		done
+		cmd=($_nix $subcommand "${opts[@]}" "${args[@]}")
 		;;
 
 	build)
@@ -279,11 +339,14 @@ case "$subcommand" in
 		;;
 esac
 
+# Set base configuration before invoking nix.
+export NIX_USER_CONF_FILES=$_prefix/etc/nix.conf
+
 if [ -n "$verbose" ]; then
 	# First turn off set -x (if set) to prevent double-printing.
 	set +x
 	# pprint "NIX_PATH=$NIX_PATH" "exec" "${cmd[@]}" 1>&2
-	pprint NIX_USER_CONF_FILES=$_prefix/etc/nix.conf "${cmd[@]}" 1>&2
+	pprint NIX_USER_CONF_FILES=$NIX_USER_CONF_FILES "${cmd[@]}" 1>&2
 fi
 
 exec "${cmd[@]}"

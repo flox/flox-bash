@@ -1,1 +1,9 @@
 # Package-specific defaults here
+
+[npfs]
+
+    npfs_mountpoint = "/nix/profiles"
+
+[floxpkgs]
+
+    gitBaseURL = "https://github.com/"
