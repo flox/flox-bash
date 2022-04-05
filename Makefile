@@ -52,7 +52,9 @@ $(PREFIX)/share/man/man1/%: %
 	cp $< $@
 
 .PHONY: install
-install: $(addprefix $(PREFIX)/bin/,$(BIN)) $(addprefix $(PREFIX)/,$(LIBEXEC) $(ETC) $(SHARE))
+install: $(addprefix $(PREFIX)/bin/,$(BIN)) \
+         $(addprefix $(PREFIX)/share/man/man1/,$(MAN1)) \
+         $(addprefix $(PREFIX)/,$(LIBEXEC) $(ETC) $(SHARE))
 
 define LINK_template =
   $(PREFIX)/bin/$(link):
