@@ -73,7 +73,7 @@ function hash_commands() {
 }
 
 # Hash commands we expect to find.
-hash_commands cat dasel id jq getent nix sh
+hash_commands cat dasel dirname id jq getent nix sh
 
 # If the first arguments are any of -d|--date, -v|--verbose or --debug
 # then we consume this (and in the case of --date, its argument) as
@@ -271,6 +271,11 @@ case "$subcommand" in
 
 			# Commands which accept a flox package reference.
 			install|remove|upgrade)
+				# Nix will create a profile directory, but not its parent.  :-\
+				if [ "$subcommand" = "install" ]; then
+					[ -d $($_dirname $profile) ] || \
+						mkdir -v -p $($_dirname $profile)
+				fi
 				pkgargs=()
 				for pkg in "${args[@]}"; do
 					pkgargs+=($(floxpkgs_to_flakeref "$pkg"))
