@@ -6,6 +6,7 @@ BIN = flox
 MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)
 ETC = \
+	etc/flox.toml \
 	etc/nix.conf \
 	etc/nix/registry.json
 LIBEXEC = \

@@ -16,9 +16,6 @@ test -z "${FLOX_DEBUG}" || set -x
 # Similar for verbose.
 test -z "${FLOX_VERBOSE}" || verbose=1
 
-# Store the invocation arguments for reporting
-invocation_args="$@"
-
 # Short name for this script, derived from $0.
 me="${0##*/}"
 mespaces=$(echo $me | tr '[a-z]' ' ')
@@ -104,6 +101,10 @@ while [ $# -ne 0 ]; do
 	esac
 done
 
+#
+# Global variables
+#
+
 # Parse flox configuration files.
 _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
@@ -125,19 +126,22 @@ export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
 export FLOX_PROFILES="${FLOX_PROFILES:-$FLOX_DATA_HOME/profiles}"
 mkdir -p "$FLOX_CACHE_HOME" "$FLOX_DATA_HOME" "$FLOX_PROFILES"
 
-# Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why?
+# Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable
 # over STDIN (to reproduce, try running `TAPE=none flox shell`).
-# XXX Still needed???
+# XXX Still needed??? Probably delete ...
 if [ -n "$TAPE" ]; then
 	unset TAPE
 fi
 
 # Import other utility functions.
 #. $libexec/convert.sh
+#. $libexec/flakes.sh
+#. $libexec/foo.sh
+#. $libexec/bar.sh
 
 #
 # Subroutines
