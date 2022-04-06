@@ -1,39 +1,13 @@
 {
   "flakes": [
-   {
-      "from": {
-        "id": "stable",
-        "type": "indirect"
-      },
-      "to": {
-        "owner": "flox",
-        "ref": "staging",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     {
       "from": {
-        "id": "staging",
+        "id": "builtpkgs",
         "type": "indirect"
       },
       "to": {
-        "owner": "flox",
-        "ref": "staging",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    {
-      "from": {
-        "id": "unstable",
-        "type": "indirect"
-      },
-      "to": {
-        "owner": "flox",
-        "ref": "unstable",
-        "repo": "nixpkgs",
-        "type": "github"
+        "type": "git",
+        "url": "ssh://git@github.com/flox/builtpkgs"
       }
     }
   ],

@@ -205,6 +205,23 @@ function floxpkgs_to_flakeref() {
 	echo "${channel}#${stability}.${attrPath}"
 }
 
+function parse_package_remove() {
+	local IFS='.'
+	declare -a attrPath 'arr=($1)'
+	local channel="${arr[0]}"
+	local stability="stable"
+	case "${arr[1]}" in
+		stable|staging|unstable)
+			stability="${arr[1]}"
+			attrPath=(${arr[@]:2})
+			;;
+		*)
+			attrPath=(${arr[@]:1})
+			;;
+	esac
+	echo "'.*.${stability}.${attrPath}^'"
+
+}
 #
 # main()
 #
@@ -274,7 +291,7 @@ case "$subcommand" in
 				;;
 
 			# Commands which accept a flox package reference.
-			install|remove|upgrade)
+			install|upgrade)
 				# Nix will create a profile directory, but not its parent.  :-\
 				if [ "$subcommand" = "install" ]; then
 					[ -d $($_dirname $profile) ] || \
@@ -288,6 +305,12 @@ case "$subcommand" in
 				;;
 
 			history|list|rollback|wipe-history)
+				cmd=($_nix profile $subcommand "${opts[@]}" "${args[@]}")
+				;;
+			remove)
+				for pkg in "${args[@]}"; do
+					pkgargs+=($(parse_package_remove "$pkg"))
+				done
 				cmd=($_nix profile $subcommand "${opts[@]}" "${args[@]}")
 				;;
 
@@ -326,20 +349,19 @@ case "$subcommand" in
 		cmd=($_nix "$subcommand" "$@")
 		;;
 
-	packages)
-		cmd=($_sh -c "$_nix eval nixpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
-
-		;;
-
+#	packages)
+#		cmd=($_sh -c "$_nix eval nixpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
+#
+#		;;
 	shell)
 		cmd=($_nix "$subcommand" "$@")
 		;;
-	install)
-		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(floxpkgs_to_flakeref "$@"))
-		;;
-	list|remove|upgrade|rollback|history)
-		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" "$@")
-		;;
+#	install)
+#		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(floxpkgs_to_flakeref "$@"))
+#		;;
+#	list|remove|upgrade|rollback|history)
+#		cmd=($_nix profile "$subcommand" "$@")
+#		;;
 
 
 	*)
