@@ -10,9 +10,7 @@ ETC = \
 	etc/nix.conf \
 	etc/nix/registry.json
 LIBEXEC = \
-	libexec/config.sh \
-	libexec/builtpkgs/flake.nix \
-	libexec/versions/flake.nix
+	libexec/config.sh
 SHARE = \
 	share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here
