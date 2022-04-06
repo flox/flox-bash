@@ -51,7 +51,7 @@ function error() {
 		echo "ERROR: $@" 1>&2
 	fi
 	usage
-	exit 1;
+	exit 1
 }
 
 # Before doing anything take inventory of all commands required by the
@@ -62,8 +62,7 @@ function error() {
 
 function hash_commands() {
 	local PATH=@@FLOXPATH@@:$PATH
-	for i in "$@"
-	do
+	for i in "$@"; do
 		hash $i # Dies with useful/precise error on failure when not found.
 		declare -g _$i=$(type -P $i)
 	done
@@ -78,26 +77,34 @@ hash_commands cat dasel dirname id jq getent nix sh
 # either of these arguments to the wrapped command put them at the end.
 while [ $# -ne 0 ]; do
 	case "$1" in
-		--stability)
-			shift;
-			if [ $# -eq 0 ]; then
-				echo "ERROR: missing argument to --stability flag" 1>&2
-				exit 1
-			fi
-			export FLOX_STABILITY="$1";
-			shift;;
-		-d|--date)
-			shift;
-			if [ $# -eq 0 ]; then
-				error "missing argument to --date flag"
-			fi
-			export FLOX_RENIX_DATE="$1";
-			shift;;
-		-v|--verbose)
-			verbose=1; shift;;
-		--debug)
-			set -x; debug=1; verbose=1; shift;;
-		*) break;;
+	--stability)
+		shift
+		if [ $# -eq 0 ]; then
+			echo "ERROR: missing argument to --stability flag" 1>&2
+			exit 1
+		fi
+		export FLOX_STABILITY="$1"
+		shift
+		;;
+	-d | --date)
+		shift
+		if [ $# -eq 0 ]; then
+			error "missing argument to --date flag"
+		fi
+		export FLOX_RENIX_DATE="$1"
+		shift
+		;;
+	-v | --verbose)
+		verbose=1
+		shift
+		;;
+	--debug)
+		set -x
+		debug=1
+		verbose=1
+		shift
+		;;
+	*) break ;;
 	esac
 done
 
@@ -157,7 +164,7 @@ function profile_arg {
 		elif [[ "$1" =~ ^/nix/store/.*-user-environment ]]; then
 			# Path is a user-environment in the store - use it.
 			echo "$1"
-		elif [[ -h "$1" ]]; then
+		elif [[ -L "$1" ]]; then
 			# Path is a link - try again with the link value.
 			echo $(profile_arg $(readlink "$1"))
 		else
@@ -194,32 +201,42 @@ function floxpkgs_to_flakeref() {
 	local channel="${arr[0]}"
 	local stability="stable"
 	case "${arr[1]}" in
-		stable|staging|unstable)
-			stability="${arr[1]}"
-			attrPath=(${arr[@]:2})
-			;;
-		*)
-			attrPath=(${arr[@]:1})
-			;;
+	stable | staging | unstable)
+		stability="${arr[1]}"
+		attrPath=(${arr[@]:2})
+		;;
+	*)
+		attrPath=(${arr[@]:1})
+		;;
 	esac
 	echo "${channel}#${stability}.${attrPath}"
 }
 
 function parse_package_remove() {
-	local IFS='.'
-	declare -a attrPath 'arr=($1)'
-	local channel="${arr[0]}"
-	local stability="stable"
-	case "${arr[1]}" in
-		stable|staging|unstable)
-			stability="${arr[1]}"
-			attrPath=(${arr[@]:2})
-			;;
-		*)
-			attrPath=(${arr[@]:1})
-			;;
-	esac
-	echo "'.*.${stability}.${attrPath}^'"
+	#the floxattrPath submitted by the user
+	floxfullattrPath="$1"
+	#the channel name of the floxattrPath
+	floxpkgChannel=$(echo "${floxfullattrPath}" | cut -d '.' -f 1)
+	floxattrPath=$(echo "${floxfullattrPath}" | cut -d '.' -f2-)
+	#the profile path we are using now
+	profilePath="$2"
+	# the representation of this channel in the profile manifest.json
+	# this is "attrPath" value for this package in the manifest.json file
+	manifestChannel=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .originalUri' | cut -d ':' -f 2)
+	# we need to isolate the (packages|legacyPackages).<system> from this data,
+	# so that we can pass it on to our remove call wrapper transparently as (for instance)
+	# flox remove packages.x86_64-linux.hello we are not able to use regex alone,
+	# because multiple flox channels can exist in the same manifest.json file.
+	# So, we must identify the and match the channel, and the relevant portion of the attrPath
+	# to remove the package precisely
+	attrSystem=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .attrPath' | cut -d '.' -f 1,2)
+	for mchannel in $manifestChannel; do
+		if [ "$mchannel" != "$floxpkgChannel" ]; then
+			echo ""
+		else
+			echo "${attrSystem}.${floxattrPath}"
+		fi
+	done
 
 }
 #
@@ -230,13 +247,14 @@ function parse_package_remove() {
 # FIXME: use getopts to properly scan args for first non-option arg.
 while test $# -gt 0; do
 	case "$1" in
-		-*)
-			error "unrecognised option before subcommand"
-			;;
-		*)
-			subcommand="$1"
-			shift
-			break;;
+	-*)
+		error "unrecognised option before subcommand"
+		;;
+	*)
+		subcommand="$1"
+		shift
+		break
+		;;
 	esac
 done
 if [ -z "$subcommand" ]; then
@@ -245,129 +263,134 @@ fi
 
 case "$subcommand" in
 
-	# Commands which take a (-p|--profile) profile argument.
-	activate|history|install|list|remove|rollback|upgrade|wipe-history)
+# Commands which take a (-p|--profile) profile argument.
+activate | history | install | list | remove | rollback | upgrade | wipe-history)
 
-		# Look for the --profile argument.
-		profile=""
-		args=()
-		opts=()
-		while test $# -gt 0; do
-			case "$1" in
-				-p|--profile)
-					profile=$(profile_arg $2)
-					shift 2;;
-				-*)
-					# FIXME: wrong to assume options take no arguments
-					opts+=("$1")
-					shift;;
-				*)
-					args+=("$1")
-					shift;;
-			esac
-		done
-		if [ "$profile" == "" ]; then
-			profile=$(profile_arg "default")
-		fi
-		opts=(--profile "$profile" "${opts[@]}")
-		echo Using profile: $profile >&2
-
-		case "$subcommand" in
-
-			activate)
-				#export XDG_OTHER
-				# FLOX_PROFILES/default/nix-support/bin/activate
-				# FLOX_PROFILES/default/nix-support/etc/hooks
-				# FLOX_PROFILES/default/nix-support/etc/environment
-				# FLOX_PROFILES/default/nix-support/etc/profile
-				# FLOX_PROFILES/default/nix-support/etc/systemd
-				# or put these mechanisms behind a "flox-support" dir?
-				# open new shell?
-
-				#cmd=("$profile/nix-support/flox/bin/activate) ?
-
-				export PATH="$profile/bin:$PATH"
-				cmd=("$SHELL")
-				;;
-
-			# Commands which accept a flox package reference.
-			install|upgrade)
-				# Nix will create a profile directory, but not its parent.  :-\
-				if [ "$subcommand" = "install" ]; then
-					[ -d $($_dirname $profile) ] || \
-						mkdir -v -p $($_dirname $profile)
-				fi
-				pkgargs=()
-				for pkg in "${args[@]}"; do
-					pkgargs+=($(floxpkgs_to_flakeref "$pkg"))
-				done
-				cmd=($_nix profile $subcommand "${opts[@]}" "${pkgargs[@]}")
-				;;
-
-			history|list|rollback|wipe-history)
-				cmd=($_nix profile $subcommand "${opts[@]}" "${args[@]}")
-				;;
-			remove)
-				for pkg in "${args[@]}"; do
-					pkgargs+=($(parse_package_remove "$pkg"))
-				done
-				cmd=($_nix profile $subcommand "${opts[@]}" "${args[@]}")
-				;;
-
+	# Look for the --profile argument.
+	profile=""
+	args=()
+	opts=()
+	while test $# -gt 0; do
+		case "$1" in
+		-p | --profile)
+			profile=$(profile_arg $2)
+			shift 2
+			;;
+		-*)
+			# FIXME: wrong to assume options take no arguments
+			opts+=("$1")
+			shift
+			;;
+		*)
+			args+=("$1")
+			shift
+			;;
 		esac
+	done
+	if [ "$profile" == "" ]; then
+		profile=$(profile_arg "default")
+	fi
+	opts=(--profile "$profile" "${opts[@]}")
+	echo Using profile: $profile >&2
+
+	case "$subcommand" in
+
+	activate)
+		#export XDG_OTHER
+		# FLOX_PROFILES/default/nix-support/bin/activate
+		# FLOX_PROFILES/default/nix-support/etc/hooks
+		# FLOX_PROFILES/default/nix-support/etc/environment
+		# FLOX_PROFILES/default/nix-support/etc/profile
+		# FLOX_PROFILES/default/nix-support/etc/systemd
+		# or put these mechanisms behind a "flox-support" dir?
+		# open new shell?
+
+		#cmd=("$profile/nix-support/flox/bin/activate) ?
+
+		export PATH="$profile/bin:$PATH"
+		cmd=("$SHELL")
 		;;
 
-	# The diff-closures command takes two profile arguments.
-	diff-closures)
-
-		# Step through remaining arguments sorting options from args.
-		opts=()
-		args=()
-		for arg in "$@"; do
-			case "$arg" in
-				-*)
-					opts+=("$1")
-					;;
-				*)
-					args+=$(profile_arg "$1")
-					;;
-			esac
+	# Commands which accept a flox package reference.
+	install | upgrade)
+		# Nix will create a profile directory, but not its parent.  :-\
+		if [ "$subcommand" = "install" ]; then
+			[ -d $($_dirname $profile) ] ||
+				mkdir -v -p $($_dirname $profile)
+		fi
+		pkgargs=()
+		for pkg in "${args[@]}"; do
+			pkgargs+=($(floxpkgs_to_flakeref "$pkg"))
 		done
-		cmd=($_nix $subcommand "${opts[@]}" "${args[@]}")
+		cmd=($_nix profile $subcommand "${opts[@]}" "${pkgargs[@]}")
 		;;
 
-	build)
-		cmd=($_nix $subcommand "$@")
+	history | list | rollback | wipe-history)
+		cmd=($_nix profile $subcommand "${opts[@]}" "${args[@]}")
+		;;
+	remove)
+		#TODO read manifest.json
+		#rewrite, and call https://github.com/flox/profiles
+		# clean up
+		rmpkg=($(parse_package_remove "${args[@]}" $profile))
+		#echo "$rmpkg"
+		cmd=($_nix profile $subcommand "${opts[@]}" "${rmpkg[@]}")
 		;;
 
-	# Special "cut-thru" mode to invoke Nix directly.
-	nix)
-		cmd=($_nix "$@")
-		;;
+	esac
+	;;
 
-	develop)
-		cmd=($_nix "$subcommand" "$@")
-		;;
+# The diff-closures command takes two profile arguments.
+diff-closures)
 
-#	packages)
-#		cmd=($_sh -c "$_nix eval nixpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
-#
-#		;;
-	shell)
-		cmd=($_nix "$subcommand" "$@")
-		;;
-#	install)
-#		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(floxpkgs_to_flakeref "$@"))
-#		;;
-#	list|remove|upgrade|rollback|history)
-#		cmd=($_nix profile "$subcommand" "$@")
-#		;;
+	# Step through remaining arguments sorting options from args.
+	opts=()
+	args=()
+	for arg in "$@"; do
+		case "$arg" in
+		-*)
+			opts+=("$1")
+			;;
+		*)
+			args+=$(profile_arg "$1")
+			;;
+		esac
+	done
+	cmd=($_nix $subcommand "${opts[@]}" "${args[@]}")
+	;;
 
+build)
+	cmd=($_nix $subcommand "$@")
+	;;
 
+# Special "cut-thru" mode to invoke Nix directly.
+nix)
+	cmd=($_nix "$@")
+	;;
+
+develop)
+	cmd=($_nix "$subcommand" "$@")
+	;;
+
+	#	packages)
+	#		cmd=($_sh -c "$_nix eval nixpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
+	#
+	#		;;
+shell)
+	cmd=($_nix "$subcommand" "$@")
+	;;
+	#	install)
+	#		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(floxpkgs_to_flakeref "$@"))
+	#		;;
+	#	list|remove|upgrade|rollback|history)
+	#		cmd=($_nix profile "$subcommand" "$@")
+	#		;;
+
+\
 	*)
-		cmd=($_nix $subcommand "$@")
-		# error "unknown command: $subcommand"
-		;;
+	cmd=($_nix $subcommand "$@")
+	# error "unknown command: $subcommand"
+	;;
 esac
 
 # Set base configuration before invoking nix.

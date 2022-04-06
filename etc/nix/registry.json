@@ -2,7 +2,7 @@
   "flakes": [
     {
       "from": {
-        "id": "builtpkgs",
+        "id": "nixpkgs",
         "type": "indirect"
       },
       "to": {
