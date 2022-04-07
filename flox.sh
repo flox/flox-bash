@@ -16,13 +16,31 @@ test -z "${FLOX_DEBUG}" || set -x
 # Similar for verbose.
 test -z "${FLOX_VERBOSE}" || verbose=1
 
+# Before doing anything take inventory of all commands required by the
+# script, taking particular note to ensure we use those from the UNCLE
+# or from the base O/S as required. Note that we specifically avoid the
+# typical method of modifying the PATH environment variable to avoid
+# leaking Nix/UNCLE paths into the commands we invoke.
+
+function hash_commands() {
+	local PATH=@@FLOXPATH@@:$PATH
+	for i in "$@"; do
+		hash $i # Dies with useful/precise error on failure when not found.
+		declare -g _$i=$(type -P $i)
+	done
+}
+
+# Hash commands we expect to find.
+# TODO replace each use of $_cut with shell equivalents.
+hash_commands cat cut dasel dirname id jq getent nix sh
+
 # Short name for this script, derived from $0.
 me="${0##*/}"
 mespaces=$(echo $me | tr '[a-z]' ' ')
 medashes=$(echo $me | tr '[a-z]' '-')
 
 function usage() {
-	cat <<EOF 1>&2
+	$_cat <<EOF 1>&2
 usage: $me [ --stability (stable|staging|unstable) ]
        $mespaces [ (-d|--date) <date_string> ]
        $mespaces [ (-v|--verbose) ] [ --debug ] <command>
@@ -53,23 +71,6 @@ function error() {
 	usage
 	exit 1
 }
-
-# Before doing anything take inventory of all commands required by the
-# script, taking particular note to ensure we use those from the UNCLE
-# or from the base O/S as required. Note that we specifically avoid the
-# typical method of modifying the PATH environment variable to avoid
-# leaking Nix/UNCLE paths into the commands we invoke.
-
-function hash_commands() {
-	local PATH=@@FLOXPATH@@:$PATH
-	for i in "$@"; do
-		hash $i # Dies with useful/precise error on failure when not found.
-		declare -g _$i=$(type -P $i)
-	done
-}
-
-# Hash commands we expect to find.
-hash_commands cat dasel dirname id jq getent nix sh
 
 # If the first arguments are any of -d|--date, -v|--verbose or --debug
 # then we consume this (and in the case of --date, its argument) as
@@ -121,7 +122,7 @@ eval $(read_flox_conf npfs floxpkgs)
 
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$($_id -un)
-export HOME=$($_getent passwd ${USER} | cut -d: -f6)
+export HOME=$($_getent passwd ${USER} | $_cut -d: -f6)
 
 # FLOX_USER can be completely different, e.g. the GitHub user,
 # or can be the same as the UNIX $USER. Only flox knows!
@@ -194,8 +195,16 @@ function pprint {
 }
 
 # Convert floxpkgs "channel.stability.attrPath" tuple to flox catalog
-# flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
-function floxpkgs_to_flakeref() {
+# flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat,
+# or alternatively accept /nix/store paths directly as-is.
+function package_arg() {
+	if [ -e "$1" ]; then
+		_rp=$(realpath "$1")
+		if [[ "$_rp" == /nix/store/* ]]; then
+			echo "$_rp" | $_cut -d/ -f1-4
+			return
+		fi
+	fi
 	local IFS='.'
 	declare -a attrPath 'arr=($1)'
 	local channel="${arr[0]}"
@@ -216,20 +225,20 @@ function parse_package_remove() {
 	#the floxattrPath submitted by the user
 	floxfullattrPath="$1"
 	#the channel name of the floxattrPath
-	floxpkgChannel=$(echo "${floxfullattrPath}" | cut -d '.' -f 1)
-	floxattrPath=$(echo "${floxfullattrPath}" | cut -d '.' -f2-)
+	floxpkgChannel=$(echo "${floxfullattrPath}" | $_cut -d '.' -f 1)
+	floxattrPath=$(echo "${floxfullattrPath}" | $_cut -d '.' -f2-)
 	#the profile path we are using now
 	profilePath="$2"
 	# the representation of this channel in the profile manifest.json
 	# this is "attrPath" value for this package in the manifest.json file
-	manifestChannel=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .originalUri' | cut -d ':' -f 2)
+	manifestChannel=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .originalUri' | $_cut -d ':' -f 2)
 	# we need to isolate the (packages|legacyPackages).<system> from this data,
 	# so that we can pass it on to our remove call wrapper transparently as (for instance)
 	# flox remove packages.x86_64-linux.hello we are not able to use regex alone,
 	# because multiple flox channels can exist in the same manifest.json file.
 	# So, we must identify the and match the channel, and the relevant portion of the attrPath
 	# to remove the package precisely
-	attrSystem=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .attrPath' | cut -d '.' -f 1,2)
+	attrSystem=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .attrPath' | $_cut -d '.' -f 1,2)
 	for mchannel in $manifestChannel; do
 		if [ "$mchannel" != "$floxpkgChannel" ]; then
 			echo ""
@@ -320,7 +329,7 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		fi
 		pkgargs=()
 		for pkg in "${args[@]}"; do
-			pkgargs+=($(floxpkgs_to_flakeref "$pkg"))
+			pkgargs+=($(package_arg "$pkg"))
 		done
 		cmd=($_nix profile $subcommand "${opts[@]}" "${pkgargs[@]}")
 		;;
@@ -380,7 +389,7 @@ shell)
 	cmd=($_nix "$subcommand" "$@")
 	;;
 	#	install)
-	#		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(floxpkgs_to_flakeref "$@"))
+	#		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(package_arg "$@"))
 	#		;;
 	#	list|remove|upgrade|rollback|history)
 	#		cmd=($_nix profile "$subcommand" "$@")
