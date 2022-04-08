@@ -64,11 +64,16 @@ Developer environment commands:
 EOF
 }
 
+function warn() {
+	if [ -n "$@" ]; then
+		echo "$@" 1>&2
+	fi
+}
+
 function error() {
 	if [ -n "$@" ]; then
-		echo "ERROR: $@" 1>&2
+		warn "ERROR: $@"
 	fi
-	usage
 	exit 1
 }
 
@@ -113,12 +118,24 @@ done
 # Global variables
 #
 
+# FIXME
+system=@@SYSTEM@@
+
+# String to be prepended to flox flake uri.
+floxFlakePrefix="@@FLOX_FLAKE_PREFIX@@"
+
+# String to be prepended to flake attrPath (before stability).
+floxFlakeAttrPathPrefix="legacyPackages.${system}."
+
 # Parse flox configuration files.
 _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
-libexec=$_prefix/libexec
-. $libexec/config.sh
+lib=$_prefix/lib
+. $lib/config.sh
 eval $(read_flox_conf npfs floxpkgs)
+
+# Create variable for invoking jq with $lib/manifest.jq.
+manifestjq="$_jq -e -r -f -s $lib/manifest.jq"
 
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$($_id -un)
@@ -145,11 +162,11 @@ if [ -n "$TAPE" ]; then
 	unset TAPE
 fi
 
-# Import other utility functions.
-#. $libexec/convert.sh
-#. $libexec/flakes.sh
-#. $libexec/foo.sh
-#. $libexec/bar.sh
+# Import other utility functions. (?)
+#. $lib/convert.sh
+#. $lib/flakes.sh
+#. $lib/foo.sh
+#. $lib/bar.sh
 
 #
 # Subroutines
@@ -194,60 +211,37 @@ function pprint {
 	echo $result
 }
 
-# Convert floxpkgs "channel.stability.attrPath" tuple to flox catalog
-# flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat,
-# or alternatively accept /nix/store paths directly as-is.
-function package_arg() {
+# Package args can take one of 3 formats:
+# 1) floxpkgs "channel.stability.attrPath" tuple: convert to flox catalog
+#    flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
+# 2) paths which resolve to /nix/store/*: return first 3 path components.
+# 3) flake references containing "#" character: return as-is.
+function floxpkg_arg() {
 	if [ -e "$1" ]; then
 		_rp=$(realpath "$1")
 		if [[ "$_rp" == /nix/store/* ]]; then
 			echo "$_rp" | $_cut -d/ -f1-4
-			return
 		fi
+	elif [[ "$1" == *#* ]]; then
+		echo "$1"
+	else
+		local IFS='.'
+		declare -a attrPath 'arr=($1)'
+		local channel="${arr[0]}"
+		local stability="stable"
+		case "${arr[1]}" in
+		stable | staging | unstable)
+			stability="${arr[1]}"
+			attrPath=(${arr[@]:2})
+			;;
+		*)
+			attrPath=(${arr[@]:1})
+			;;
+		esac
+		echo "flake:${floxFlakePrefix}${channel}#${floxFlakeAttrPathPrefix}${stability}.${attrPath}"
 	fi
-	local IFS='.'
-	declare -a attrPath 'arr=($1)'
-	local channel="${arr[0]}"
-	local stability="stable"
-	case "${arr[1]}" in
-	stable | staging | unstable)
-		stability="${arr[1]}"
-		attrPath=(${arr[@]:2})
-		;;
-	*)
-		attrPath=(${arr[@]:1})
-		;;
-	esac
-	echo "${channel}#${stability}.${attrPath}"
 }
 
-function parse_package_remove() {
-	#the floxattrPath submitted by the user
-	floxfullattrPath="$1"
-	#the channel name of the floxattrPath
-	floxpkgChannel=$(echo "${floxfullattrPath}" | $_cut -d '.' -f 1)
-	floxattrPath=$(echo "${floxfullattrPath}" | $_cut -d '.' -f2-)
-	#the profile path we are using now
-	profilePath="$2"
-	# the representation of this channel in the profile manifest.json
-	# this is "attrPath" value for this package in the manifest.json file
-	manifestChannel=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .originalUri' | $_cut -d ':' -f 2)
-	# we need to isolate the (packages|legacyPackages).<system> from this data,
-	# so that we can pass it on to our remove call wrapper transparently as (for instance)
-	# flox remove packages.x86_64-linux.hello we are not able to use regex alone,
-	# because multiple flox channels can exist in the same manifest.json file.
-	# So, we must identify the and match the channel, and the relevant portion of the attrPath
-	# to remove the package precisely
-	attrSystem=$(cat "${profilePath}/manifest.json" | jq -r '.elements[] .attrPath' | $_cut -d '.' -f 1,2)
-	for mchannel in $manifestChannel; do
-		if [ "$mchannel" != "$floxpkgChannel" ]; then
-			echo ""
-		else
-			echo "${attrSystem}.${floxattrPath}"
-		fi
-	done
-
-}
 #
 # main()
 #
@@ -301,6 +295,7 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 	fi
 	opts=(--profile "$profile" "${opts[@]}")
 	echo Using profile: $profile >&2
+	manifest="$profile/manifest.json"
 
 	case "$subcommand" in
 
@@ -321,29 +316,43 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		;;
 
 	# Commands which accept a flox package reference.
-	install | upgrade)
-		# Nix will create a profile directory, but not its parent.  :-\
+	install | remove | upgrade)
+		pkgargs=()
 		if [ "$subcommand" = "install" ]; then
+			# Nix will create a profile directory, but not its parent.
 			[ -d $($_dirname $profile) ] ||
 				mkdir -v -p $($_dirname $profile)
+			for pkg in "${args[@]}"; do
+				pkgargs+=($(floxpkg_arg "$pkg"))
+			done
+		else
+			# The remove and upgrade commands operate on flake references and
+			# require the package to be present in the manifest. Take this
+			# opportunity to look up the flake reference from the manifest.
+			#
+			# NIX BUG: the remove and upgrade commands are supposed to
+			# accept flake references but those don't work at present.  :(
+			# Take this opportunity to look up flake references in the
+			# manifest and then remove or upgrade them by position only.
+			for pkg in "${args[@]}"; do
+				pkgarg=($(floxpkg_arg "$pkg"))
+				if [[ "$pkgarg" == *#* ]]; then
+					lookup=$($_cat $manifest | \
+						$manifestjq --args flakerefToPosition "$pkgarg") || \
+						error "package \"$pkg\" not found in profile $profile"
+				else
+					lookup=$($_cat $manifest | \
+						$manifestjq --args storepathToPosition "$pkgarg") || \
+						error "package \"$pkg\" not found in profile $profile"
+				fi
+				pkgargs+=($lookup)
+			done
 		fi
-		pkgargs=()
-		for pkg in "${args[@]}"; do
-			pkgargs+=($(package_arg "$pkg"))
-		done
-		cmd=($_nix profile $subcommand "${opts[@]}" "${pkgargs[@]}")
+		cmd=($_nix -v profile "$subcommand" "${opts[@]}" "${pkgargs[@]}")
 		;;
 
 	history | list | rollback | wipe-history)
-		cmd=($_nix profile $subcommand "${opts[@]}" "${args[@]}")
-		;;
-	remove)
-		#TODO read manifest.json
-		#rewrite, and call https://github.com/flox/profiles
-		# clean up
-		rmpkg=($(parse_package_remove "${args[@]}" $profile))
-		#echo "$rmpkg"
-		cmd=($_nix profile $subcommand "${opts[@]}" "${rmpkg[@]}")
+		cmd=($_nix profile "$subcommand" "${opts[@]}" "${args[@]}")
 		;;
 
 	esac
@@ -351,7 +360,6 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 
 # The diff-closures command takes two profile arguments.
 diff-closures)
-
 	# Step through remaining arguments sorting options from args.
 	opts=()
 	args=()
@@ -365,11 +373,25 @@ diff-closures)
 			;;
 		esac
 	done
-	cmd=($_nix $subcommand "${opts[@]}" "${args[@]}")
+	cmd=($_nix "$subcommand" "${opts[@]}" "${args[@]}")
 	;;
 
 build)
-	cmd=($_nix $subcommand "$@")
+	cmd=($_nix "$subcommand" "$@")
+	;;
+
+develop)
+	cmd=($_nix "$subcommand" "$@")
+	;;
+
+packages)
+	# TODO: iterate over all known flakes listing valid floxpkgs tuples.
+	# For now just do nixpkgs alone.
+	cmd=($_sh -c "$_nix eval flake:${floxFlakePrefix}nixpkgs#attrnames.@@SYSTEM@@ --json | $_jq -r .[]")
+	;;
+
+shell)
+	cmd=($_nix "$subcommand" "$@")
 	;;
 
 # Special "cut-thru" mode to invoke Nix directly.
@@ -377,28 +399,8 @@ nix)
 	cmd=($_nix "$@")
 	;;
 
-develop)
+*)
 	cmd=($_nix "$subcommand" "$@")
-	;;
-
-	#	packages)
-	#		cmd=($_sh -c "$_nix eval nixpkgs#attrnames.x86_64-linux --json | $_jq -r .[]")
-	#
-	#		;;
-shell)
-	cmd=($_nix "$subcommand" "$@")
-	;;
-	#	install)
-	#		cmd=($_nix profile "$subcommand" --profile "$FLOX_DATA_HOME/$CURR_PROFILE_DIR" $(package_arg "$@"))
-	#		;;
-	#	list|remove|upgrade|rollback|history)
-	#		cmd=($_nix profile "$subcommand" "$@")
-	#		;;
-
-\
-	*)
-	cmd=($_nix $subcommand "$@")
-	# error "unknown command: $subcommand"
 	;;
 esac
 

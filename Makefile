@@ -9,11 +9,17 @@ ETC = \
 	etc/flox.toml \
 	etc/nix.conf \
 	etc/nix/registry.json
-LIBEXEC = \
-	libexec/config.sh
+LIB = \
+	lib/config.sh \
+	lib/manifest.jq
 SHARE = \
 	share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here
+
+# String to be prepended to flox flake uri.
+FLOX_FLAKE_PREFIX = flox---
+# FIXME
+SYSTEM = x86_64-linux
 
 all: $(BIN) $(MAN)
 
@@ -27,6 +33,8 @@ all: $(BIN) $(MAN)
 	sed \
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
+	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
+	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
 	  $< > $@
 	chmod +x $@
 
@@ -45,6 +53,22 @@ $(PREFIX)/etc/nix.conf: etc/nix.conf
 	@mkdir -p $(@D)
 	sed -e 's%@@PREFIX@@%$(PREFIX)%' $< > $@
 
+$(PREFIX)/etc/nix/registry.json: etc/nix/registry.json
+	-@rm -f $@
+	@mkdir -p $(@D)
+	sed \
+	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
+	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
+	  $< > $@
+
+$(PREFIX)/lib/manifest.jq: lib/manifest.jq
+	-@rm -f $@
+	@mkdir -p $(@D)
+	sed \
+	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
+	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
+	  $< > $@
+
 $(PREFIX)/share/man/man1/%: %
 	-@rm -f $@
 	@mkdir -p $(@D)
@@ -53,7 +77,7 @@ $(PREFIX)/share/man/man1/%: %
 .PHONY: install
 install: $(addprefix $(PREFIX)/bin/,$(BIN)) \
          $(addprefix $(PREFIX)/share/man/man1/,$(MAN1)) \
-         $(addprefix $(PREFIX)/,$(LIBEXEC) $(ETC) $(SHARE))
+         $(addprefix $(PREFIX)/,$(LIB) $(ETC) $(SHARE))
 
 define LINK_template =
   $(PREFIX)/bin/$(link):

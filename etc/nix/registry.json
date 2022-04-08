@@ -2,7 +2,7 @@
   "flakes": [
     {
       "from": {
-        "id": "nixpkgs",
+        "id": "@@FLOX_FLAKE_PREFIX@@nixpkgs",
         "type": "indirect"
       },
       "to": {
