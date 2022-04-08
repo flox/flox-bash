@@ -15,7 +15,7 @@
 |
 $ARGS.positional[0] as $function
 |
-$ARGS.positional[1] as $arg
+$ARGS.positional[1:] as $args
 |
 
 # Verify we're talking to the expected schema version.
@@ -119,15 +119,17 @@ def storepathToPosition(arg):
 #
 # Functions which present output directly to users.
 #
-def listProfile:
-  if $arg == "--out-path" then
+def listProfile(args):
+  if (args | length) == 0 then
+    $elements | map(
+      (.position | tostring) + " " + floxpkgFromElement
+    ) | join("\n")
+  elif $args[0] == "--out-path" then
     $elements | map(
       (.position | tostring) + " " + floxpkgFromElementWithRunPath
     ) | join("\n")
   else
-    $elements | map(
-      (.position | tostring) + " " + floxpkgFromElement
-    ) | join("\n")
+    error("unknown option: " + $args[0])
   end;
 
 #
@@ -136,10 +138,10 @@ def listProfile:
 #
 # XXX Convert to some better way using "jq -L"?
 #
-     if $function == "floxpkgToFlakeref"   then floxpkgToFlakeref($arg)
-else if $function == "flakerefToFloxpkg"   then flakerefToFloxpkg($arg)
-else if $function == "floxpkgToPosition"   then floxpkgToPosition($arg)
-else if $function == "flakerefToPosition"  then flakerefToPosition($arg)
-else if $function == "storepathToPosition" then storepathToPosition($arg)
-else if $function == "listProfile"         then listProfile
+     if $function == "floxpkgToFlakeref"   then floxpkgToFlakeref($args[0])
+else if $function == "flakerefToFloxpkg"   then flakerefToFloxpkg($args[0])
+else if $function == "floxpkgToPosition"   then floxpkgToPosition($args[0])
+else if $function == "flakerefToPosition"  then flakerefToPosition($args[0])
+else if $function == "storepathToPosition" then storepathToPosition($args[0])
+else if $function == "listProfile"         then listProfile($args)
 else null end end end end end end

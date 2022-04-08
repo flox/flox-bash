@@ -53,7 +53,7 @@ Profile commands:
     flox history - show all versions of a profile
     flox install - install a package into a profile
     flox list [ --out-path ] - list installed packages
-    flox remove - remove packages from a profile
+    flox (rm|remove) - remove packages from a profile
     flox rollback - roll back to the previous version or a specified version of a profile
     flox upgrade - upgrade packages using their most recent flake
     flox wipe-history - delete non-current versions of a profile
@@ -74,6 +74,8 @@ function error() {
 	if [ -n "$@" ]; then
 		warn "ERROR: $@"
 	fi
+	# Relay any STDIN out to STDERR.
+	$_cat 1>&2
 	exit 1
 }
 
@@ -95,7 +97,7 @@ while [ $# -ne 0 ]; do
 	-d | --date)
 		shift
 		if [ $# -eq 0 ]; then
-			error "missing argument to --date flag"
+			error "missing argument to --date flag" < /dev/null
 		fi
 		export FLOX_RENIX_DATE="$1"
 		shift
@@ -271,7 +273,7 @@ function manifestjq() {
 while test $# -gt 0; do
 	case "$1" in
 	-*)
-		error "unrecognised option before subcommand"
+		error "unrecognised option before subcommand" < /dev/null
 		;;
 	*)
 		subcommand="$1"
@@ -281,7 +283,12 @@ while test $# -gt 0; do
 	esac
 done
 if [ -z "$subcommand" ]; then
-	error "command not provided"
+	usage | error "command not provided"
+fi
+
+# Flox aliases
+if [ "$subcommand" = "rm" ]; then
+	subcommand=remove
 fi
 
 case "$subcommand" in
@@ -357,12 +364,12 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 				pkgarg=($(floxpkg_arg "$pkg"))
 				if [[ "$pkgarg" == *#* ]]; then
 					lookup=$(manifestjq flakerefToPosition "$pkgarg") || \
-						error "package \"$pkg\" not found in profile $profile"
+						error "package \"$pkg\" not found in profile $profile" < /dev/null
 				elif [[ "$pkgarg" =~ ^[0-9]+$ ]]; then
 					lookup="$pkgarg"
 				else
 					lookup=$(manifestjq storepathToPosition "$pkgarg") || \
-						error "package \"$pkg\" not found in profile $profile"
+						error "package \"$pkg\" not found in profile $profile" < /dev/null
 				fi
 				pkgargs+=($lookup)
 			done
