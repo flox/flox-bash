@@ -120,10 +120,15 @@ def storepathToPosition(arg):
 # Functions which present output directly to users.
 #
 def listProfile(args):
-  if (args | length) == 0 then
+  (args | length) as $argc |
+  if $argc == 0 then
     $elements | map(
       (.position | tostring) + " " + floxpkgFromElement
     ) | join("\n")
+  elif $argc == 2 then
+    error("excess argument: " + $args[1])
+  elif $argc > 1 then
+    error("excess arguments: " + ($args[1:] | join(" ")))
   elif $args[0] == "--out-path" then
     $elements | map(
       (.position | tostring) + " " + floxpkgFromElementWithRunPath
