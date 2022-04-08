@@ -52,7 +52,7 @@ Profile commands:
     flox diff-closures - show the closure difference between each version of a profile
     flox history - show all versions of a profile
     flox install - install a package into a profile
-    flox list - list installed packages
+    flox list [ --out-path ] - list installed packages
     flox remove - remove packages from a profile
     flox rollback - roll back to the previous version or a specified version of a profile
     flox upgrade - upgrade packages using their most recent flake
@@ -134,9 +134,6 @@ lib=$_prefix/lib
 . $lib/config.sh
 eval $(read_flox_conf npfs floxpkgs)
 
-# Create variable for invoking jq with $lib/manifest.jq.
-manifestjq="$_jq -e -r -f -s $lib/manifest.jq"
-
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$($_id -un)
 export HOME=$($_getent passwd ${USER} | $_cut -d: -f6)
@@ -172,7 +169,7 @@ fi
 # Subroutines
 #
 
-function profile_arg {
+function profile_arg() {
 	# flox profiles must resolve to fully-qualified paths within
 	# $FLOX_PROFILES. Resolve paths in a variety of ways:
 	if [[ ${1:0:1} = "/" ]]; then
@@ -198,7 +195,7 @@ function profile_arg {
 	fi
 }
 
-function pprint {
+function pprint() {
 	# Step through args and encase with single-quotes those which need it.
 	result="+"
 	for i in "$@"; do
@@ -212,18 +209,21 @@ function pprint {
 }
 
 # Package args can take one of 3 formats:
-# 1) floxpkgs "channel.stability.attrPath" tuple: convert to flox catalog
+# 1) flake references containing "#" character: return as-is.
+# 2) positional integer references containing only numbers [0-9]+.
+# 3) paths which resolve to /nix/store/*: return first 3 path components.
+# 4) floxpkgs "channel.stability.attrPath" tuple: convert to flox catalog
 #    flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
-# 2) paths which resolve to /nix/store/*: return first 3 path components.
-# 3) flake references containing "#" character: return as-is.
 function floxpkg_arg() {
-	if [ -e "$1" ]; then
+	if [[ "$1" == *#* ]]; then
+		echo "$1"
+	elif [[ "$1" =~ ^[0-9]+$ ]]; then
+		echo "$1"
+	elif [ -e "$1" ]; then
 		_rp=$(realpath "$1")
 		if [[ "$_rp" == /nix/store/* ]]; then
 			echo "$_rp" | $_cut -d/ -f1-4
 		fi
-	elif [[ "$1" == *#* ]]; then
-		echo "$1"
 	else
 		local IFS='.'
 		declare -a attrPath 'arr=($1)'
@@ -240,6 +240,26 @@ function floxpkg_arg() {
 		esac
 		echo "flake:${floxFlakePrefix}${channel}#${floxFlakeAttrPathPrefix}${stability}.${attrPath}"
 	fi
+}
+
+#
+# manifestjq(manifest,command,[args])
+#
+# Accessor method for jq-based manifest library functions.
+# N.B. requires $manifest variable pointing to manifest.json file.
+#
+function manifestjq() {
+	# jq args:
+	#   -n \                        # null input
+	#   -e \                        # exit nonzero on errors
+	#   -r \                        # raw output (i.e. don't add quotes)
+	#   -f $lib/manifest.jq \       # the manifest processing library
+	#   --slurpfile manifest "$1" \ # slurp json into "$manifest"
+	(
+	    [ -z "$verbose" ] || set -x
+	    $_jq -n -e -r -f $lib/manifest.jq --slurpfile manifest "$manifest" \
+	      --args -- "$@"            # function and arguments
+	)
 }
 
 #
@@ -293,7 +313,6 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 	if [ "$profile" == "" ]; then
 		profile=$(profile_arg "default")
 	fi
-	opts=(--profile "$profile" "${opts[@]}")
 	echo Using profile: $profile >&2
 	manifest="$profile/manifest.json"
 
@@ -337,22 +356,28 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 			for pkg in "${args[@]}"; do
 				pkgarg=($(floxpkg_arg "$pkg"))
 				if [[ "$pkgarg" == *#* ]]; then
-					lookup=$($_cat $manifest | \
-						$manifestjq --args flakerefToPosition "$pkgarg") || \
+					lookup=$(manifestjq flakerefToPosition "$pkgarg") || \
 						error "package \"$pkg\" not found in profile $profile"
+				elif [[ "$pkgarg" =~ ^[0-9]+$ ]]; then
+					lookup="$pkgarg"
 				else
-					lookup=$($_cat $manifest | \
-						$manifestjq --args storepathToPosition "$pkgarg") || \
+					lookup=$(manifestjq storepathToPosition "$pkgarg") || \
 						error "package \"$pkg\" not found in profile $profile"
 				fi
 				pkgargs+=($lookup)
 			done
 		fi
-		cmd=($_nix -v profile "$subcommand" "${opts[@]}" "${pkgargs[@]}")
+
+		cmd=($_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgargs[@]}")
 		;;
 
-	history | list | rollback | wipe-history)
-		cmd=($_nix profile "$subcommand" "${opts[@]}" "${args[@]}")
+	list)
+		manifestjq listProfile "${opts[@]}" "${args[@]}"
+		exit 0 # N.B. does not return.
+		;;
+
+	history | rollback | wipe-history)
+		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
 		;;
 
 	esac

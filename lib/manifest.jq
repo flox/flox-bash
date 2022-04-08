@@ -2,9 +2,9 @@
 # jq functions used by flox in the processing of manifest.json
 #
 # Usage:
-#   jq -r -s -f <this file> \
-#     --args <function> <args> \
-#     < <path/to/manifest.json>
+#   jq -e -n -r -s -f <this file> \
+#     --slurpfile manifest <path/to/manifest.json>
+#     --args <function> <args>
 #
 
 # Start by defining some constants.
@@ -16,10 +16,6 @@
 $ARGS.positional[0] as $function
 |
 $ARGS.positional[1] as $arg
-|
-
-# Pull input into $manifest variable.
-. as $manifest
 |
 
 # Verify we're talking to the expected schema version.
@@ -69,6 +65,18 @@ def flakerefToOriginalUri(arg):
 def flakerefToAttrPath(arg):
   arg | split("#") | .[1];
 
+def floxpkgFromElement:
+  [
+    originalUriToChannel(.originalUri),
+    attrPathToStabilityPkgname(.attrPath)
+  ] | join(".");
+
+def floxpkgFromElementWithRunPath:
+  ([
+    originalUriToChannel(.originalUri),
+    attrPathToStabilityPkgname(.attrPath)
+  ] | join(".")) + "\t" + (.storePaths | join(","));
+
 #
 # Functions to look up elements.
 #
@@ -109,12 +117,29 @@ def storepathToPosition(arg):
   storepathToElement(arg) | .position;
 
 #
+# Functions which present output directly to users.
+#
+def listProfile:
+  if $arg == "--out-path" then
+    $elements | map(
+      (.position | tostring) + " " + floxpkgFromElementWithRunPath
+    ) | join("\n")
+  else
+    $elements | map(
+      (.position | tostring) + " " + floxpkgFromElement
+    ) | join("\n")
+  end;
+
+#
 # Call requested function with provided args.
-# XXX Convert to library using jq's "-L" and "--raw-input" flags.
+# Think of this as this script's public API specification.
+#
+# XXX Convert to some better way using "jq -L"?
 #
      if $function == "floxpkgToFlakeref"   then floxpkgToFlakeref($arg)
 else if $function == "flakerefToFloxpkg"   then flakerefToFloxpkg($arg)
 else if $function == "floxpkgToPosition"   then floxpkgToPosition($arg)
 else if $function == "flakerefToPosition"  then flakerefToPosition($arg)
 else if $function == "storepathToPosition" then storepathToPosition($arg)
-else null end end end end end
+else if $function == "listProfile"         then listProfile
+else null end end end end end end
