@@ -32,4 +32,22 @@ read_flox_conf()
 		fi
 	done
 }
+
+nix_show_config()
+{
+	local -a _cline
+	$_nix show-config | while read -a _cline
+	do
+		case "${_cline[0]}" in
+		# List below the parameters you want to use within the script.
+		system)
+			local _xline=$(echo "${_cline[@]}" | tr -d ' \t')
+			echo NIX_CONFIG_"$_xline"
+			;;
+		*)
+			;;
+		esac
+	done
+}
+
 # vim:ts=4:noet:

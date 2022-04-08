@@ -8,8 +8,7 @@
 #
 
 # Start by defining some constants.
-"@@SYSTEM@@" as $system # TODO: make this an input
-|
+
 # String to be prepended to flox flake uri.
 "@@FLOX_FLAKE_PREFIX@@" as $floxFlakePrefix
 |

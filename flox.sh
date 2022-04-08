@@ -120,21 +120,30 @@ done
 # Global variables
 #
 
-# FIXME
-system=@@SYSTEM@@
+# Parse flox configuration files.
+_prefix="@@PREFIX@@"
+_prefix=${_prefix:-.}
+_lib=$_prefix/lib
+_etc=$_prefix/etc
+
+# Set base configuration before invoking nix.
+export NIX_USER_CONF_FILES=$_etc/nix.conf
+
+# Import library functions.
+. $_lib/config.sh
+#. $_lib/convert.sh
+
+# Load nix configuration
+eval $(nix_show_config)
+
+# Load configuration from [potentially multiple] flox.toml config file(s).
+eval $(read_flox_conf npfs floxpkgs)
 
 # String to be prepended to flox flake uri.
 floxFlakePrefix="@@FLOX_FLAKE_PREFIX@@"
 
 # String to be prepended to flake attrPath (before stability).
-floxFlakeAttrPathPrefix="legacyPackages.${system}."
-
-# Parse flox configuration files.
-_prefix="@@PREFIX@@"
-_prefix=${_prefix:-.}
-lib=$_prefix/lib
-. $lib/config.sh
-eval $(read_flox_conf npfs floxpkgs)
+floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system."
 
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$($_id -un)
@@ -160,12 +169,6 @@ export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 if [ -n "$TAPE" ]; then
 	unset TAPE
 fi
-
-# Import other utility functions. (?)
-#. $lib/convert.sh
-#. $lib/flakes.sh
-#. $lib/foo.sh
-#. $lib/bar.sh
 
 #
 # Subroutines
@@ -255,12 +258,14 @@ function manifestjq() {
 	#   -n \                        # null input
 	#   -e \                        # exit nonzero on errors
 	#   -r \                        # raw output (i.e. don't add quotes)
-	#   -f $lib/manifest.jq \       # the manifest processing library
+	#   -f $_lib/manifest.jq \      # the manifest processing library
+	#   --arg system $system \      # set "$system"
 	#   --slurpfile manifest "$1" \ # slurp json into "$manifest"
-	(
-	    [ -z "$verbose" ] || set -x
-	    $_jq -n -e -r -f $lib/manifest.jq --slurpfile manifest "$manifest" \
-	      --args -- "$@"            # function and arguments
+	[ ! -e "$manifest" ] || (
+		[ -z "$verbose" ] || set -x
+		$_jq -n -e -r -f $_lib/manifest.jq --slurpfile manifest "$manifest" \
+		  --arg system "$NIX_CONFIG_system" \
+		  --args -- "$@"            # function and arguments
 	)
 }
 
@@ -435,9 +440,6 @@ nix)
 	cmd=($_nix "$subcommand" "$@")
 	;;
 esac
-
-# Set base configuration before invoking nix.
-export NIX_USER_CONF_FILES=$_prefix/etc/nix.conf
 
 if [ -n "$verbose" ]; then
 	# First turn off set -x (if set) to prevent double-printing.
