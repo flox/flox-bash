@@ -10,8 +10,12 @@ ETC = \
 	etc/nix.conf \
 	etc/nix/registry.json
 LIB = \
-	lib/config.sh \
-	lib/manifest.jq
+	lib/init.sh \
+	lib/manifest.jq \
+	lib/metadata.sh \
+	lib/registry.jq \
+	lib/registry.sh \
+	lib/utils.sh
 SHARE = \
 	share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here
@@ -38,15 +42,25 @@ all: $(BIN) $(MAN)
 	  $< > $@
 	chmod +x $@
 
+$(PREFIX)/%: %
+	-@rm -f $@
+	@mkdir -p $(@D)
+	cp $< $@
+
 $(PREFIX)/bin/%: %
 	-@rm -f $@
 	@mkdir -p $(@D)
 	cp $< $@
 
-$(PREFIX)/%: %
+$(PREFIX)/lib/%: lib/%
 	-@rm -f $@
 	@mkdir -p $(@D)
-	cp $< $@
+	sed \
+	  -e 's%@@PREFIX@@%$(PREFIX)%' \
+	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
+	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
+	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
+	  $< > $@
 
 $(PREFIX)/etc/nix.conf: etc/nix.conf
 	-@rm -f $@
@@ -54,14 +68,6 @@ $(PREFIX)/etc/nix.conf: etc/nix.conf
 	sed -e 's%@@PREFIX@@%$(PREFIX)%' $< > $@
 
 $(PREFIX)/etc/nix/registry.json: etc/nix/registry.json
-	-@rm -f $@
-	@mkdir -p $(@D)
-	sed \
-	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
-	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
-	  $< > $@
-
-$(PREFIX)/lib/manifest.jq: lib/manifest.jq
 	-@rm -f $@
 	@mkdir -p $(@D)
 	sed \

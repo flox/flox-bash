@@ -4,7 +4,7 @@
 # Usage:
 #   jq -e -n -r -s -f <this file> \
 #     --slurpfile manifest <path/to/manifest.json>
-#     --args <function> <args>
+#     --args <function> <funcargs>
 #
 
 # Start by defining some constants.
@@ -14,7 +14,7 @@
 |
 $ARGS.positional[0] as $function
 |
-$ARGS.positional[1:] as $args
+$ARGS.positional[1:] as $funcargs
 |
 
 # Verify we're talking to the expected schema version.
@@ -29,6 +29,15 @@ else . end
 # Add "position" index as we define $elements.
 ( $manifest[].elements | to_entries | map(.value * {position:.key}) ) as $elements
 |
+
+# Helper method to validate number of arguments to function call.
+def expectedArgs(count; args):
+  (args | length) as $argc |
+  if $argc < count then
+    error("too few arguments \($argc) - was expecting \(count)")
+  elif $argc > count then
+    error("too many arguments \($argc) - was expecting \(count)")
+  else . end;
 
 #
 # Functions which convert between flakeref and floxpkg tuple elements.
@@ -52,17 +61,17 @@ def originalUriToChannel(arg):
 def attrPathToStabilityPkgname(arg):
   arg | ltrimstr("legacyPackages." + $system + ".");
 
-def floxpkgToOriginalUri(arg):
-  "flake:" + $floxFlakePrefix + (arg | split(".") | .[0]);
+def floxpkgToOriginalUri(args): expectedArgs(1; args) |
+  "flake:" + $floxFlakePrefix + (args[0] | split(".") | .[0]);
 
-def floxpkgToAttrPath(arg):
-  "legacyPackages." + $system + "." + (arg | split(".") | .[1:] | join("."));
+def floxpkgToAttrPath(args): expectedArgs(1; args) |
+  "legacyPackages." + $system + "." + (args[0] | split(".") | .[1:] | join("."));
 
-def flakerefToOriginalUri(arg):
-  arg | split("#") | .[0];
+def flakerefToOriginalUri(args): expectedArgs(1; args) |
+  args[0] | split("#") | .[0];
 
-def flakerefToAttrPath(arg):
-  arg | split("#") | .[1];
+def flakerefToAttrPath(args): expectedArgs(1; args) |
+  args[0] | split("#") | .[1];
 
 def floxpkgFromElement:
   [
@@ -79,41 +88,41 @@ def floxpkgFromElementWithRunPath:
 #
 # Functions to look up elements.
 #
-def floxpkgToElement(arg):
+def floxpkgToElement(args): expectedArgs(1; args) |
   $elements | map(select(
-    (.attrPath == floxpkgToAttrPath(arg)) and
-    (.originalUri == floxpkgToOriginalUri(arg))
+    (.attrPath == floxpkgToAttrPath(args[0])) and
+    (.originalUri == floxpkgToOriginalUri(args[0]))
   )) | .[0];
 
-def flakerefToElement(arg):
+def flakerefToElement(args): expectedArgs(1; args) |
   $elements | map(select(
-    (.attrPath == flakerefToAttrPath(arg)) and
-    (.originalUri == flakerefToOriginalUri(arg))
+    (.attrPath == flakerefToAttrPath(args[0])) and
+    (.originalUri == flakerefToOriginalUri(args[0]))
   )) | .[0];
 
-def storepathToElement(arg):
-  $elements | map(select(.storePaths | contains([arg]))) | .[0];
+def storepathToElement(args): expectedArgs(1; args) |
+  $elements | map(select(.storePaths | contains([args[0]]))) | .[0];
 
 #
 # Functions to look up element and return data in requested format.
 #
-def floxpkgToFlakeref(arg):
-  floxpkgToElement(arg) | ( .originalUri + "#" + .attrPath );
+def floxpkgToFlakeref(args): expectedArgs(1; args) |
+  floxpkgToElement(args[0]) | ( .originalUri + "#" + .attrPath );
 
-def floxpkgToPosition(arg):
-  floxpkgToElement(arg) | .position;
+def floxpkgToPosition(args): expectedArgs(1; args) |
+  floxpkgToElement(args[0]) | .position;
 
-def flakerefToFloxpkg(arg):
-  flakerefToElement(arg) | (
+def flakerefToFloxpkg(args): expectedArgs(1; args) |
+  flakerefToElement(args[0]) | (
     originalUriToChannel(.originalUri) + "." +
     attrPathToStabilityPkgname(.attrPath)
   );
 
-def flakerefToPosition(arg):
-  flakerefToElement(arg) | .position;
+def flakerefToPosition(args): expectedArgs(1; args) |
+  flakerefToElement(args[0]) | .position;
 
-def storepathToPosition(arg):
-  storepathToElement(arg) | .position;
+def storepathToPosition(args): expectedArgs(1; args) |
+  storepathToElement(args[0]) | .position;
 
 #
 # Functions which present output directly to users.
@@ -125,16 +134,20 @@ def listProfile(args):
       (.position | tostring) + " " + floxpkgFromElement
     ) | join("\n")
   elif $argc == 2 then
-    error("excess argument: " + $args[1])
+    error("excess argument: " + args[1])
   elif $argc > 1 then
-    error("excess arguments: " + ($args[1:] | join(" ")))
-  elif $args[0] == "--out-path" then
+    error("excess arguments: " + (args[1:] | join(" ")))
+  elif args[0] == "--out-path" then
     $elements | map(
       (.position | tostring) + " " + floxpkgFromElementWithRunPath
     ) | join("\n")
   else
-    error("unknown option: " + $args[0])
+    error("unknown option: " + args[0])
   end;
+
+# For debugging.
+def dump(args): expectedArgs(0; args) |
+  $manifest | .[];
 
 #
 # Call requested function with provided args.
@@ -142,10 +155,12 @@ def listProfile(args):
 #
 # XXX Convert to some better way using "jq -L"?
 #
-     if $function == "floxpkgToFlakeref"   then floxpkgToFlakeref($args[0])
-else if $function == "flakerefToFloxpkg"   then flakerefToFloxpkg($args[0])
-else if $function == "floxpkgToPosition"   then floxpkgToPosition($args[0])
-else if $function == "flakerefToPosition"  then flakerefToPosition($args[0])
-else if $function == "storepathToPosition" then storepathToPosition($args[0])
-else if $function == "listProfile"         then listProfile($args)
-else null end end end end end end
+     if $function == "floxpkgToFlakeref"   then floxpkgToFlakeref($funcargs)
+else if $function == "flakerefToFloxpkg"   then flakerefToFloxpkg($funcargs)
+else if $function == "floxpkgToPosition"   then floxpkgToPosition($funcargs)
+else if $function == "flakerefToPosition"  then flakerefToPosition($funcargs)
+else if $function == "storepathToPosition" then storepathToPosition($funcargs)
+else if $function == "listProfile"         then listProfile($funcargs)
+else if $function == "dump"                then dump($funcargs)
+else error("unknown function: \"\($function)\"")
+end end end end end end end

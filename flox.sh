@@ -16,28 +16,16 @@ test -z "${FLOX_DEBUG}" || set -x
 # Similar for verbose.
 test -z "${FLOX_VERBOSE}" || verbose=1
 
-# Before doing anything take inventory of all commands required by the
-# script, taking particular note to ensure we use those from the UNCLE
-# or from the base O/S as required. Note that we specifically avoid the
-# typical method of modifying the PATH environment variable to avoid
-# leaking Nix/UNCLE paths into the commands we invoke.
-
-function hash_commands() {
-	local PATH=@@FLOXPATH@@:$PATH
-	for i in "$@"; do
-		hash $i # Dies with useful/precise error on failure when not found.
-		declare -g _$i=$(type -P $i)
-	done
-}
-
-# Hash commands we expect to find.
-# TODO replace each use of $_cut with shell equivalents.
-hash_commands cat cut dasel dirname id jq getent nix sh
+# Import configuration, load utility functions, etc.
+_prefix="@@PREFIX@@"
+_prefix=${_prefix:-.}
+_lib=$_prefix/lib
+. $_lib/init.sh
 
 # Short name for this script, derived from $0.
 me="${0##*/}"
-mespaces=$(echo $me | tr '[a-z]' ' ')
-medashes=$(echo $me | tr '[a-z]' '-')
+mespaces=$(echo $me | $_tr '[a-z]' ' ')
+medashes=$(echo $me | $_tr '[a-z]' '-')
 
 function usage() {
 	$_cat <<EOF 1>&2
@@ -62,21 +50,6 @@ Developer environment commands:
     flox develop
 
 EOF
-}
-
-function warn() {
-	if [ -n "$@" ]; then
-		echo "$@" 1>&2
-	fi
-}
-
-function error() {
-	if [ -n "$@" ]; then
-		warn "ERROR: $@"
-	fi
-	# Relay any STDIN out to STDERR.
-	$_cat 1>&2
-	exit 1
 }
 
 # If the first arguments are any of -d|--date, -v|--verbose or --debug
@@ -116,59 +89,9 @@ while [ $# -ne 0 ]; do
 	esac
 done
 
-#
-# Global variables
-#
-
-# Parse flox configuration files.
-_prefix="@@PREFIX@@"
-_prefix=${_prefix:-.}
-_lib=$_prefix/lib
-_etc=$_prefix/etc
-
-# Set base configuration before invoking nix.
-export NIX_USER_CONF_FILES=$_etc/nix.conf
-
 # Import library functions.
-. $_lib/config.sh
-#. $_lib/convert.sh
-
-# Load nix configuration
-eval $(nix_show_config)
-
-# Load configuration from [potentially multiple] flox.toml config file(s).
-eval $(read_flox_conf npfs floxpkgs)
-
-# String to be prepended to flox flake uri.
-floxFlakePrefix="@@FLOX_FLAKE_PREFIX@@"
-
-# String to be prepended to flake attrPath (before stability).
-floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system."
-
-# NIX honors ${USER} over the euid, so make them match.
-export USER=$($_id -un)
-export HOME=$($_getent passwd ${USER} | $_cut -d: -f6)
-
-# FLOX_USER can be completely different, e.g. the GitHub user,
-# or can be the same as the UNIX $USER. Only flox knows!
-export FLOX_USER=$USER # XXX FIXME $(flox whoami)
-
-# Define and create flox metadata cache, data, and profiles directories.
-export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"
-export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
-export FLOX_PROFILES="${FLOX_PROFILES:-$FLOX_DATA_HOME/profiles}"
-mkdir -p "$FLOX_CACHE_HOME" "$FLOX_DATA_HOME" "$FLOX_PROFILES"
-
-# Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
-export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
-
-# Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
-# `tar` without the `-f` flag and will therefore honor the `TAPE` variable
-# over STDIN (to reproduce, try running `TAPE=none flox shell`).
-# XXX Still needed??? Probably delete ...
-if [ -n "$TAPE" ]; then
-	unset TAPE
-fi
+# . $_lib/registry.sh
+# . $_lib/metadata.sh
 
 #
 # Subroutines
@@ -198,19 +121,6 @@ function profile_arg() {
 		# Return default path for the profile directory.
 		echo "$FLOX_PROFILES/${FLOX_USER}/$1"
 	fi
-}
-
-function pprint() {
-	# Step through args and encase with single-quotes those which need it.
-	result="+"
-	for i in "$@"; do
-		if [[ "$i" =~ " " ]]; then
-			result="$result '$i'"
-		else
-			result="$result $i"
-		fi
-	done
-	echo $result
 }
 
 # Package args can take one of 3 formats:
@@ -245,28 +155,6 @@ function floxpkg_arg() {
 		esac
 		echo "flake:${floxFlakePrefix}${channel}#${floxFlakeAttrPathPrefix}${stability}.${attrPath}"
 	fi
-}
-
-#
-# manifestjq(manifest,command,[args])
-#
-# Accessor method for jq-based manifest library functions.
-# N.B. requires $manifest variable pointing to manifest.json file.
-#
-function manifestjq() {
-	# jq args:
-	#   -n \                        # null input
-	#   -e \                        # exit nonzero on errors
-	#   -r \                        # raw output (i.e. don't add quotes)
-	#   -f $_lib/manifest.jq \      # the manifest processing library
-	#   --arg system $system \      # set "$system"
-	#   --slurpfile manifest "$1" \ # slurp json into "$manifest"
-	[ ! -e "$manifest" ] || (
-		[ -z "$verbose" ] || set -x
-		$_jq -n -e -r -f $_lib/manifest.jq --slurpfile manifest "$manifest" \
-		  --arg system "$NIX_CONFIG_system" \
-		  --args -- "$@"            # function and arguments
-	)
 }
 
 #
@@ -368,12 +256,12 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 			for pkg in "${args[@]}"; do
 				pkgarg=($(floxpkg_arg "$pkg"))
 				if [[ "$pkgarg" == *#* ]]; then
-					lookup=$(manifestjq flakerefToPosition "$pkgarg") || \
+					lookup=$(manifest flakerefToPosition "$pkgarg") || \
 						error "package \"$pkg\" not found in profile $profile" < /dev/null
 				elif [[ "$pkgarg" =~ ^[0-9]+$ ]]; then
 					lookup="$pkgarg"
 				else
-					lookup=$(manifestjq storepathToPosition "$pkgarg") || \
+					lookup=$(manifest storepathToPosition "$pkgarg") || \
 						error "package \"$pkg\" not found in profile $profile" < /dev/null
 				fi
 				pkgargs+=($lookup)
@@ -384,7 +272,7 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		;;
 
 	list)
-		manifestjq listProfile "${opts[@]}" "${args[@]}"
+		manifest listProfile "${opts[@]}" "${args[@]}"
 		exit 0 # N.B. does not return.
 		;;
 
