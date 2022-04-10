@@ -36,6 +36,7 @@ all: $(BIN) $(MAN)
 	-@rm -f $@
 	sed \
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
+	  -e 's%@@VERSION@@%$(VERSION)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
 	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
 	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \

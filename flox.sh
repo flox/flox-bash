@@ -35,8 +35,12 @@ usage: $me [ --stability (stable|staging|unstable) ]
        $medashes
        $me [ (-h|--help) ] [ --version ]
 
-Profile commands:
+Flox profile commands:
     flox activate - fix me
+    flox log - fix me
+    flox git - fix me
+
+Nix profile commands:
     flox diff-closures - show the closure difference between each version of a profile
     flox history - show all versions of a profile
     flox install - install a package into a profile
@@ -85,12 +89,17 @@ while [ $# -ne 0 ]; do
 		verbose=1
 		shift
 		;;
+	--version)
+		echo "Version: @@VERSION@@"
+		exit 0
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
 	*) break ;;
 	esac
 done
-
-# Import library functions.
-. $_lib/metadata.sh
 
 #
 # Subroutines
@@ -183,10 +192,18 @@ if [ "$subcommand" = "rm" ]; then
 	subcommand=remove
 fi
 
+# Store the original invocation arguments.
+invocation_args="$@"
+
+# Profile and boolean to track (potential) profile modifications.
+profile=
+maybeProfileModified=0
+
 case "$subcommand" in
 
-# Commands which take a (-p|--profile) profile argument.
-activate | history | install | list | remove | rollback | upgrade | wipe-history)
+# Nix and Flox commands which take a (-p|--profile) profile argument.
+activate | history | install | list | remove | rollback | upgrade | wipe-history | \
+		git | log) # Flox commands
 
 	# Look for the --profile argument.
 	profile=""
@@ -268,6 +285,12 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		fi
 
 		cmd=($_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgargs[@]}")
+		maybeProfileModified=1
+		;;
+
+	rollback | wipe-history)
+		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		maybeProfileModified=1
 		;;
 
 	list)
@@ -275,8 +298,24 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		exit 0 # N.B. does not return.
 		;;
 
-	history | rollback | wipe-history)
+	history)
 		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		;;
+
+	# Flox commands
+
+	git)
+		metaGit "$profile" ${invocation_args[@]}
+		exit $?
+		;;
+
+	log)
+		metaGit "$profile" "$subcommand" ${invocation_args[@]}
+		exit $?
+		;;
+
+	*)
+		usage | error "Unknown command: $subcommand"
 		;;
 
 	esac
@@ -330,10 +369,18 @@ esac
 
 if [ -n "$verbose" ]; then
 	# First turn off set -x (if set) to prevent double-printing.
-	set +x
-	# pprint "NIX_PATH=$NIX_PATH" "exec" "${cmd[@]}" 1>&2
-	pprint NIX_USER_CONF_FILES=$NIX_USER_CONF_FILES "${cmd[@]}" 1>&2
+	# Do in a subshell to avoid turning off set -x for subsequent commands.
+	( set +x && \
+	  pprint NIX_USER_CONF_FILES=$NIX_USER_CONF_FILES "${cmd[@]}" ) 1>&2
 fi
 
-exec "${cmd[@]}"
+"${cmd[@]}"
+
+if [ $maybeProfileModified -eq 1 ]; then
+	# FIXME: come up with better way to describe what changed.
+	cat <<EOF | syncMetadata "$profile"
+$FLOX_USER $(pastTense $subcommand) "${args[@]}" with command:
+    $me $subcommand ${invocation_args[@]}
+EOF
+fi
 # vim:ts=4:noet:

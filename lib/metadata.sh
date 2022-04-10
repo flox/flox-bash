@@ -46,21 +46,63 @@
 # * syncMetadata(): reconciles/updates metadata repository from profile data
 # * pullMetadata(): pulls metadata updates from upstream to local cache
 # * pushMetadata(): pushes metadata updates from local cache to upstream
+# * metaGit():      provides access to git commands for metadata repo
 #
 # Many git conventions employed here are borrowed from Nix's own
 # src/libfetchers/git.cc file.
 #
 
 #
-# gitInit($repoDir,$branch)
+# gitInit($repoDir)
 #
 function gitInit() {
-	local repoDir="$1"
-	local branch="$2"
 	# Set initial branch with `-c init.defaultBranch=` instead of
 	# `--initial-branch=` to stay compatible with old version of
 	# git, which will ignore unrecognized `-c` options.
-	$_git -c init.defaultBranch=$branch init $repoDir
+	$_git -c init.defaultBranch="default" init "$repoDir"
+}
+
+#
+# gitCheckout($repoDir,$branch)
+#
+function gitCheckout() {
+	local repoDir="$1"
+	local branch="$2"
+	[ -d "$repoDir" ] || gitInit "$repoDir"
+	[ "$($_git -C "$repoDir" rev-parse --abbrev-ref HEAD)" = "$branch" ] || {
+		if $_git -C "$repoDir" show-ref -q refs/heads/"$branch"; then
+			$_git -C "$repoDir" checkout "$branch"
+		else
+			$_git -C "$repoDir" checkout --orphan "$branch"
+		fi
+	}
+}
+
+function metaGit() {
+	local profile="$1"; shift
+	local profileName=$($_basename $profile)
+	local userName=$($_basename $($_dirname $profile))
+	local metaDir="$FLOX_METADATA/$userName"
+
+	# First verify that the clone is not out of date and check
+	# out requested branch.
+	gitCheckout "$metaDir" "$profileName"
+
+	$_git -C $metaDir "$@"
+}
+
+# XXX For debugging; remove someday.
+function metaDebug() {
+	local profile="$1"; shift
+	local profileName=$($_basename $profile)
+	local userName=$($_basename $($_dirname $profile))
+	local metaDir="$FLOX_METADATA/$userName"
+
+	# First verify that the clone is not out of date and check
+	# out requested branch.
+	gitCheckout "$metaDir" "$profileName"
+
+	( cd $metaDir && ls -l && $_git status )
 }
 
 function syncProfiles() {
@@ -70,25 +112,29 @@ function syncProfiles() {
 #
 # syncMetadata($profile)
 #
+# Expects commit message from STDIN.
+#
 function syncMetadata() {
 	local profile="$1"
-	local userName=$($_basename $($_dirname $profile))
 	local profileName=$($_basename $profile)
+	local userName=$($_basename $($_dirname $profile))
 	local metaDir="$FLOX_METADATA/$userName"
-	[ -d "$metaDir" ] || gitInit "$metaDir" "$profileName"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
 	gitCheckout "$metaDir" "$profileName"
 
 	# Now reconcile the data.
-	for i in "${profile}-+([0-9])-link"; do
+	for i in ${profile}-+([0-9])-link; do
 		local gen_link=${i#${profile}-} # remove prefix
 		local gen=${gen_link%-link} # remove suffix
-		$_cmp "$profile/manifest.json" "$metaDir/${gen}.json" || {
-			$_cp "$profile/manifest.json" "$metaDir/${gen}.json"
-			gitAdd "$metaDir/${gen}.json"
+		[ -e "$metaDir/${gen}.json" ] || {
+			$_cp "$i/manifest.json" "$metaDir/${gen}.json"
+			metaGit "$profile" add "${gen}.json"
 		}
+		# Verify that something hasn't gone horribly wrong.
+		$_cmp -s "$i/manifest.json" "$metaDir/${gen}.json" || \
+			error "$i/manifest.json and $metaDir/${gen}.json differ"
 	done
     local currentGeneration=$($_readlink $profile)
 	if [[ "$currentGeneration" =~ ^${profileName}-([0-9]+)-link$ ]]; then
@@ -96,13 +142,14 @@ function syncMetadata() {
 		local currentMetaGeneration
 		[ ! -e "$metaDir/manifest.json" ] || \
 			currentMetaGeneration=$($_readlink "$metaDir/manifest.json")
-		[[ "$currentMetaGeneration" == "${gen}.json" ]] || {
+		[ "$currentMetaGeneration" = "${gen}.json" ] || {
 			$_ln -f -s "${gen}.json" "$metaDir/manifest.json"
-			gitAdd "$metaDir/manifest.json"
+			metaGit "$profile" add "manifest.json"
 		}
 	fi
 
-	gitCommit "$metaDir"
+	# Commit, reading commit message from STDIN.
+	metaGit "$profile" commit -F -
 }
 
 function pullMetadata() {

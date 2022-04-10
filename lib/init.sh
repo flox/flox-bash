@@ -10,6 +10,9 @@ shopt -s extglob
 # Pull in utility functions early.
 . $_lib/utils.sh
 
+# Import library functions.
+. $_lib/metadata.sh
+
 #
 # Parse flox configuration files in TOML format. Order of processing:
 #

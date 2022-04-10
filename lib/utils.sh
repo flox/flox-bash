@@ -15,7 +15,8 @@ function hash_commands() {
 # Note that we specifically avoid modifying the PATH environment variable to
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
-hash_commands basename cat cmp cp cut dasel dirname id jq getent mktemp mv nix rm sh tr
+hash_commands basename cat cmp cp cut dasel dirname id jq getent git \
+	ln mktemp mv nix readlink rm sh tr
 
 function warn() {
 	if [ -n "$@" ]; then
@@ -123,6 +124,18 @@ function registry() {
 		*)
 			$_jq "${jqargs[@]}"
 		;;
+	esac
+}
+
+function pastTense() {
+	local subcommand="$1"
+	case "$subcommand" in
+	install)      echo "installed";;
+	remove)       echo "removed";;
+	rollback)     echo "rolled back";;
+	upgrade)      echo "upgraded";;
+	wipe-history) echo "wiped history";;
+	*)            echo "$subcommand";;
 	esac
 }
 
