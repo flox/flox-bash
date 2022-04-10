@@ -78,10 +78,10 @@ function manifest() {
 # N.B. requires $registry variable pointing to registry.json file.
 #
 # Usage:
-#   registry set a b c d
-#   registry get a b c
-#   registry setNumber a b c 3
-#   registry del a b c
+#   registry set a b c
+#   registry get a b
+#   registry setNumber a b 3
+#   registry del a b
 #   registry dump
 #
 function registry() {
@@ -93,22 +93,24 @@ function registry() {
 	#   --slurpfile registry "$1" \ # slurp json into "$registry"
 	local jqargs=("-n" "-e" "-r" "-f" "$_lib/registry.jq")
 
-	# N.B. library automatically initializes registry data structure
-	# if not provided, but jq aborts if it cannot slurp the file.
-	# If the registry file doesn't already exist (with nonzero size)
-	# then don't add that to the arguments.
+	# N.B jq invocation aborts if it cannot slurp a file, so if the registry
+	# doesn't already exist (with nonzero size) then replace with bootstrap.
 	if [ -s "$registry" ]; then
 		jqargs+=("--slurpfile" "registry" "$registry")
 	else
 		jqargs+=("--argjson" "registry" '[{"version": 1}]')
 	fi
 
+	# Append remaining args using jq "--args" flag and "--" to
+	# prevent jq from interpreting provided args as options.
+	jqargs+=("--args" "--" "$@")
+
 	foobar="$1"
 	case "$1" in
 		# Methods which update the registry.
 		set|setNumber|setString|del)
 			local _tmpfile=$($_mktemp)
-			$_jq "${jqargs[@]}" --args -- "$@" > $_tmpfile
+			$_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
@@ -119,7 +121,7 @@ function registry() {
 
 		# All others return data from the registry.
 		*)
-			$_jq "${jqargs[@]}" --args -- "$@"
+			$_jq "${jqargs[@]}"
 		;;
 	esac
 }
