@@ -90,8 +90,7 @@ while [ $# -ne 0 ]; do
 done
 
 # Import library functions.
-# . $_lib/registry.sh
-# . $_lib/metadata.sh
+. $_lib/metadata.sh
 
 #
 # Subroutines

@@ -4,6 +4,9 @@ _prefix=${_prefix:-.}
 _lib=$_prefix/lib
 _etc=$_prefix/etc
 
+# Use extended glob functionality throughout.
+shopt -s extglob
+
 # Pull in utility functions early.
 . $_lib/utils.sh
 
