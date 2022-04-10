@@ -29,7 +29,11 @@ function error() {
 	fi
 	# Relay any STDIN out to STDERR.
 	$_cat 1>&2
-	exit 1
+	# Don't exit from interactive shells (for debugging).
+	case "$-" in
+	*i*) : ;;
+	*) exit 1 ;;
+	esac
 }
 
 function pprint() {
@@ -73,6 +77,13 @@ function manifest() {
 # Accessor method for jq-based registry library functions.
 # N.B. requires $registry variable pointing to registry.json file.
 #
+# Usage:
+#   registry set a b c d
+#   registry get a b c
+#   registry setNumber a b c 3
+#   registry del a b c
+#   registry dump
+#
 function registry() {
 	# jq args:
 	#   -n \                        # null input
@@ -89,7 +100,7 @@ function registry() {
 	if [ -s "$registry" ]; then
 		jqargs+=("--slurpfile" "registry" "$registry")
 	else
-		jqargs+=("--argjson" "registry" '[{"data": {}, "version": 1}]')
+		jqargs+=("--argjson" "registry" '[{"version": 1}]')
 	fi
 
 	foobar="$1"
@@ -98,9 +109,12 @@ function registry() {
 		set|setNumber|setString|del)
 			local _tmpfile=$($_mktemp)
 			$_jq "${jqargs[@]}" --args -- "$@" > $_tmpfile
-			[ -s "$_tmpfile" ] || error "something went wrong" < /dev/null
-			$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
-			$_rm -f $_tmpfile
+			if [ -s "$_tmpfile" ]; then
+				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
+				$_rm -f $_tmpfile
+			else
+				error "something went wrong" < /dev/null
+			fi
 		;;
 
 		# All others return data from the registry.

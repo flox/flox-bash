@@ -38,20 +38,20 @@ def expectedArgs(count; args):
 #
 # Accessor methods.
 #
-def get(args): expectedArgs(1; args) |
-  $registry.data | .[args[0]];
+def get(args):
+  $registry | getpath(args);
 
-def setNumber(args): expectedArgs(2; args) |
-  $registry * { "data": {(args[0]): (args[1] | tonumber)} };
+def setNumber(args):
+  $registry | setpath(args[0:-1]; (args[-1]|tonumber));
 
-def setString(args): expectedArgs(2; args) |
-  $registry * { "data": {(args[0]): (args[1] | tostring)} };
+def setString(args):
+  $registry | setpath(args[0:-1]; (args[-1]|tostring));
 
 def set(args):
   setString(args);
 
-def del(args): expectedArgs(1; args) |
-  $registry | delpaths([["data",args[0]]]);
+def del(args):
+  $registry | delpaths([args]);
 
 def dump(args): expectedArgs(0; args) |
   $registry;
