@@ -65,12 +65,25 @@ function manifest() {
 	#   -f $_lib/manifest.jq \      # the manifest processing library
 	#   --arg system $system \      # set "$system"
 	#   --slurpfile manifest "$1" \ # slurp json into "$manifest"
-	[ ! -e "$manifest" ] || (
-		[ -z "$verbose" ] || set -x
-		$_jq -n -e -r -f $_lib/manifest.jq --slurpfile manifest "$manifest" \
-		  --arg system "$NIX_CONFIG_system" \
-		  --args -- "$@"            # function and arguments
-	)
+	local jqargs=("-n" "-e" "-r" "-f" "$_lib/manifest.jq")
+
+	# N.B jq invocation aborts if it cannot slurp a file, so if the registry
+	# doesn't already exist (with nonzero size) then replace with bootstrap.
+	if [ -s "$manifest" ]; then
+		jqargs+=("--slurpfile" "manifest" "$manifest")
+	else
+		jqargs+=("--argjson" "manifest" '[{"elements": [], "version": 1}]')
+	fi
+
+	# Append arg which defines $system.
+	jqargs+=("--arg" "system" "$NIX_CONFIG_system")
+
+	# Append remaining args using jq "--args" flag and "--" to
+	# prevent jq from interpreting provided args as options.
+	jqargs+=("--args" "--" "$@")
+
+	# Finally invoke jq.
+	$_jq "${jqargs[@]}"
 }
 
 #

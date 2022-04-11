@@ -162,8 +162,8 @@ function syncMetadata() {
 	local endMetaGeneration
 	[ ! -e "$metaDir/manifest.json" ] || \
 		endMetaGeneration=$($_readlink "$metaDir/manifest.json")
-	[ "$endMetaGeneration" = "${gen}.json" ] || {
-		$_ln -f -s "${gen}.json" "$metaDir/manifest.json"
+	[ "$endMetaGeneration" = "${endGen}.json" ] || {
+		$_ln -f -s "${endGen}.json" "$metaDir/manifest.json"
 		metaGit "$profile" add "manifest.json"
 	}
 

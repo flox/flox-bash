@@ -139,7 +139,6 @@ function profileGen() {
 			return
 		fi
 	fi
-	error "could not parse generation from $profile" < /dev/null
 }
 
 # Package args can take one of 3 formats:
@@ -315,6 +314,7 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		;;
 
 	rollback | wipe-history)
+		logMessage="$FLOX_USER $(pastTense $subcommand)"
 		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
 		;;
 
@@ -326,9 +326,23 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 	history)
 		# Nix history is not a history! It's just a diff of successive generations.
 		#cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
-		metaGit "$profile" log \
-		  --pretty="format:%cd %C(yellow)%B%Creset" \
-		  ${invocation_args[@]}
+
+		# Default log format only includes subject %s.
+		logFormat="format:%cd %C(cyan)%s%Creset"
+
+		# Step through args looking for (-v|--verbose).
+		for opt in "${opts[@]}"; do
+			case "$opt" in
+			-v | --verbose)
+				# If verbose then add body as well.
+				logFormat="format:%cd %C(cyan)%B%Creset"
+				;;
+			*)
+				error "unknown option \"$opt\"" < /dev/null
+				;;
+			esac
+		done
+		metaGit "$profile" log --pretty="$logFormat" ${invocation_args[@]}
 		exit $?
 		;;
 
@@ -354,7 +368,7 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 
 	log)
 		metaGit "$profile" "$subcommand" \
-		  --pretty="format:%cd %C(yellow)%B%Creset" \
+		  --pretty="format:%cd %C(cyan)%B%Creset" \
 		  ${invocation_args[@]}
 		exit $?
 		;;
@@ -418,6 +432,11 @@ esac
 if [ -n "$profile" ]; then
 	"${cmd[@]}"
 	profileEndGen=$(profileGen "$profile")
+	if [ -n "$profileStartGen" ]; then
+		logMessage="Generation ${profileStartGen}->${profileEndGen}: $logMessage"
+	else
+		logMessage="Generation ${profileEndGen}: $logMessage"
+	fi
 	[ "$profileStartGen" = "$profileEndGen" ] || \
 		syncMetadata \
 			"$profile" \
