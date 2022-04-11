@@ -39,6 +39,7 @@ Flox profile commands:
     flox activate - fix me
     flox log - fix me
     flox git - fix me
+    flox generations - list profile generations with contents
 
 Nix profile commands:
     flox diff-closures - show the closure difference between each version of a profile
@@ -105,21 +106,18 @@ done
 # Subroutines
 #
 
-function profile_arg() {
+function profileArg() {
 	# flox profiles must resolve to fully-qualified paths within
 	# $FLOX_PROFILES. Resolve paths in a variety of ways:
 	if [[ ${1:0:1} = "/" ]]; then
 		if [[ "$1" =~ ^$FLOX_PROFILES ]]; then
 			# Path already a floxpm profile - use it.
 			echo "$1"
-		elif [[ "$1" =~ ^/nix/store/.*-user-environment ]]; then
-			# Path is a user-environment in the store - use it.
-			echo "$1"
 		elif [[ -L "$1" ]]; then
 			# Path is a link - try again with the link value.
-			echo $(profile_arg $(readlink "$1"))
+			echo $(profileArg $(readlink "$1"))
 		else
-			echo ERROR: "$1" is not a Nix profile path >&2
+			echo ERROR: "$1" is not a Flox profile path >&2
 			exit 2
 		fi
 	elif [[ "$1" =~ \	|\  ]]; then
@@ -131,13 +129,26 @@ function profile_arg() {
 	fi
 }
 
+# Parses generation from profile path.
+function profileGen() {
+	local profile="$1"
+	local profileName=$($_basename $profile)
+	if [ -L "$profile" ]; then
+		if [[ $($_readlink "$profile") =~ ^${profileName}-([0-9]+)-link$ ]]; then
+			echo ${BASH_REMATCH[1]}
+			return
+		fi
+	fi
+	error "could not parse generation from $profile" < /dev/null
+}
+
 # Package args can take one of 3 formats:
 # 1) flake references containing "#" character: return as-is.
 # 2) positional integer references containing only numbers [0-9]+.
 # 3) paths which resolve to /nix/store/*: return first 3 path components.
 # 4) floxpkgs "channel.stability.attrPath" tuple: convert to flox catalog
 #    flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
-function floxpkg_arg() {
+function floxpkgArg() {
 	if [[ "$1" == *#* ]]; then
 		echo "$1"
 	elif [[ "$1" =~ ^[0-9]+$ ]]; then
@@ -195,15 +206,17 @@ fi
 # Store the original invocation arguments.
 invocation_args="$@"
 
-# Profile and boolean to track (potential) profile modifications.
+# Flox profile path.
 profile=
-maybeProfileModified=0
+
+# Build log message as we go.
+logMessage=
 
 case "$subcommand" in
 
 # Nix and Flox commands which take a (-p|--profile) profile argument.
 activate | history | install | list | remove | rollback | upgrade | wipe-history | \
-		git | log) # Flox commands
+		generations | git | log) # Flox commands
 
 	# Look for the --profile argument.
 	profile=""
@@ -212,7 +225,7 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 	while test $# -gt 0; do
 		case "$1" in
 		-p | --profile)
-			profile=$(profile_arg $2)
+			profile=$(profileArg $2)
 			shift 2
 			;;
 		-*)
@@ -227,10 +240,13 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		esac
 	done
 	if [ "$profile" == "" ]; then
-		profile=$(profile_arg "default")
+		profile=$(profileArg "default")
+		profileName=$($_basename $profile)
+		profileUserName=$($_basename $($_dirname $profile))
+		profileMetaDir="$FLOX_METADATA/$userName"
+		profileStartGen=$(profileGen "$profile")
 	fi
 	echo Using profile: $profile >&2
-	manifest="$profile/manifest.json"
 
 	case "$subcommand" in
 
@@ -252,13 +268,19 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 
 	# Commands which accept a flox package reference.
 	install | remove | upgrade)
-		pkgargs=()
+		pkgArgs=()
+		floxpkgNames=()
 		if [ "$subcommand" = "install" ]; then
 			# Nix will create a profile directory, but not its parent.
 			[ -d $($_dirname $profile) ] ||
 				mkdir -v -p $($_dirname $profile)
 			for pkg in "${args[@]}"; do
-				pkgargs+=($(floxpkg_arg "$pkg"))
+				pkgArgs+=($(floxpkgArg "$pkg"))
+			done
+			# Infer floxpkg name(s) from flakeref.
+			for flakeref in "${pkgArgs[@]}"; do
+				# Look up floxpkg name from the position and set logMessage.
+				floxpkgNames+=($(manifest $profile/manifest.json flakerefToFloxpkg "$flakeref"))
 			done
 		else
 			# The remove and upgrade commands operate on flake references and
@@ -270,39 +292,60 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 			# Take this opportunity to look up flake references in the
 			# manifest and then remove or upgrade them by position only.
 			for pkg in "${args[@]}"; do
-				pkgarg=($(floxpkg_arg "$pkg"))
-				if [[ "$pkgarg" == *#* ]]; then
-					lookup=$(manifest flakerefToPosition "$pkgarg") || \
+				pkgArg=$(floxpkgArg "$pkg")
+				position=
+				if [[ "$pkgArg" == *#* ]]; then
+					position=$(manifest $profile/manifest.json flakerefToPosition "$pkgArg") || \
 						error "package \"$pkg\" not found in profile $profile" < /dev/null
-				elif [[ "$pkgarg" =~ ^[0-9]+$ ]]; then
-					lookup="$pkgarg"
+				elif [[ "$pkgArg" =~ ^[0-9]+$ ]]; then
+					position="$pkgArg"
 				else
-					lookup=$(manifest storepathToPosition "$pkgarg") || \
+					position=$(manifest $profile/manifest.json storepathToPosition "$pkgArg") || \
 						error "package \"$pkg\" not found in profile $profile" < /dev/null
 				fi
-				pkgargs+=($lookup)
+				pkgArgs+=($position)
+			done
+			# Look up floxpkg name(s) from position.
+			for position in "${pkgArgs[@]}"; do
+				floxpkgNames+=($(manifest $profile/manifest.json positionToFloxpkg "$position"))
 			done
 		fi
-
-		cmd=($_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgargs[@]}")
-		maybeProfileModified=1
+		logMessage="$FLOX_USER $(pastTense $subcommand) ${floxpkgNames[@]}"
+		cmd=($_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgArgs[@]}")
 		;;
 
 	rollback | wipe-history)
 		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
-		maybeProfileModified=1
 		;;
 
 	list)
-		manifest listProfile "${opts[@]}" "${args[@]}"
+		manifest $profile/manifest.json listProfile "${opts[@]}" "${args[@]}"
 		exit 0 # N.B. does not return.
 		;;
 
 	history)
-		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		# Nix history is not a history! It's just a diff of successive generations.
+		#cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		metaGit "$profile" log \
+		  --pretty="format:%cd %C(yellow)%B%Creset" \
+		  ${invocation_args[@]}
+		exit $?
 		;;
 
 	# Flox commands
+
+	generations)
+		# Infer existence of generations from the registry (i.e. the database),
+		# rather than the symlinks on disk so that we can have a history of all
+		# generations long after they've been deleted for the purposes of GC.
+		# TODO registry "$profileMetaDir/registry.json" get generations | jq -r .generations | keys | .[]); do
+		for i in $(registry "$profileMetaDir/registry.json" get generations | jq -r .generations | keys | .[]); do
+			echo Generation ${i}:
+			manifest $profile-${i}-link/manifest.json listProfile "${opts[@]}" "${args[@]}" || exit $?
+			echo
+		done
+		exit 0
+		;;
 
 	git)
 		metaGit "$profile" ${invocation_args[@]}
@@ -310,7 +353,9 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		;;
 
 	log)
-		metaGit "$profile" "$subcommand" ${invocation_args[@]}
+		metaGit "$profile" "$subcommand" \
+		  --pretty="format:%cd %C(yellow)%B%Creset" \
+		  ${invocation_args[@]}
 		exit $?
 		;;
 
@@ -332,7 +377,7 @@ diff-closures)
 			opts+=("$1")
 			;;
 		*)
-			args+=$(profile_arg "$1")
+			args+=$(profileArg "$1")
 			;;
 		esac
 	done
@@ -367,20 +412,21 @@ nix)
 	;;
 esac
 
-if [ -n "$verbose" ]; then
-	# First turn off set -x (if set) to prevent double-printing.
-	# Do in a subshell to avoid turning off set -x for subsequent commands.
-	( set +x && \
-	  pprint NIX_USER_CONF_FILES=$NIX_USER_CONF_FILES "${cmd[@]}" ) 1>&2
+[ -z "$verbose" ] || \
+	pprint NIX_USER_CONF_FILES=$NIX_USER_CONF_FILES "${cmd[@]}" 1>&2
+
+if [ -n "$profile" ]; then
+	"${cmd[@]}"
+	profileEndGen=$(profileGen "$profile")
+	[ "$profileStartGen" = "$profileEndGen" ] || \
+		syncMetadata \
+			"$profile" \
+			"$profileStartGen" \
+			"$profileEndGen" \
+			"$logMessage" \
+			"flox $subcommand ${invocation_args[@]}"
+else
+	exec "${cmd[@]}"
 fi
 
-"${cmd[@]}"
-
-if [ $maybeProfileModified -eq 1 ]; then
-	# FIXME: come up with better way to describe what changed.
-	cat <<EOF | syncMetadata "$profile"
-$FLOX_USER $(pastTense $subcommand) "${args[@]}" with command:
-    $me $subcommand ${invocation_args[@]}
-EOF
-fi
 # vim:ts=4:noet:

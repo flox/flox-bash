@@ -124,6 +124,12 @@ def flakerefToPosition(args): expectedArgs(1; args) |
 def storepathToPosition(args): expectedArgs(1; args) |
   storepathToElement(args[0]) | .position;
 
+def positionToFloxpkg(args): expectedArgs(1; args) |
+  $elements[args[0] | tonumber] | (
+    originalUriToChannel(.originalUri) + "." +
+    attrPathToStabilityPkgname(.attrPath)
+  );
+
 #
 # Functions which present output directly to users.
 #
@@ -160,7 +166,8 @@ else if $function == "flakerefToFloxpkg"   then flakerefToFloxpkg($funcargs)
 else if $function == "floxpkgToPosition"   then floxpkgToPosition($funcargs)
 else if $function == "flakerefToPosition"  then flakerefToPosition($funcargs)
 else if $function == "storepathToPosition" then storepathToPosition($funcargs)
+else if $function == "positionToFloxpkg"   then positionToFloxpkg($funcargs)
 else if $function == "listProfile"         then listProfile($funcargs)
 else if $function == "dump"                then dump($funcargs)
 else error("unknown function: \"\($function)\"")
-end end end end end end end
+end end end end end end end end

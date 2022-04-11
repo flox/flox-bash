@@ -19,14 +19,14 @@
 # │   ├── 1.json
 # │   ├── 2.json
 # │   ├── 3.json
-# │   ├── config.json
+# │   ├── registry.json
 # │   ├── flake.json
 # │   ├── flake.nix
 # │   └── manifest.json -> 3.json
 # ├── limeytexan (toolbox branch)
 # │   ├── 1.json
 # │   ├── 2.json
-# │   ├── config.json
+# │   ├── registry.json
 # │   ├── flake.json
 # │   ├── flake.nix
 # │   └── manifest.json -> 2.json
@@ -35,7 +35,7 @@
 #     ├── 2.json
 #     ├── 3.json
 #     ├── 4.json
-#     ├── config.json
+#     ├── registry.json
 #     ├── flake.json
 #     ├── flake.nix
 #     └── manifest.json -> 4.json
@@ -109,6 +109,23 @@ function syncProfiles() {
 :
 }
 
+function commitMessage() {
+	local profile="$1"
+	local startGen="$2"
+	local endGen="$3"
+	local logMessage="$4"
+	local invocation="${@:5:}"
+	cat <<EOF
+$logMessage
+
+${invocation[@]}
+EOF
+	[ -z "$startGen" ] || \
+		$_nix store diff-closures \
+			"${profile}-${startGen}-link" \
+			"${profile}-${endGen}-link"
+}
+
 #
 # syncMetadata($profile)
 #
@@ -116,6 +133,10 @@ function syncProfiles() {
 #
 function syncMetadata() {
 	local profile="$1"
+	local startGen="$2"
+	local endGen="$3"
+	local logMessage="$4"
+	local invocation="${@:5:}"
 	local profileName=$($_basename $profile)
 	local userName=$($_basename $($_dirname $profile))
 	local metaDir="$FLOX_METADATA/$userName"
@@ -136,20 +157,18 @@ function syncMetadata() {
 		$_cmp -s "$i/manifest.json" "$metaDir/${gen}.json" || \
 			error "$i/manifest.json and $metaDir/${gen}.json differ"
 	done
-    local currentGeneration=$($_readlink $profile)
-	if [[ "$currentGeneration" =~ ^${profileName}-([0-9]+)-link$ ]]; then
-		local gen=${BASH_REMATCH[1]}
-		local currentMetaGeneration
-		[ ! -e "$metaDir/manifest.json" ] || \
-			currentMetaGeneration=$($_readlink "$metaDir/manifest.json")
-		[ "$currentMetaGeneration" = "${gen}.json" ] || {
-			$_ln -f -s "${gen}.json" "$metaDir/manifest.json"
-			metaGit "$profile" add "manifest.json"
-		}
-	fi
+
+	# ... and update manifest.json to point to current generation.
+	local endMetaGeneration
+	[ ! -e "$metaDir/manifest.json" ] || \
+		endMetaGeneration=$($_readlink "$metaDir/manifest.json")
+	[ "$endMetaGeneration" = "${gen}.json" ] || {
+		$_ln -f -s "${gen}.json" "$metaDir/manifest.json"
+		metaGit "$profile" add "manifest.json"
+	}
 
 	# Commit, reading commit message from STDIN.
-	metaGit "$profile" commit -F -
+	commitMessage "$@" | metaGit "$profile" commit -F -
 }
 
 function pullMetadata() {
@@ -162,7 +181,7 @@ function pushMetadata() {
 
 #function readHead() {
 #	local path="$1"
-#    $_git -C "$path" rev-parse --abbrev-ref HEAD
+#	$_git -C "$path" rev-parse --abbrev-ref HEAD
 #}
 
 #function isNotDotGitDirectory() {

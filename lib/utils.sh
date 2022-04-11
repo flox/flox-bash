@@ -16,7 +16,7 @@ function hash_commands() {
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands basename cat cmp cp cut dasel dirname id jq getent git \
-	ln mktemp mv nix readlink rm sh tr
+	ln mktemp mv nix readlink realpath rm sh tr
 
 function warn() {
 	if [ -n "$@" ]; then
@@ -57,6 +57,7 @@ function pprint() {
 # N.B. requires $manifest variable pointing to manifest.json file.
 #
 function manifest() {
+	local manifest="$1"; shift
 	# jq args:
 	#   -n \                        # null input
 	#   -e \                        # exit nonzero on errors
@@ -79,13 +80,14 @@ function manifest() {
 # N.B. requires $registry variable pointing to registry.json file.
 #
 # Usage:
-#   registry set a b c
-#   registry get a b
-#   registry setNumber a b 3
-#   registry del a b
-#   registry dump
+#   registry path/to/registry.json set a b c
+#   registry path/to/registry.json get a b
+#   registry path/to/registry.json setNumber a b 3
+#   registry path/to/registry.json del a b
+#   registry path/to/registry.json dump
 #
 function registry() {
+	local registry="$1"; shift
 	# jq args:
 	#   -n \                        # null input
 	#   -e \                        # exit nonzero on errors
@@ -109,7 +111,9 @@ function registry() {
 	foobar="$1"
 	case "$1" in
 		# Methods which update the registry.
-		set|setNumber|setString|del)
+		set | setNumber | setString | \
+		addArray | addArrayNumber | addArrayString | \
+		delete | delArray | delArrayNumber | delArrayString)
 			local _tmpfile=$($_mktemp)
 			$_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
