@@ -90,14 +90,14 @@ def floxpkgFromElementWithRunPath:
 #
 def floxpkgToElement(args): expectedArgs(1; args) |
   $elements | map(select(
-    (.attrPath == floxpkgToAttrPath(args[0])) and
-    (.originalUri == floxpkgToOriginalUri(args[0]))
+    (.attrPath == floxpkgToAttrPath(args)) and
+    (.originalUri == floxpkgToOriginalUri(args))
   )) | .[0];
 
 def flakerefToElement(args): expectedArgs(1; args) |
   $elements | map(select(
-    (.attrPath == flakerefToAttrPath(args[0])) and
-    (.originalUri == flakerefToOriginalUri(args[0]))
+    (.attrPath == flakerefToAttrPath(args)) and
+    (.originalUri == flakerefToOriginalUri(args))
   )) | .[0];
 
 def storepathToElement(args): expectedArgs(1; args) |
@@ -107,22 +107,22 @@ def storepathToElement(args): expectedArgs(1; args) |
 # Functions to look up element and return data in requested format.
 #
 def floxpkgToFlakeref(args): expectedArgs(1; args) |
-  floxpkgToElement(args[0]) | ( .originalUri + "#" + .attrPath );
+  floxpkgToElement(args) | ( .originalUri + "#" + .attrPath );
 
 def floxpkgToPosition(args): expectedArgs(1; args) |
-  floxpkgToElement(args[0]) | .position;
+  floxpkgToElement(args) | .position;
 
 def flakerefToFloxpkg(args): expectedArgs(1; args) |
-  flakerefToElement(args[0]) | (
+  flakerefToElement(args) | (
     originalUriToChannel(.originalUri) + "." +
     attrPathToStabilityPkgname(.attrPath)
   );
 
 def flakerefToPosition(args): expectedArgs(1; args) |
-  flakerefToElement(args[0]) | .position;
+  flakerefToElement(args) | .position;
 
 def storepathToPosition(args): expectedArgs(1; args) |
-  storepathToElement(args[0]) | .position;
+  storepathToElement(args) | .position;
 
 def positionToFloxpkg(args): expectedArgs(1; args) |
   $elements[args[0] | tonumber] | (
