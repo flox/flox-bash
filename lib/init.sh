@@ -81,8 +81,8 @@ eval $(read_flox_conf npfs floxpkgs)
 # String to be prepended to flox flake uri.
 floxFlakePrefix="@@FLOX_FLAKE_PREFIX@@"
 
-# String to be prepended to flake attrPath (before stability).
-floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system."
+# String to be prepended to flake attrPath (before channel).
+floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system"
 
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$($_id -un)

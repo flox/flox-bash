@@ -2,12 +2,13 @@
   "flakes": [
     {
       "from": {
-        "id": "@@FLOX_FLAKE_PREFIX@@nixpkgs",
+        "id": "@@FLOX_FLAKE_PREFIX@@",
         "type": "indirect"
       },
       "to": {
-        "type": "git",
-        "url": "ssh://git@github.com/flox/builtpkgs"
+        "type": "github",
+        "owner": "flox-examples",
+        "repo": "companypkgs"
       }
     }
   ],

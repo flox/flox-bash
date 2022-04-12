@@ -10,7 +10,7 @@
 # Start by defining some constants.
 
 # String to be prepended to flox flake uri.
-"@@FLOX_FLAKE_PREFIX@@" as $floxFlakePrefix
+"flake:@@FLOX_FLAKE_PREFIX@@" as $originalUri
 |
 $ARGS.positional[0] as $function
 |
@@ -43,57 +43,43 @@ def expectedArgs(count; args):
 # Functions which convert between flakeref and floxpkg tuple elements.
 #
 # floxpkg: <channel>.<stability>.<pkgname> (fully-qualified)
-# flake:@@FLOX_FLAKE_PREFIX@@<channel>#legacyPackages.<system>.<stability>.<pkgname>
+# flake:@@FLOX_FLAKE_PREFIX@@#legacyPackages.<system>.<channel>.<stability>.<pkgname>
 #
 # Sample element:
 # {
 #   "active": true,
-#   "attrPath": "legacyPackages.@@SYSTEM@@.stable.vim",
-#   "originalUri": "flake:@@FLOX_FLAKE_PREFIX@@nixpkgs",
-#   "storePaths": [ "/nix/store/hjxr78h4ia3x6h51zf2inzfphsfq8njm-vim-8.2.4186" ],
-#   "uri": "git+ssh://git@github.com/flox/builtpkgs?ref=master&rev=279633e152a0ae46311cf8bbb159e41a9159cfd0",
+#   "attrPath": "legacyPackages.@@SYSTEM@@.nixpkgs.stable.vim",
+#   "originalUri": "flake:@@FLOX_FLAKE_PREFIX@@",
+#   "storePaths": [
+#     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
+#   ],
+#   "uri": "github:flox-examples/companypkgs/ef23087ad88d59f0c0bc0f05de65577009c0c676",
 #   "position": 3
 # }
 #
-def originalUriToChannel(arg):
-  arg | ltrimstr("flake:" + $floxFlakePrefix);
-
-def attrPathToStabilityPkgname(arg):
-  arg | ltrimstr("legacyPackages." + $system + ".");
-
-def floxpkgToOriginalUri(args): expectedArgs(1; args) |
-  "flake:" + $floxFlakePrefix + (args[0] | split(".") | .[0]);
+#
+def attrPathToFloxpkg(arg):
+  arg | ltrimstr("legacyPackages.\($system).");
 
 def floxpkgToAttrPath(args): expectedArgs(1; args) |
-  "legacyPackages." + $system + "." + (args[0] | split(".") | .[1:] | join("."));
-
-def flakerefToOriginalUri(args): expectedArgs(1; args) |
-  args[0] | split("#") | .[0];
+  ["legacyPackages", $system, args[0]] | join(".");
 
 def flakerefToAttrPath(args): expectedArgs(1; args) |
   args[0] | split("#") | .[1];
 
 def floxpkgToFlakeref(args): expectedArgs(1; args) |
-  floxpkgToOriginalUri(args) as $originalUri |
   floxpkgToAttrPath(args) as $attrPath |
-  .originalUri + "#" + .attrPath;
+  "\($originalUri)#\(.attrPath)";
 
 def flakerefToFloxpkg(args): expectedArgs(1; args) |
-  flakerefToOriginalUri(args) as $originalUri |
   flakerefToAttrPath(args) as $attrPath |
-  originalUriToChannel($originalUri) + "." + attrPathToStabilityPkgname($attrPath);
+  attrPathToFloxpkg($attrPath);
 
 def floxpkgFromElement:
-  [
-    originalUriToChannel(.originalUri),
-    attrPathToStabilityPkgname(.attrPath)
-  ] | join(".");
+  attrPathToFloxpkg(.attrPath);
 
 def floxpkgFromElementWithRunPath:
-  ([
-    originalUriToChannel(.originalUri),
-    attrPathToStabilityPkgname(.attrPath)
-  ] | join(".")) + "\t" + (.storePaths | join(","));
+  attrPathToFloxpkg(.attrPath) + "\t" + (.storePaths | join(","));
 
 #
 # Functions to look up element and return data in requested format.
@@ -101,13 +87,13 @@ def floxpkgFromElementWithRunPath:
 def floxpkgToElement(args): expectedArgs(1; args) |
   $elements | map(select(
     (.attrPath == floxpkgToAttrPath(args)) and
-    (.originalUri == floxpkgToOriginalUri(args))
+    (.originalUri == $originalUri)
   )) | .[0];
 
 def flakerefToElement(args): expectedArgs(1; args) |
   $elements | map(select(
     (.attrPath == flakerefToAttrPath(args)) and
-    (.originalUri == flakerefToOriginalUri(args))
+    (.originalUri == $originalUri)
   )) | .[0];
 
 def storepathToElement(args): expectedArgs(1; args) |
@@ -123,10 +109,7 @@ def storepathToPosition(args): expectedArgs(1; args) |
   storepathToElement(args) | .position;
 
 def positionToFloxpkg(args): expectedArgs(1; args) |
-  $elements[args[0] | tonumber] | (
-    originalUriToChannel(.originalUri) + "." +
-    attrPathToStabilityPkgname(.attrPath)
-  );
+  $elements[args[0] | tonumber] | attrPathToFloxpkg(.attrPath);
 
 #
 # Functions which present output directly to users.
