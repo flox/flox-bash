@@ -14,7 +14,6 @@ LIB = \
 	lib/manifest.jq \
 	lib/metadata.sh \
 	lib/registry.jq \
-	lib/registry.sh \
 	lib/utils.sh
 SHARE = \
 	share/bash-completion/completions/flox
