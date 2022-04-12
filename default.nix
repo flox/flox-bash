@@ -2,6 +2,7 @@ let
   pkgs = import <nixpkgs> {};
   inherit (pkgs)
     stdenv
+    ansifilter
     coreutils
     dasel
     git
@@ -20,6 +21,6 @@ in stdenv.mkDerivation rec {
   version = "0.0.1";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
-  buildInputs = [ coreutils dasel getent git jq nix ];
+  buildInputs = [ ansifilter coreutils dasel getent git jq nix ];
   makeFlags = [ "PREFIX=$(out)" "FLOXPATH=${lib.makeBinPath buildInputs}" ];
 }
