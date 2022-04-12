@@ -151,12 +151,13 @@ function registry() {
 function pastTense() {
 	local subcommand="$1"
 	case "$subcommand" in
-	install)      echo "installed";;
-	remove)       echo "removed";;
-	rollback)     echo "rolled back";;
-	upgrade)      echo "upgraded";;
-	wipe-history) echo "wiped history";;
-	*)            echo "$subcommand";;
+	install)           echo "installed";;
+	remove)            echo "removed";;
+	rollback)          echo "rolled back a generation";;
+	switch-generation) echo "switched generations";;
+	upgrade)           echo "upgraded";;
+	wipe-history)      echo "wiped history";;
+	*)                 echo "$subcommand";;
 	esac
 }
 

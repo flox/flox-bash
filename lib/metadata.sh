@@ -171,17 +171,27 @@ EOF
 	# Not fun but better than nothing.
 	#
 	local tmpDir=$($_mktemp -d)
-	[ -z "$startGen" ] || \
-		$_ln -s $($_readlink "${profile}-${startGen}-link") $tmpDir/${profileName}-${startGen}-link
-	$_ln -s $($_readlink "${profile}-${endGen}-link") $tmpDir/${profileName}-${endGen}-link
-	$_ln -s ${profileName}-${endGen}-link $tmpDir/${profileName}
+	# `nix profile history` requires generations to be in sequential
+	# order, so for the purpose of this invocation we set the generations
+	# as 1 and 2 if both are defined, or 1 if there is only one generation.
+	local myEndGen=
+	if [ -n "$startGen" ]; then
+		# If there is a start and end generation then set generat
+		$_ln -s $($_readlink "${profile}-${startGen}-link") $tmpDir/${profileName}-1-link
+		$_ln -s $($_readlink "${profile}-${endGen}-link") $tmpDir/${profileName}-2-link
+		local myEndGen=2
+	else
+		$_ln -s $($_readlink "${profile}-${endGen}-link") $tmpDir/${profileName}-1-link
+		local myEndGen=1
+	fi
+	$_ln -s ${profileName}-${myEndGen}-link $tmpDir/${profileName}
 
 	local _cline
 	$_nix profile history --profile $tmpDir/${profileName} | $_ansifilter --text | \
 		$_awk '\
 			BEGIN {p=0} \
 			/^  flake:/ {if (p==1) {print $0}} \
-			/^Version '${endGen}' / {p=1}' | \
+			/^Version '${myEndGen}' / {p=1}' | \
 		while read _cline
 		do
 			local flakeref=$(echo "$_cline" | $_cut -d: -f1,2)
@@ -191,8 +201,8 @@ EOF
 		done
 
 	$_rm -f \
-		$tmpDir/"${profileName}-${startGen}-link" \
-		$tmpDir/"${profileName}-${endGen}-link" \
+		$tmpDir/"${profileName}-1-link" \
+		$tmpDir/"${profileName}-2-link" \
 		$tmpDir/"${profileName}"
 	$_rmdir $tmpDir
 }

@@ -47,7 +47,8 @@ Nix profile commands:
     flox install - install a package into a profile
     flox list [ --out-path ] - list installed packages
     flox (rm|remove) - remove packages from a profile
-    flox rollback - roll back to the previous version or a specified version of a profile
+    flox rollback - roll back to the previous generation of a profile
+    flox switch-generation - switch to a specific generation of a profile
     flox upgrade - upgrade packages using their most recent flake
     flox wipe-history - delete non-current versions of a profile
 
@@ -214,7 +215,8 @@ logMessage=
 case "$subcommand" in
 
 # Nix and Flox commands which take a (-p|--profile) profile argument.
-activate | history | install | list | remove | rollback | upgrade | wipe-history | \
+activate | history | install | list | remove | rollback | \
+		switch-generation | upgrade | wipe-history | \
 		generations | git | log) # Flox commands
 
 	# Look for the --profile argument.
@@ -313,8 +315,15 @@ activate | history | install | list | remove | rollback | upgrade | wipe-history
 		cmd=($_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgArgs[@]}")
 		;;
 
-	rollback | wipe-history)
+	rollback | switch-generation | wipe-history)
 		logMessage="$FLOX_USER $(pastTense $subcommand)"
+		if [ "$subcommand" = "switch-generation" ]; then
+			# rewrite switch-generation to instead use the new
+			# "rollback --to" command (which makes no sense IMO).
+			subcommand=rollback
+			opts=("--to" "${args[0]}" "${opts[@]}")
+			args=("${args[@]:1}")
+		fi
 		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
 		;;
 
