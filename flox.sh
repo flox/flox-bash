@@ -432,6 +432,10 @@ nix)
 	cmd=($_nix "$@")
 	;;
 
+search)
+    echo "TEST"
+	cmd=($_nix "$subcommand" "$@")
+	;;
 *)
 	cmd=($_nix "$subcommand" "$@")
 	;;
