@@ -418,7 +418,6 @@ develop)
 packages)
 	# iterate over all known flakes listing valid floxpkgs tuples.
 	flakes=$(cat etc/nix/registry.json | jq -r ".flakes[] .from .id" | cut -d "@" -f 5)
-	echo "$flakes"
 	for a in $flakes; do
 		cmd=($_sh -c "$_nix eval flake:${floxFlakePrefix}${a}#attrnames.@@SYSTEM@@ --json | $_jq -r .[]")
 	done
