@@ -76,7 +76,7 @@ while [ $# -ne 0 ]; do
 	-d | --date)
 		shift
 		if [ $# -eq 0 ]; then
-			error "missing argument to --date flag" < /dev/null
+			error "missing argument to --date flag" </dev/null
 		fi
 		export FLOX_RENIX_DATE="$1"
 		shift
@@ -185,7 +185,7 @@ function floxpkgArg() {
 while test $# -gt 0; do
 	case "$1" in
 	-*)
-		error "unrecognised option before subcommand" < /dev/null
+		error "unrecognised option before subcommand" </dev/null
 		;;
 	*)
 		subcommand="$1"
@@ -216,8 +216,8 @@ case "$subcommand" in
 
 # Nix and Flox commands which take a (-p|--profile) profile argument.
 activate | history | install | list | remove | rollback | \
-		switch-generation | upgrade | wipe-history | \
-		generations | git | log) # Flox commands
+	switch-generation | upgrade | wipe-history | \
+	generations | git | log) # Flox commands
 
 	# Look for the --profile argument.
 	profile=""
@@ -296,13 +296,13 @@ activate | history | install | list | remove | rollback | \
 				pkgArg=$(floxpkgArg "$pkg")
 				position=
 				if [[ "$pkgArg" == *#* ]]; then
-					position=$(manifest $profile/manifest.json flakerefToPosition "$pkgArg") || \
-						error "package \"$pkg\" not found in profile $profile" < /dev/null
+					position=$(manifest $profile/manifest.json flakerefToPosition "$pkgArg") ||
+						error "package \"$pkg\" not found in profile $profile" </dev/null
 				elif [[ "$pkgArg" =~ ^[0-9]+$ ]]; then
 					position="$pkgArg"
 				else
-					position=$(manifest $profile/manifest.json storepathToPosition "$pkgArg") || \
-						error "package \"$pkg\" not found in profile $profile" < /dev/null
+					position=$(manifest $profile/manifest.json storepathToPosition "$pkgArg") ||
+						error "package \"$pkg\" not found in profile $profile" </dev/null
 				fi
 				pkgArgs+=($position)
 			done
@@ -347,7 +347,7 @@ activate | history | install | list | remove | rollback | \
 				logFormat="format:%cd %C(cyan)%B%Creset"
 				;;
 			*)
-				error "unknown option \"$opt\"" < /dev/null
+				error "unknown option \"$opt\"" </dev/null
 				;;
 			esac
 		done
@@ -377,8 +377,8 @@ activate | history | install | list | remove | rollback | \
 
 	log)
 		metaGit "$profile" "$subcommand" \
-		  --pretty="format:%cd %C(cyan)%B%Creset" \
-		  ${invocation_args[@]}
+			--pretty="format:%cd %C(cyan)%B%Creset" \
+			${invocation_args[@]}
 		exit $?
 		;;
 
@@ -416,9 +416,12 @@ develop)
 	;;
 
 packages)
-	# TODO: iterate over all known flakes listing valid floxpkgs tuples.
-	# For now just do nixpkgs alone.
-	cmd=($_sh -c "$_nix eval flake:${floxFlakePrefix}nixpkgs#attrnames.@@SYSTEM@@ --json | $_jq -r .[]")
+	# iterate over all known flakes listing valid floxpkgs tuples.
+	flakes=$(cat etc/nix/registry.json | jq -r ".flakes[] .from .id" | cut -d "@" -f 5)
+	echo "$flakes"
+	for a in $flakes; do
+		cmd=($_sh -c "$_nix eval flake:${floxFlakePrefix}${a}#attrnames.@@SYSTEM@@ --json | $_jq -r .[]")
+	done
 	;;
 
 shell)
@@ -435,7 +438,7 @@ nix)
 	;;
 esac
 
-[ -z "$verbose" ] || \
+[ -z "$verbose" ] ||
 	pprint NIX_USER_CONF_FILES=$NIX_USER_CONF_FILES "${cmd[@]}" 1>&2
 
 if [ -n "$profile" ]; then
@@ -446,7 +449,7 @@ if [ -n "$profile" ]; then
 	else
 		logMessage="Generation ${profileEndGen}: $logMessage"
 	fi
-	[ "$profileStartGen" = "$profileEndGen" ] || \
+	[ "$profileStartGen" = "$profileEndGen" ] ||
 		syncMetadata \
 			"$profile" \
 			"$profileStartGen" \
