@@ -362,12 +362,7 @@ activate | history | install | list | remove | rollback | \
 		# Infer existence of generations from the registry (i.e. the database),
 		# rather than the symlinks on disk so that we can have a history of all
 		# generations long after they've been deleted for the purposes of GC.
-		# TODO registry "$profileMetaDir/registry.json" get generations | jq -r .generations | keys | .[]); do
-		for i in $(profileRegistry "$profile" get generations | $_jq -r ".generations | keys | .[]"); do
-			echo Generation ${i}:
-			manifest $profile-${i}-link/manifest.json listProfile "${opts[@]}" "${args[@]}" || exit $?
-			echo
-		done
+		profileRegistry "$profile" listGenerations
 		exit 0
 		;;
 
@@ -460,6 +455,8 @@ if [ -n "$profile" ]; then
 			"$profileEndGen" \
 			"$logMessage" \
 			"flox $subcommand ${invocation_args[@]}"
+	# Always follow up action with sync'ing of profiles in reverse.
+	syncProfile "$profile"
 else
 	exec "${cmd[@]}"
 fi

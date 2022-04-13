@@ -91,23 +91,44 @@ def version(args): expectedArgs(0; args) |
   $registry | .version;
 
 #
+# Functions which present output directly to users.
+#
+def listGeneration:
+  .key as $generation |
+  (.value.created | todate) as $created |
+  (.value.lastActive | todate) as $lastActive |
+  # Cannot embed newlines so best we can do is return array and flatten later.
+  [ "Generation \($generation):",
+    "  Path:        \(.value.path)",
+    "  Created:     \($created)",
+    "  Last active: \($lastActive)" ] +
+  if .value.logMessage != null then [
+    "  Log entries:", (.value.logMessage | map("    \(.)"))
+  ] else [] end;
+
+def listGenerations(args):
+  $registry | .generations | to_entries |
+    map(listGeneration) | flatten | .[];
+
+#
 # Call requested function with provided args.
 # Think of this as this script's public API specification.
 #
 # XXX Convert to some better way using "jq -L"?
 #
-     if $function == "get"            then get($funcargs)
-else if $function == "set"            then set($funcargs)
-else if $function == "setNumber"      then setNumber($funcargs)
-else if $function == "setString"      then setString($funcargs)
-else if $function == "delete"         then delete($funcargs)
-else if $function == "addArrayNumber" then addArrayNumber($funcargs)
-else if $function == "addArrayString" then addArrayString($funcargs)
-else if $function == "addArray"       then addArray($funcargs)
-else if $function == "delArrayNumber" then delArrayNumber($funcargs)
-else if $function == "delArrayString" then delArrayString($funcargs)
-else if $function == "delArray"       then delArray($funcargs)
-else if $function == "dump"           then dump($funcargs)
-else if $function == "version"        then version($funcargs)
+     if $function == "get"             then get($funcargs)
+else if $function == "set"             then set($funcargs)
+else if $function == "setNumber"       then setNumber($funcargs)
+else if $function == "setString"       then setString($funcargs)
+else if $function == "delete"          then delete($funcargs)
+else if $function == "addArrayNumber"  then addArrayNumber($funcargs)
+else if $function == "addArrayString"  then addArrayString($funcargs)
+else if $function == "addArray"        then addArray($funcargs)
+else if $function == "delArrayNumber"  then delArrayNumber($funcargs)
+else if $function == "delArrayString"  then delArrayString($funcargs)
+else if $function == "delArray"        then delArray($funcargs)
+else if $function == "dump"            then dump($funcargs)
+else if $function == "version"         then version($funcargs)
+else if $function == "listGenerations" then listGenerations($funcargs)
 else error("unknown function: \"\($function)\"")
-end end end end end end end end end end end end end
+end end end end end end end end end end end end end end

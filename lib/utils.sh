@@ -15,8 +15,8 @@ function hash_commands() {
 # Note that we specifically avoid modifying the PATH environment variable to
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
-hash_commands ansifilter awk basename cat cmp cp cut dasel dirname id jq \
-	getent git ln mktemp mv nix readlink realpath rm rmdir sh tr
+hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname \
+	id jq getent git ln mktemp mv nix readlink realpath rm rmdir sh stat tr
 
 function warn() {
 	if [ -n "$@" ]; then
@@ -90,7 +90,6 @@ function manifest() {
 # registry(registry,command,[args])
 #
 # Accessor method for jq-based registry library functions.
-# N.B. requires $registry variable pointing to registry.json file.
 #
 # Usage:
 #   registry path/to/registry.json (set|setString) a b c
@@ -138,6 +137,9 @@ function registry() {
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
+				local dn=$($_dirname $profile)
+				[ ! -e "$dn/.git" ] || \
+					$_git -C $dn add $($_basename $profile)
 			else
 				error "something went wrong" < /dev/null
 			fi
@@ -159,7 +161,7 @@ function profileRegistry() {
 	local profileName=$($_basename $profile)
 	local profileUserName=$($_basename $($_dirname $profile))
 	local profileMetaDir="$FLOX_METADATA/$profileUserName"
-	registry "$profileMetaDir/registry.json" 1 "$@"
+	registry "$profileMetaDir/metadata.json" 1 "$@"
 }
 
 function pastTense() {

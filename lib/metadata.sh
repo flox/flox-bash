@@ -116,20 +116,29 @@ function metaDebug() {
 }
 
 #
-# syncProfile($metaDir, $profileName)
+# syncProfile($profile)
 #
 function syncProfile() {
-	local metaDir="$1"
-	local profileName="$2"
+	local profile="$1"
+	local profileName=$($_basename $profile)
+	local profileUserName=$($_basename $($_dirname $profile))
+	local metaDir="$FLOX_METADATA/$profileUserName"
 
-	metaGit "$profile" pull
+	# Ensure metadata repo is checked out to correct branch.
+	gitCheckout "$metaDir" "$profileName"
+
+	# Discern generation data from metadata.json found in metadata repo.
+	for i in $(profileRegistry "$profile" get generations | $_jq -r ".[] | keys"); do
+		:
+	done
 }
 
 #
 # syncProfiles($userName)
 #
 # The analog of syncMetadata(), this populates profile data using
-# information found in the metadata repository.
+# information found in the metadata repository and registers a
+# GCRoot for the profile directory.
 #
 function syncProfiles() {
 	local userName="$1"
@@ -239,7 +248,7 @@ function syncMetadata() {
 			error "$i/manifest.json and $metaDir/${gen}.json differ"
 	done
 
-	# ... and update manifest.json to point to current generation.
+	# Update manifest.json to point to current generation.
 	local endMetaGeneration
 	[ ! -e "$metaDir/manifest.json" ] || \
 		endMetaGeneration=$($_readlink "$metaDir/manifest.json")
@@ -247,6 +256,21 @@ function syncMetadata() {
 		$_ln -f -s "${endGen}.json" "$metaDir/manifest.json"
 		metaGit "$profile" add "manifest.json"
 	}
+
+	# Update profile metadata with end generation information.
+	profileRegistry "$profile" set generations \
+		${endGen} path $($_readlink ${profile}-${endGen}-link)
+	profileRegistry "$profile" addArray generations \
+		${endGen} logMessage "$logMessage"
+	profileRegistry "$profile" setNumber generations \
+		${endGen} created $($_stat --format=%Y ${profile}-${endGen}-link)
+	profileRegistry "$profile" setNumber generations \
+		${endGen} lastActive "$now"
+
+	# Also update lastActive time for starting generation, if known.
+	[ -z "${startGen}" ] || \
+		profileRegistry "$profile" setNumber generations \
+			${startGen} lastActive "$now"
 
 	# Commit, reading commit message from STDIN.
 	commitMessage "$@" | metaGit "$profile" commit --quiet -F -

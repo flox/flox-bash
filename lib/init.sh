@@ -114,4 +114,7 @@ if [ -n "$TAPE" ]; then
 	unset TAPE
 fi
 
+# Timestamp
+now=$($_date +%s)
+
 # vim:ts=4:noet:
