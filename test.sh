@@ -23,8 +23,8 @@ setup
 
 @test "Flox list after install should contain hello" {
 
-  eval "result/bin/flox list"
-  [[ "$output" == *"nixpkgs.stable.hello"* ]]
+  run result/bin/flox list
+  [[ "${lines[-1]}" = *"nixpkgs.stable.hello"* ]]
 
 }
 
