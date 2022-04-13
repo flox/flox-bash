@@ -7,7 +7,8 @@
 #
 # Usage:
 #   jq -e -n -r -s -f <this file> \
-#     --slurpfile registry <path/to/registry.json>
+#     --arg version <version> \
+#     --slurpfile registry <path/to/registry.json> \
 #     --args <function> <funcargs>
 #
 $ARGS.positional[0] as $function
@@ -18,7 +19,7 @@ $ARGS.positional[1:] as $funcargs
 |
 
 # Verify we're talking to the expected schema version.
-if $registry.version != 1 then
+if $registry.version != ($version | tonumber) then
   error(
     "unsupported registry schema version: " +
     ( $registry.version | tostring )

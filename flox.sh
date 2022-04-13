@@ -20,6 +20,7 @@ test -z "${FLOX_VERBOSE}" || verbose=1
 _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
 _lib=$_prefix/lib
+_etc=$_prefix/etc
 . $_lib/init.sh
 
 # Short name for this script, derived from $0.
@@ -244,7 +245,7 @@ activate | history | install | list | remove | rollback | \
 		profile=$(profileArg "default")
 		profileName=$($_basename $profile)
 		profileUserName=$($_basename $($_dirname $profile))
-		profileMetaDir="$FLOX_METADATA/$userName"
+		profileMetaDir="$FLOX_METADATA/$profileUserName"
 		profileStartGen=$(profileGen "$profile")
 	fi
 	echo Using profile: $profile >&2
@@ -362,7 +363,7 @@ activate | history | install | list | remove | rollback | \
 		# rather than the symlinks on disk so that we can have a history of all
 		# generations long after they've been deleted for the purposes of GC.
 		# TODO registry "$profileMetaDir/registry.json" get generations | jq -r .generations | keys | .[]); do
-		for i in $(registry "$profileMetaDir/registry.json" get generations | $_jq -r ".generations | keys | .[]"); do
+		for i in $(profileRegistry "$profile" get generations | $_jq -r ".generations | keys | .[]"); do
 			echo Generation ${i}:
 			manifest $profile-${i}-link/manifest.json listProfile "${opts[@]}" "${args[@]}" || exit $?
 			echo
@@ -417,9 +418,9 @@ develop)
 
 packages)
 	# iterate over all known flakes listing valid floxpkgs tuples.
-	flakes=$(cat etc/nix/registry.json | jq -r ".flakes[] .from .id" | cut -d "@" -f 5)
-	for a in $flakes; do
-		cmd=($_sh -c "$_nix eval flake:${floxFlakePrefix}${a}#attrnames.@@SYSTEM@@ --json | $_jq -r .[]")
+	for flake in $(flakeRegistry get flakes | $_jq -r '.[] | .from.id'); do
+		$_nix eval "flake:${flake}#attrnames.${NIX_CONF_system}" --json | \
+			$_jq -r ".[]"
 	done
 	;;
 

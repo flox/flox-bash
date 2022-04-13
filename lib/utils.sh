@@ -105,20 +105,22 @@ function manifest() {
 #
 function registry() {
 	local registry="$1"; shift
+	local version="$1"; shift
 	# jq args:
 	#   -n \                        # null input
 	#   -e \                        # exit nonzero on errors
 	#   -r \                        # raw output (i.e. don't add quotes)
 	#   -f $_lib/registry.jq \      # the registry processing library
 	#   --slurpfile registry "$1" \ # slurp json into "$registry"
-	local jqargs=("-n" "-e" "-r" "-f" "$_lib/registry.jq")
+	#	--arg version "$2" \        # required schema version
+	local jqargs=("-n" "-e" "-r" "-f" "$_lib/registry.jq" "--arg" "version" "$version")
 
 	# N.B jq invocation aborts if it cannot slurp a file, so if the registry
 	# doesn't already exist (with nonzero size) then replace with bootstrap.
 	if [ -s "$registry" ]; then
 		jqargs+=("--slurpfile" "registry" "$registry")
 	else
-		jqargs+=("--argjson" "registry" '[{"version": 1}]')
+		jqargs+=("--argjson" "registry" "[{\"version\": $version}]")
 	fi
 
 	# Append remaining args using jq "--args" flag and "--" to
@@ -146,6 +148,18 @@ function registry() {
 			$_jq "${jqargs[@]}"
 		;;
 	esac
+}
+
+function flakeRegistry() {
+	registry "$_etc/nix/registry.json" 2 "$@"
+}
+
+function profileRegistry() {
+	local profile="$1"; shift
+	local profileName=$($_basename $profile)
+	local profileUserName=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_METADATA/$profileUserName"
+	registry "$profileMetaDir/registry.json" 1 "$@"
 }
 
 function pastTense() {
