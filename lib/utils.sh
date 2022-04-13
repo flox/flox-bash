@@ -16,7 +16,7 @@ function hash_commands() {
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq \
-	getent git ln mktemp mv nix readlink realpath rm rmdir sh stat touch tr
+	getent git ln mkdir mktemp mv nix readlink realpath rm rmdir sh stat touch tr
 
 function warn() {
 	if [ -n "$@" ]; then

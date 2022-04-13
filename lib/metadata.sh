@@ -120,6 +120,7 @@ function metaDebug() {
 #
 function syncProfile() {
 	local profile="$1"
+	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
 	local profileUserName=$($_basename $($_dirname $profile))
 	local metaDir="$FLOX_METADATA/$profileUserName"
@@ -128,6 +129,7 @@ function syncProfile() {
 	gitCheckout "$metaDir" "$profileName"
 
 	# Run snippet to generate links using data from metadata repo.
+	$_mkdir -v -p "$profileDir"
 	local _cline
 	profileRegistry "$profile" syncGenerations | while read _cline
 	do
@@ -258,6 +260,7 @@ function syncMetadata() {
 		$_ln -f -s "${endGen}.json" "$metaDir/manifest.json"
 		metaGit "$profile" add "manifest.json"
 	}
+	profileRegistry "$profile" set currentGen "${endGen}"
 
 	# Update profile metadata with end generation information.
 	profileRegistry "$profile" set generations \

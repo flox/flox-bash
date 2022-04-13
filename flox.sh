@@ -41,6 +41,9 @@ Flox profile commands:
     flox log - fix me
     flox git - fix me
     flox generations - list profile generations with contents
+    flox push - send profile metadata to remote registry
+    flox pull - pull profile metadata from remote registry
+    flox sync - synchronize profile metadata and links
 
 Nix profile commands:
     flox diff-closures - show the closure difference between each version of a profile
@@ -218,7 +221,7 @@ case "$subcommand" in
 # Nix and Flox commands which take a (-p|--profile) profile argument.
 activate | history | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
-	generations | git | log) # Flox commands
+	generations | git | log | push | pull | sync) # Flox commands
 
 	# Look for the --profile argument.
 	profile=""
@@ -275,7 +278,7 @@ activate | history | install | list | remove | rollback | \
 		if [ "$subcommand" = "install" ]; then
 			# Nix will create a profile directory, but not its parent.
 			[ -d $($_dirname $profile) ] ||
-				mkdir -v -p $($_dirname $profile)
+				$_mkdir -v -p $($_dirname $profile)
 			for pkg in "${args[@]}"; do
 				pkgArgs+=($(floxpkgArg "$pkg"))
 			done
@@ -376,6 +379,18 @@ activate | history | install | list | remove | rollback | \
 			--pretty="format:%cd %C(cyan)%B%Creset" \
 			${invocation_args[@]}
 		exit $?
+		;;
+
+	push)
+		cmd=(:)
+		;;
+
+	pull)
+		cmd=(:)
+		;;
+
+	sync)
+		cmd=(:)
 		;;
 
 	*)

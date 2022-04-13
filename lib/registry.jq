@@ -127,8 +127,11 @@ def syncGeneration:
   ] else [] end;
 
 def syncGenerations(args):
-  $registry | .generations | to_entries |
-    map(syncGeneration) | flatten | .[];
+  ( $registry | .currentGen ) as $currentGen |
+  ( $registry | .generations | to_entries ) | map(syncGeneration) + [
+    "$_rm -f \($profileDir)/\($profileName)",
+    "$_ln --force -s \($profileName)-\($currentGen)-link \($profileDir)/\($profileName)"
+  ] | flatten | .[];
 
 #
 # Call requested function with provided args.
