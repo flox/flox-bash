@@ -6,10 +6,38 @@ setup() {
 
 setup
 
-@test "1 - Flox Help" {
+@test "Flox Help" {
 
   eval "result/bin/flox --help"
-  echo $output
 
   [[ "$status" -eq 0 ]]
+}
+
+@test "Flox install hello" {
+
+  eval "result/bin/flox install nixpkgs.stable.hello"
+
+
+  [[ "$status" -eq 0 ]]
+}
+
+@test "Flox list after install should contain hello" {
+
+  eval "result/bin/flox list"
+  [[ "$output" == *"nixpkgs.stable.hello"* ]]
+
+}
+
+@test "Flox remove hello" {
+
+  eval "result/bin/flox remove nixpkgs.stable.hello"
+
+  [[ "$status" -eq 0 ]]
+}
+
+@test "Flox list after remove should not contain hello" {
+
+  eval "result/bin/flox list"
+  [[ "$output" != *"nixpkgs.stable.hello"* ]]
+
 }

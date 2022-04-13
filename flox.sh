@@ -83,7 +83,7 @@ while [ $# -ne 0 ]; do
 			error "missing argument to --date flag" </dev/null
 		fi
 		export FLOX_RENIX_DATE="$1"
-		shift
+	nix-build 	shift
 		;;
 	-v | --verbose)
 		verbose=1
