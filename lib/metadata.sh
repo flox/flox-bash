@@ -127,9 +127,11 @@ function syncProfile() {
 	# Ensure metadata repo is checked out to correct branch.
 	gitCheckout "$metaDir" "$profileName"
 
-	# Discern generation data from metadata.json found in metadata repo.
-	for i in $(profileRegistry "$profile" get generations | $_jq -r ".[] | keys"); do
-		:
+	# Run snippet to generate links using data from metadata repo.
+	local _cline
+	profileRegistry "$profile" syncGenerations | while read _cline
+	do
+		eval "$_cline"
 	done
 }
 
@@ -245,7 +247,7 @@ function syncMetadata() {
 		}
 		# Verify that something hasn't gone horribly wrong.
 		$_cmp -s "$i/manifest.json" "$metaDir/${gen}.json" || \
-			error "$i/manifest.json and $metaDir/${gen}.json differ"
+			error "$i/manifest.json and $metaDir/${gen}.json differ" < /dev/null
 	done
 
 	# Update manifest.json to point to current generation.

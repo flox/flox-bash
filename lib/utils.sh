@@ -15,8 +15,8 @@ function hash_commands() {
 # Note that we specifically avoid modifying the PATH environment variable to
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
-hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname \
-	id jq getent git ln mktemp mv nix readlink realpath rm rmdir sh stat tr
+hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq \
+	getent git ln mktemp mv nix readlink realpath rm rmdir sh stat touch tr
 
 function warn() {
 	if [ -n "$@" ]; then
@@ -156,12 +156,68 @@ function flakeRegistry() {
 	registry "$_etc/nix/registry.json" 2 "$@"
 }
 
+#
+# profileRegistry($profile,command,[args])
+# XXX refactor; had to duplicate above to add $profileName.  :-\
+#
 function profileRegistry() {
 	local profile="$1"; shift
+	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
 	local profileUserName=$($_basename $($_dirname $profile))
 	local profileMetaDir="$FLOX_METADATA/$profileUserName"
-	registry "$profileMetaDir/metadata.json" 1 "$@"
+	local registry="$profileMetaDir/metadata.json"
+	local version=1
+	# jq args:
+	#   -n \                        # null input
+	#   -e \                        # exit nonzero on errors
+	#   -r \                        # raw output (i.e. don't add quotes)
+	#   -f $_lib/registry.jq \      # the registry processing library
+	#   --slurpfile registry "$1" \ # slurp json into "$registry"
+	#	--arg version "$2" \        # required schema version
+	local jqargs=(
+		"-n" "-e" "-r" "-f" "$_lib/registry.jq"
+		"--arg" "version" "$version"
+		"--arg" "profileDir" "$profileDir"
+		"--arg" "profileName" "$profileName"
+	)
+
+	# N.B jq invocation aborts if it cannot slurp a file, so if the registry
+	# doesn't already exist (with nonzero size) then replace with bootstrap.
+	if [ -s "$registry" ]; then
+		jqargs+=("--slurpfile" "registry" "$registry")
+	else
+		jqargs+=("--argjson" "registry" "[{\"version\": $version}]")
+	fi
+
+	# Append remaining args using jq "--args" flag and "--" to
+	# prevent jq from interpreting provided args as options.
+	jqargs+=("--args" "--" "$@")
+
+	foobar="$1"
+	case "$1" in
+		# Methods which update the registry.
+		set | setNumber | setString | \
+		addArray | addArrayNumber | addArrayString | \
+		delete | delArray | delArrayNumber | delArrayString)
+			local _tmpfile=$($_mktemp)
+			$_jq "${jqargs[@]}" > $_tmpfile
+			if [ -s "$_tmpfile" ]; then
+				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
+				$_rm -f $_tmpfile
+				local dn=$($_dirname $profile)
+				[ ! -e "$dn/.git" ] || \
+					$_git -C $dn add $($_basename $profile)
+			else
+				error "something went wrong" < /dev/null
+			fi
+		;;
+
+		# All others return data from the registry.
+		*)
+			$_jq "${jqargs[@]}"
+		;;
+	esac
 }
 
 function pastTense() {
