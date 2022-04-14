@@ -183,7 +183,7 @@ function profileRegistry() {
 	if [ -s "$registry" ]; then
 		jqargs+=("--slurpfile" "registry" "$registry")
 	else
-		jqargs+=("--argjson" "registry" "[{\"version\": $version}]")
+		jqargs+=("--argjson" "registry" "[{\"version\": $version, \"generations\": {}}]")
 	fi
 
 	# Append remaining args using jq "--args" flag and "--" to

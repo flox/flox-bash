@@ -357,7 +357,7 @@ activate | history | install | list | remove | rollback | \
 		done
 		[ ${#args[@]} -eq 0 ] ||
 			error "extra arguments(s) \"${args[@]}\"" </dev/null
-		metaGit "$profile" log --pretty="$logFormat"
+		metaGit "$profile" "$NIX_CONFIG_system" log --pretty="$logFormat"
 		exit $?
 		;;
 
@@ -372,12 +372,12 @@ activate | history | install | list | remove | rollback | \
 		;;
 
 	git)
-		metaGit "$profile" ${invocation_args[@]}
+		metaGit "$profile" "$NIX_CONFIG_system" ${invocation_args[@]}
 		exit $?
 		;;
 
 	log)
-		metaGit "$profile" "$subcommand" \
+		metaGit "$profile" "$NIX_CONFIG_system" "$subcommand" \
 			--pretty="format:%cd %C(cyan)%B%Creset" \
 			${invocation_args[@]}
 		exit $?
@@ -468,12 +468,13 @@ if [ -n "$profile" ]; then
 	[ "$profileStartGen" = "$profileEndGen" ] ||
 		syncMetadata \
 			"$profile" \
+			"$NIX_CONFIG_system" \
 			"$profileStartGen" \
 			"$profileEndGen" \
 			"$logMessage" \
 			"flox $subcommand ${invocation_args[@]}"
 	# Always follow up action with sync'ing of profiles in reverse.
-	syncProfile "$profile"
+	syncProfile "$profile" "$NIX_CONFIG_system"
 else
 	exec "${cmd[@]}"
 fi

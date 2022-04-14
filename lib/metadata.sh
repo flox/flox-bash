@@ -15,7 +15,7 @@
 #
 # Example hierarcy:
 # .
-# ├── limeytexan (default branch)
+# ├── limeytexan (x86_64-linux.default branch)
 # │   ├── 1.json
 # │   ├── 2.json
 # │   ├── 3.json
@@ -23,14 +23,14 @@
 # │   ├── flake.json
 # │   ├── flake.nix
 # │   └── manifest.json -> 3.json
-# ├── limeytexan (toolbox branch)
+# ├── limeytexan (x86_64-linux.toolbox branch)
 # │   ├── 1.json
 # │   ├── 2.json
 # │   ├── registry.json
 # │   ├── flake.json
 # │   ├── flake.nix
 # │   └── manifest.json -> 2.json
-# └── tomberek (default branch)
+# └── tomberek (aarch64-darwin.default branch)
 #     ├── 1.json
 #     ├── 2.json
 #     ├── 3.json
@@ -53,22 +53,24 @@
 #
 
 #
-# gitInit($repoDir)
+# gitInit($repoDir,$defaultBranch)
 #
 function gitInit() {
+	local repoDir="$1"; shift
+	local defaultBranch="$1"; shift
 	# Set initial branch with `-c init.defaultBranch=` instead of
 	# `--initial-branch=` to stay compatible with old version of
 	# git, which will ignore unrecognized `-c` options.
-	$_git -c init.defaultBranch="default" init --quiet "$repoDir"
+	$_git -c init.defaultBranch="${defaultBranch}" init --quiet "$repoDir"
 }
 
 #
 # gitCheckout($repoDir,$branch)
 #
 function gitCheckout() {
-	local repoDir="$1"
-	local branch="$2"
-	[ -d "$repoDir" ] || gitInit "$repoDir"
+	local repoDir="$1"; shift
+	local branch="$1"; shift
+	[ -d "$repoDir" ] || gitInit "$repoDir" "$branch"
 	# It's somewhat awkward to determine the current branch
 	# *before* that first commit. If there's a better git
 	# subcommand to figure this out I can't find it.
@@ -90,43 +92,31 @@ function gitCheckout() {
 
 function metaGit() {
 	local profile="$1"; shift
+	local system="$1"; shift
 	local profileName=$($_basename $profile)
 	local userName=$($_basename $($_dirname $profile))
 	local metaDir="$FLOX_METADATA/$userName"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
-	gitCheckout "$metaDir" "$profileName"
+	gitCheckout "$metaDir" "${system}.${profileName}"
 
 	$_git -C $metaDir "$@"
 }
 
-# XXX For debugging; remove someday.
-function metaDebug() {
-	local profile="$1"; shift
-	local profileName=$($_basename $profile)
-	local userName=$($_basename $($_dirname $profile))
-	local metaDir="$FLOX_METADATA/$userName"
-
-	# First verify that the clone is not out of date and check
-	# out requested branch.
-	gitCheckout "$metaDir" "$profileName"
-
-	( cd $metaDir && ls -l && $_git status )
-}
-
 #
-# syncProfile($profile)
+# syncProfile($profile,$system)
 #
 function syncProfile() {
-	local profile="$1"
+	local profile="$1"; shift
+	local system="$1"; shift
 	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
 	local profileUserName=$($_basename $($_dirname $profile))
 	local metaDir="$FLOX_METADATA/$profileUserName"
 
 	# Ensure metadata repo is checked out to correct branch.
-	gitCheckout "$metaDir" "$profileName"
+	gitCheckout "$metaDir" "${system}.${profileName}"
 
 	# Run snippet to generate links using data from metadata repo.
 	$_mkdir -v -p "$profileDir"
@@ -155,11 +145,12 @@ function syncProfiles() {
 }
 
 function commitMessage() {
-	local profile="$1"
-	local startGen="$2"
-	local endGen="$3"
-	local logMessage="$4"
-	local invocation="${@:5:}"
+	local profile="$1"; shift
+	local system="$1"; shift
+	local startGen="$1"; shift
+	local endGen="$1"; shift
+	local logMessage="$1"; shift
+	local invocation="${@}"
 	local profileName=$($_basename $profile)
 	cat <<EOF
 $logMessage
@@ -226,18 +217,19 @@ EOF
 # Expects commit message from STDIN.
 #
 function syncMetadata() {
-	local profile="$1"
-	local startGen="$2"
-	local endGen="$3"
-	local logMessage="$4"
-	local invocation="${@:5:}"
+	local profile="$1"; shift
+	local system="$1"; shift
+	local startGen="$1"; shift
+	local endGen="$1"; shift
+	local logMessage="$1"; shift
+	local invocation="${@}"
 	local profileName=$($_basename $profile)
 	local userName=$($_basename $($_dirname $profile))
 	local metaDir="$FLOX_METADATA/$userName"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
-	gitCheckout "$metaDir" "$profileName"
+	gitCheckout "$metaDir" "${system}.${profileName}"
 
 	# Now reconcile the data.
 	for i in ${profile}-+([0-9])-link; do
@@ -245,7 +237,7 @@ function syncMetadata() {
 		local gen=${gen_link%-link} # remove suffix
 		[ -e "$metaDir/${gen}.json" ] || {
 			$_cp "$i/manifest.json" "$metaDir/${gen}.json"
-			metaGit "$profile" add "${gen}.json"
+			metaGit "$profile" "$system" add "${gen}.json"
 		}
 		# Verify that something hasn't gone horribly wrong.
 		$_cmp -s "$i/manifest.json" "$metaDir/${gen}.json" || \
@@ -258,7 +250,7 @@ function syncMetadata() {
 		endMetaGeneration=$($_readlink "$metaDir/manifest.json")
 	[ "$endMetaGeneration" = "${endGen}.json" ] || {
 		$_ln -f -s "${endGen}.json" "$metaDir/manifest.json"
-		metaGit "$profile" add "manifest.json"
+		metaGit "$profile" "$system" add "manifest.json"
 	}
 	profileRegistry "$profile" set currentGen "${endGen}"
 
@@ -278,7 +270,10 @@ function syncMetadata() {
 			${startGen} lastActive "$now"
 
 	# Commit, reading commit message from STDIN.
-	commitMessage "$@" | metaGit "$profile" commit --quiet -F -
+	commitMessage \
+		"$profile" "$system" "$startGen" "$endGen" \
+		"$logMessage" "${invocation[@]}" | \
+		metaGit "$profile" "$system" commit --quiet -F -
 }
 
 function pullMetadata() {
@@ -288,25 +283,5 @@ function pullMetadata() {
 function pushMetadata() {
 :
 }
-
-#function readHead() {
-#	local path="$1"
-#	$_git -C "$path" rev-parse --abbrev-ref HEAD
-#}
-
-#function isNotDotGitDirectory() {
-#	local path="$1"
-#	[[ "$path" =~ ^(?:.*/)?\\.git$ ]]
-#}
-
-# process of initializing clone
-#
-# - where is directory? $FLOX_METADATA/<user> (one branch per profile)
-# - does directory exist?
-#   - yes, continue
-#   - no, look up location in "flox registry" (where? $FLOX_CACHE_HOME/flox-registry.json)
-#	- if not found then prompt to clone from "canonical" location
-#	- if then not exist, then ask them to create manually
-#	  - in future we can use `gh` to create URIs containing "github"
 
 # vim:ts=4:noet:
