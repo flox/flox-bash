@@ -24,6 +24,7 @@ setup
 @test "Flox list after install should contain hello" {
 
   run result/bin/flox list
+  [[ "$status" -eq 0 ]]
   [[ "${lines[-1]}" = *"nixpkgs.stable.hello"* ]]
 
 }
@@ -41,3 +42,18 @@ setup
   [[ "$output" != *"nixpkgs.stable.hello"* ]]
 
 }
+#TODO make these work and run tests on fresh profile testdir
+#@test "Flox rollback should succeed" {
+#
+#  eval "result/bin/flox rollback"
+#  [[ "$status" -eq 0 ]]
+#  [[ "${lines[-1]}" = *"switching profile from version"* ]]
+#
+#}
+#@test "Flox list after rollback should contain hello" {
+#
+#  eval "result/bin/flox list"
+#  [[ "$status" -eq 0 ]]
+#  [[ "${lines[-1]}" = *"nixpkgs.stable.hello"* ]]
+#
+#}
