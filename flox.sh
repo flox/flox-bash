@@ -454,11 +454,8 @@ search)
 	;;
 esac
 
-[ -z "$verbose" ] ||
-	pprint NIX_USER_CONF_FILES=$NIX_USER_CONF_FILES "${cmd[@]}" 1>&2
-
+invoke "${cmd[@]}"
 if [ -n "$profile" ]; then
-	"${cmd[@]}"
 	profileEndGen=$(profileGen "$profile")
 	if [ -n "$profileStartGen" ]; then
 		logMessage="Generation ${profileStartGen}->${profileEndGen}: $logMessage"
@@ -475,8 +472,6 @@ if [ -n "$profile" ]; then
 			"flox $subcommand ${invocation_args[@]}"
 	# Always follow up action with sync'ing of profiles in reverse.
 	syncProfile "$profile" "$NIX_CONFIG_system"
-else
-	exec "${cmd[@]}"
 fi
 
 # vim:ts=4:noet:

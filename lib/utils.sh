@@ -47,6 +47,23 @@ function pprint() {
 }
 
 #
+# invoke(${cmd_and_args[@]})
+#
+# Helper function to print invocation to terminal when
+# running with verbose flag.
+#
+function invoke() {
+	local vars=()
+	if [ -n "$verbose" ]; then
+		for i in ${exported_variables[@]}; do
+			vars+=($(eval "echo $i=\${$i}"))
+		done
+		pprint "${vars[@]}" "$@" 1>&2
+	fi
+	"$@" 1>&2
+}
+
+#
 # manifest(manifest,command,[args])
 #
 # Accessor method for jq-based manifest library functions.

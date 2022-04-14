@@ -69,8 +69,12 @@ nix_show_config()
 # Global variables
 #
 
-# Set base configuration before invoking nix.
+# Track exported environment variables for use in verbose output.
+exported_variables=()
+
+# Set base configuration before invoking nix commands.
 export NIX_USER_CONF_FILES=$_etc/nix.conf
+exported_variables+=("NIX_USER_CONF_FILES")
 
 # Load nix configuration
 eval $(nix_show_config)
