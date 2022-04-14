@@ -279,11 +279,11 @@ activate | history | install | list | remove | rollback | \
 			# Nix will create a profile directory, but not its parent.
 			[ -d $($_dirname $profile) ] ||
 				$_mkdir -v -p $($_dirname $profile)
-			for pkg in "${args[@]}"; do
+			for pkg in ${args[@]}; do
 				pkgArgs+=($(floxpkgArg "$pkg"))
 			done
 			# Infer floxpkg name(s) from flakeref.
-			for flakeref in "${pkgArgs[@]}"; do
+			for flakeref in ${pkgArgs[@]}; do
 				# Look up floxpkg name from the position and set logMessage.
 				floxpkgNames+=($(manifest $profile/manifest.json flakerefToFloxpkg "$flakeref"))
 			done
@@ -296,7 +296,7 @@ activate | history | install | list | remove | rollback | \
 			# accept flake references but those don't work at present.  :(
 			# Take this opportunity to look up flake references in the
 			# manifest and then remove or upgrade them by position only.
-			for pkg in "${args[@]}"; do
+			for pkg in ${args[@]}; do
 				pkgArg=$(floxpkgArg "$pkg")
 				position=
 				if [[ "$pkgArg" == *#* ]]; then
@@ -311,7 +311,7 @@ activate | history | install | list | remove | rollback | \
 				pkgArgs+=($position)
 			done
 			# Look up floxpkg name(s) from position.
-			for position in "${pkgArgs[@]}"; do
+			for position in ${pkgArgs[@]}; do
 				floxpkgNames+=($(manifest $profile/manifest.json positionToFloxpkg "$position"))
 			done
 		fi
@@ -344,7 +344,7 @@ activate | history | install | list | remove | rollback | \
 		logFormat="format:%cd %C(cyan)%s%Creset"
 
 		# Step through args looking for (-v|--verbose).
-		for opt in "${opts[@]}"; do
+		for opt in ${opts[@]}; do
 			case "$opt" in
 			-v | --verbose)
 				# If verbose then add body as well.
@@ -355,7 +355,9 @@ activate | history | install | list | remove | rollback | \
 				;;
 			esac
 		done
-		metaGit "$profile" log --pretty="$logFormat" ${invocation_args[@]}
+		[ ${#args[@]} -eq 0 ] ||
+			error "extra arguments(s) \"${args[@]}\"" </dev/null
+		metaGit "$profile" log --pretty="$logFormat"
 		exit $?
 		;;
 
@@ -405,7 +407,7 @@ diff-closures)
 	# Step through remaining arguments sorting options from args.
 	opts=()
 	args=()
-	for arg in "$@"; do
+	for arg in $@; do
 		case "$arg" in
 		-*)
 			opts+=("$1")

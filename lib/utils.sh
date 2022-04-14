@@ -5,7 +5,7 @@
 function hash_commands() {
 	set -h # explicitly enable hashing
 	local PATH=@@FLOXPATH@@:$PATH
-	for i in "$@"; do
+	for i in $@; do
 		hash $i # Dies with useful/precise error on failure when not found.
 		declare -g _$i=$(type -P $i)
 	done
@@ -19,15 +19,11 @@ hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq \
 	getent git ln mkdir mktemp mv nix readlink realpath rm rmdir sh stat touch tr
 
 function warn() {
-	if [ -n "$@" ]; then
-		echo "$@" 1>&2
-	fi
+	[ ${#@} -eq 0 ] || echo "$@" 1>&2
 }
 
 function error() {
-	if [ -n "$@" ]; then
-		warn "ERROR: $@"
-	fi
+	[ ${#@} -eq 0 ] || warn "ERROR: $@"
 	# Relay any STDIN out to STDERR.
 	$_cat 1>&2
 	# Don't exit from interactive shells (for debugging).
@@ -40,7 +36,7 @@ function error() {
 function pprint() {
 	# Step through args and encase with single-quotes those which need it.
 	local result="+"
-	for i in "$@"; do
+	for i in $@; do
 		if [[ "$i" =~ " " ]]; then
 			result="$result '$i'"
 		else

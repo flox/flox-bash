@@ -32,7 +32,7 @@ read_flox_conf()
 	for f in "$_prefix/etc/flox.toml" "/etc/flox.toml" "$HOME/.floxrc"
 	do
 		if [ -f "$f" ]; then
-		for i in "$@"
+		for i in $@
 			do
 				# Use `cat` to open files because it produces a clear and concise
 				# message when file is not found or not readable. By comparison
