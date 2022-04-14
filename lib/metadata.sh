@@ -122,7 +122,7 @@ function syncProfile() {
 	gitCheckout "$metaDir" "${system}.${profileName}"
 
 	# Run snippet to generate links using data from metadata repo.
-	$_mkdir -v -p "$profileDir"
+	$_mkdir -v -p "$profileDir" 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
 	local _cline
 	profileRegistry "$profile" syncGenerations | while read _cline
 	do

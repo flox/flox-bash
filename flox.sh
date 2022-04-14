@@ -270,7 +270,7 @@ activate | history | install | list | remove | rollback | \
 		if [ "$subcommand" = "install" ]; then
 			# Nix will create a profile directory, but not its parent.
 			[ -d $($_dirname $profile) ] ||
-				$_mkdir -v -p $($_dirname $profile)
+				$_mkdir -v -p $($_dirname $profile) 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
 			for pkg in ${args[@]}; do
 				case "$pkg" in
 				-*) # Don't try to interpret option as floxpkgArg.
