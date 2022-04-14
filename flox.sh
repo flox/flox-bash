@@ -122,12 +122,10 @@ function profileArg() {
 			# Path is a link - try again with the link value.
 			echo $(profileArg $(readlink "$1"))
 		else
-			echo ERROR: "$1" is not a Flox profile path >&2
-			exit 2
+			error "\"$1\" is not a Flox profile path" >&2
 		fi
 	elif [[ "$1" =~ \	|\  ]]; then
-		echo ERROR: profile "$1" cannot contain whitespace >&2
-		exit 2
+		error "profile \"$1\" cannot contain whitespace" >&2
 	else
 		# Return default path for the profile directory.
 		echo "$FLOX_PROFILES/${FLOX_USER}/$1"
@@ -226,17 +224,11 @@ activate | history | install | list | remove | rollback | \
 	# Look for the --profile argument.
 	profile=""
 	args=()
-	opts=()
 	while test $# -gt 0; do
 		case "$1" in
 		-p | --profile)
 			profile=$(profileArg $2)
 			shift 2
-			;;
-		-*)
-			# FIXME: wrong to assume options take no arguments
-			opts+=("$1")
-			shift
 			;;
 		*)
 			args+=("$1")
@@ -280,7 +272,14 @@ activate | history | install | list | remove | rollback | \
 			[ -d $($_dirname $profile) ] ||
 				$_mkdir -v -p $($_dirname $profile)
 			for pkg in ${args[@]}; do
-				pkgArgs+=($(floxpkgArg "$pkg"))
+				case "$pkg" in
+				-*) # Don't try to interpret option as floxpkgArg.
+					pkgArgs+=("$pkg")
+					;;
+				*)
+					pkgArgs+=($(floxpkgArg "$pkg"))
+					;;
+				esac
 			done
 			# Infer floxpkg name(s) from flakeref.
 			for flakeref in ${pkgArgs[@]}; do
@@ -297,6 +296,14 @@ activate | history | install | list | remove | rollback | \
 			# Take this opportunity to look up flake references in the
 			# manifest and then remove or upgrade them by position only.
 			for pkg in ${args[@]}; do
+				case "$pkg" in
+				-*) # Don't try to interpret option as floxpkgArg.
+					pkgArg="$pkg"
+					;;
+				*)
+					pkgArg=$(floxpkgArg "$pkg")
+					;;
+				esac
 				pkgArg=$(floxpkgArg "$pkg")
 				position=
 				if [[ "$pkgArg" == *#* ]]; then
@@ -333,7 +340,6 @@ activate | history | install | list | remove | rollback | \
 
 	list)
 		manifest $profile/manifest.json listProfile "${opts[@]}" "${args[@]}"
-		exit 0 # N.B. does not return.
 		;;
 
 	history)
@@ -344,21 +350,21 @@ activate | history | install | list | remove | rollback | \
 		logFormat="format:%cd %C(cyan)%s%Creset"
 
 		# Step through args looking for (-v|--verbose).
-		for opt in ${opts[@]}; do
-			case "$opt" in
+		for arg in ${args[@]}; do
+			case "$arg" in
 			-v | --verbose)
 				# If verbose then add body as well.
 				logFormat="format:%cd %C(cyan)%B%Creset"
 				;;
-			*)
+			-*)
 				error "unknown option \"$opt\"" </dev/null
+				;;
+			*)
+				error "extra argument \"$opt\"" </dev/null
 				;;
 			esac
 		done
-		[ ${#args[@]} -eq 0 ] ||
-			error "extra arguments(s) \"${args[@]}\"" </dev/null
 		metaGit "$profile" "$NIX_CONFIG_system" log --pretty="$logFormat"
-		exit $?
 		;;
 
 	# Flox commands
@@ -368,27 +374,20 @@ activate | history | install | list | remove | rollback | \
 		# rather than the symlinks on disk so that we can have a history of all
 		# generations long after they've been deleted for the purposes of GC.
 		profileRegistry "$profile" listGenerations
-		exit 0
 		;;
 
 	git)
 		metaGit "$profile" "$NIX_CONFIG_system" ${invocation_args[@]}
-		exit $?
 		;;
 
 	log)
 		metaGit "$profile" "$NIX_CONFIG_system" "$subcommand" \
 			--pretty="format:%cd %C(cyan)%B%Creset" \
 			${invocation_args[@]}
-		exit $?
 		;;
 
-	push)
-		cmd=(:)
-		;;
-
-	pull)
-		cmd=(:)
+	push | pull)
+		pushpullMetadata "$subcommand" "$profile" "$NIX_CONFIG_system"
 		;;
 
 	sync)
@@ -453,6 +452,8 @@ search)
 	cmd=($_nix "$subcommand" "$@")
 	;;
 esac
+
+[ ${#cmd[@]} -gt 0 ] || exit
 
 invoke "${cmd[@]}"
 if [ -n "$profile" ]; then

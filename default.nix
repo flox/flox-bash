@@ -3,9 +3,11 @@ let
   inherit (pkgs)
     stdenv
     ansifilter
+    bashInteractive # required for read() `-i` flag
     coreutils
     dasel
     git
+    gh
     jq
     lib
     nixUnstable
@@ -21,6 +23,6 @@ in stdenv.mkDerivation rec {
   version = "0.0.1";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
-  buildInputs = [ ansifilter coreutils dasel getent git jq nix ];
+  buildInputs = [ ansifilter bashInteractive coreutils dasel getent git gh jq nix ];
   makeFlags = [ "PREFIX=$(out)" "FLOXPATH=${lib.makeBinPath buildInputs}" ];
 }

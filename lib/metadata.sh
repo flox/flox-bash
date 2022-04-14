@@ -101,7 +101,10 @@ function metaGit() {
 	# out requested branch.
 	gitCheckout "$metaDir" "${system}.${profileName}"
 
-	$_git -C $metaDir "$@"
+	(
+		[ -z "$verbose" ] || set -x
+		$_git -C $metaDir "$@"
+	)
 }
 
 #
@@ -125,6 +128,9 @@ function syncProfile() {
 	do
 		eval "$_cline"
 	done
+
+	# FIXME REFACTOR based on detecting actual change.
+	[ -z "$_cline" ] || metaGit "$profile" "$system" add "metadata.json"
 }
 
 #
@@ -276,12 +282,64 @@ function syncMetadata() {
 		metaGit "$profile" "$system" commit --quiet -F -
 }
 
-function pullMetadata() {
-:
+#
+# setGitRemote($profile)
+#
+function setGitRemote() {
+	local profile="$1"; shift
+	local system="$1"; shift
+	local profileName=$($_basename $profile)
+	local branch="${system}.${profileName}"
+
+	# Check to see if the origin is already set.
+	local origin=$(metaGit "$profile" "$system" \
+		"config" "--get" "remote.origin.url" || true)
+	if [ -z "$origin" ]; then
+		# Proceed to set origin using a variety of defaults.
+		local profileName=$($_basename $profile)
+		local userName=$($_basename $($_dirname $profile))
+		local defaultOrigin="${FLOX_CONF_floxpkgs_gitBaseURL}$userName/floxmeta"
+		origin=$(registry ${FLOX_DATA_HOME}/metadata.json 1 \
+			getPromptSet "git URL for storing profile metadata: " $defaultOrigin \
+			profiles $userName $profileName origin)
+		metaGit "$profile" "$system" "remote" "add" "origin" "$origin"
+	fi
+
+	# If using github, ensure that user is logged into gh CLI
+	# and confirm that repository exists.
+	if [[ "${origin,,}" =~ github ]]; then
+		( $_gh auth status >/dev/null 2>&1 ) ||
+			$_gh auth login
+		( $_gh repo view "$origin" >/dev/null 2>&1 ) || (
+			set -x
+			$_gh repo create --private "$origin"
+		)
+	fi
 }
 
-function pushMetadata() {
-:
+#
+# pushpullMetadata("(push|pull)",$profile)
+#
+function pushpullMetadata() {
+	local action="$1"; shift
+	local profile="$1"; shift
+	local system="$1"; shift
+	local profileName=$($_basename $profile)
+	local branch="${system}.${profileName}"
+
+	[ $action = "push" -o $action = "pull" ] ||
+		error "pushpullMetadata(): first arg must be (push|pull)"
+
+	# First verify that the clone has an origin defined.
+	setGitRemote "$profile" "$system"
+
+	# Then push or pull.
+	if [ "$action" = "push" ]; then
+		metaGit "$profile" "$system" "$action" -u origin $branch
+	elif [ "$action" = "pull" ]; then
+		metaGit "$profile" "$system" "$action" origin $branch
+		syncProfile "$profile" "$system"
+	fi
 }
 
 # vim:ts=4:noet:

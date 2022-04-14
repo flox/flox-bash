@@ -6,4 +6,4 @@
 
 [floxpkgs]
 
-    gitBaseURL = "https://github.com/"
+    gitBaseURL = "git@github.com:"

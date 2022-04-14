@@ -1,3 +1,10 @@
+# FIXME FIXME FIXME
+#
+# This is a copy of lib/registry.jq. It should instead be
+# a module that first includes that file and then adds the
+# profile-specific functions.
+#
+# FIXME FIXME FIXME
 #
 # jq functions for managing the flox registry.
 #
@@ -91,6 +98,49 @@ def version(args): expectedArgs(0; args) |
   $registry | .version;
 
 #
+# Functions which present output directly to users.
+#
+def listGeneration:
+  select(.value.created != null and .value.lastActive != null) |
+  .key as $generation |
+  (.value.created | todate) as $created |
+  (.value.lastActive | todate) as $lastActive |
+  # Cannot embed newlines so best we can do is return array and flatten later.
+  [ "Generation \($generation):",
+    "  Path:        \(.value.path)",
+    "  Created:     \($created)",
+    "  Last active: \($lastActive)" ] +
+  if .value.logMessage != null then [
+    "  Log entries:", (.value.logMessage | map("    \(.)"))
+  ] else [] end;
+
+def listGenerations(args):
+  $registry | .generations | to_entries |
+    map(listGeneration) | flatten | .[];
+
+#
+# Functions which generate script snippets.
+# XXX does not belong in registry library - refactor.
+#
+def syncGeneration:
+  .key as $generation |
+  .value.path as $path |
+  .value.created as $created |
+  # Cannot embed newlines so best we can do is return array and flatten later.
+  if .value.path != null then [
+    "$_rm -f \($profileDir)/\($profileName)-\($generation)-link",
+    "$_ln --force -s \($path) \($profileDir)/\($profileName)-\($generation)-link",
+    "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link"
+  ] else [] end;
+
+def syncGenerations(args):
+  ( $registry | .currentGen ) as $currentGen |
+  ( $registry | .generations | to_entries ) | map(syncGeneration) + [
+    "$_rm -f \($profileDir)/\($profileName)",
+    "$_ln --force -s \($profileName)-\($currentGen)-link \($profileDir)/\($profileName)"
+  ] | flatten | .[];
+
+#
 # Call requested function with provided args.
 # Think of this as this script's public API specification.
 #
@@ -109,5 +159,7 @@ else if $function == "delArrayString"  then delArrayString($funcargs)
 else if $function == "delArray"        then delArray($funcargs)
 else if $function == "dump"            then dump($funcargs)
 else if $function == "version"         then version($funcargs)
+else if $function == "listGenerations" then listGenerations($funcargs)
+else if $function == "syncGenerations" then syncGenerations($funcargs)
 else error("unknown function: \"\($function)\"")
-end end end end end end end end end end end end end
+end end end end end end end end end end end end end end end

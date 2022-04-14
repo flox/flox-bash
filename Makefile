@@ -13,6 +13,7 @@ LIB = \
 	lib/init.sh \
 	lib/manifest.jq \
 	lib/metadata.sh \
+	lib/profileRegistry.jq \
 	lib/registry.jq \
 	lib/utils.sh
 SHARE = \

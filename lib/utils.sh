@@ -16,7 +16,7 @@ function hash_commands() {
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq \
-	getent git ln mkdir mktemp mv nix readlink realpath rm rmdir sh stat touch tr
+	getent gh git ln mkdir mktemp mv nix readlink realpath rm rmdir sh stat touch tr
 
 function warn() {
 	[ ${#@} -eq 0 ] || echo "$@" 1>&2
@@ -118,6 +118,23 @@ function manifest() {
 function registry() {
 	local registry="$1"; shift
 	local version="$1"; shift
+
+	# The "getPromptSet" subcommand is a special-case function which
+	# first attempts to get a value and if not found will then
+	# prompt the user with a default value to set.
+	if [ "$1" = "getPromptSet" ]; then
+		shift
+		local prompt="$1"; shift
+		local defaultVal="$1"; shift
+		local value=$(registry "$registry" "$version" "get" "$@" || true)
+		if [ -z "$value" ]; then
+			read -e -p "$prompt" -i "$defaultVal" value
+			registry "$registry" "$version" "set" "$@" "$value"
+		fi
+		echo "$value"
+		return
+	fi
+
 	# jq args:
 	#   -n \                        # null input
 	#   -e \                        # exit nonzero on errors
@@ -139,7 +156,6 @@ function registry() {
 	# prevent jq from interpreting provided args as options.
 	jqargs+=("--args" "--" "$@")
 
-	foobar="$1"
 	case "$1" in
 		# Methods which update the registry.
 		set | setNumber | setString | \
@@ -150,9 +166,9 @@ function registry() {
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
-				local dn=$($_dirname $profile)
+				local dn=$($_dirname $registry)
 				[ ! -e "$dn/.git" ] || \
-					$_git -C $dn add $($_basename $profile)
+					$_git -C $dn add $($_basename $registry)
 			else
 				error "something went wrong" < /dev/null
 			fi
@@ -189,7 +205,7 @@ function profileRegistry() {
 	#   --slurpfile registry "$1" \ # slurp json into "$registry"
 	#	--arg version "$2" \        # required schema version
 	local jqargs=(
-		"-n" "-e" "-r" "-f" "$_lib/registry.jq"
+		"-n" "-e" "-r" "-f" "$_lib/profileRegistry.jq"
 		"--arg" "version" "$version"
 		"--arg" "profileDir" "$profileDir"
 		"--arg" "profileName" "$profileName"
@@ -207,7 +223,6 @@ function profileRegistry() {
 	# prevent jq from interpreting provided args as options.
 	jqargs+=("--args" "--" "$@")
 
-	foobar="$1"
 	case "$1" in
 		# Methods which update the registry.
 		set | setNumber | setString | \
@@ -218,9 +233,9 @@ function profileRegistry() {
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
-				local dn=$($_dirname $profile)
+				local dn=$($_dirname $registry)
 				[ ! -e "$dn/.git" ] || \
-					$_git -C $dn add $($_basename $profile)
+					$_git -C $dn add $($_basename $registry)
 			else
 				error "something went wrong" < /dev/null
 			fi
