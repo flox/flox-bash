@@ -38,8 +38,8 @@ usage: $me [ --stability (stable|staging|unstable) ]
 
 Flox profile commands:
     flox activate - fix me
-    flox log - fix me
-    flox git - fix me
+    flox gh - access to the gh CLI
+    flox git - access to the git CLI
     flox generations - list profile generations with contents
     flox push - send profile metadata to remote registry
     flox pull - pull profile metadata from remote registry
@@ -219,7 +219,7 @@ case "$subcommand" in
 # Nix and Flox commands which take a (-p|--profile) profile argument.
 activate | history | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
-	generations | git | log | push | pull | sync) # Flox commands
+	generations | git | push | pull | sync) # Flox commands
 
 	# Look for the --profile argument.
 	profile=""
@@ -380,12 +380,6 @@ activate | history | install | list | remove | rollback | \
 		metaGit "$profile" "$NIX_CONFIG_system" ${invocation_args[@]}
 		;;
 
-	log)
-		metaGit "$profile" "$NIX_CONFIG_system" "$subcommand" \
-			--pretty="format:%cd %C(cyan)%B%Creset" \
-			${invocation_args[@]}
-		;;
-
 	push | pull)
 		pushpullMetadata "$subcommand" "$profile" "$NIX_CONFIG_system"
 		;;
@@ -425,6 +419,10 @@ build)
 
 develop)
 	cmd=($_nix "$subcommand" "$@")
+	;;
+
+gh)
+	cmd=($_gh "$@")
 	;;
 
 packages)
