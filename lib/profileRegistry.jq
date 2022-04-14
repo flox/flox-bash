@@ -130,7 +130,8 @@ def syncGeneration:
   if .value.path != null then [
     "$_rm -f \($profileDir)/\($profileName)-\($generation)-link",
     "$_ln --force -s \($path) \($profileDir)/\($profileName)-\($generation)-link",
-    "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link"
+    "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link",
+    "$_nix_store --realise \($path) --add-root \($profileDir)/\($profileName)-\($generation)-link"
   ] else [] end;
 
 def syncGenerations(args):

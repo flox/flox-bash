@@ -6,8 +6,9 @@ function hash_commands() {
 	set -h # explicitly enable hashing
 	local PATH=@@FLOXPATH@@:$PATH
 	for i in $@; do
+		_i=${i//-/_} # Pesky utilities containing dashes require rewrite.
 		hash $i # Dies with useful/precise error on failure when not found.
-		declare -g _$i=$(type -P $i)
+		declare -g _$_i=$(type -P $i)
 	done
 }
 
@@ -16,7 +17,7 @@ function hash_commands() {
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq getent \
-	gh git ln mkdir mktemp mv nix readlink realpath rm rmdir sed sh stat touch tr
+	gh git ln mkdir mktemp mv nix nix-store readlink realpath rm rmdir sed sh stat touch tr
 
 function warn() {
 	[ ${#@} -eq 0 ] || echo "$@" 1>&2
