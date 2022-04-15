@@ -76,10 +76,14 @@ def flakerefToFloxpkg(args): expectedArgs(1; args) |
   attrPathToFloxpkg($attrPath);
 
 def floxpkgFromElement:
-  attrPathToFloxpkg(.attrPath);
+  if .attrPath then
+    attrPathToFloxpkg(.attrPath)
+  else .storePaths[] end;
 
 def floxpkgFromElementWithRunPath:
-  attrPathToFloxpkg(.attrPath) + "\t" + (.storePaths | join(","));
+  if .attrPath then
+    attrPathToFloxpkg(.attrPath) + "\t" + (.storePaths | join(","))
+  else .storePaths[] end;
 
 def flakerefFromElement:
   "\(.originalUri)#\(.attrPath)";
@@ -112,7 +116,7 @@ def storepathToPosition(args): expectedArgs(1; args) |
   storepathToElement(args) | .position;
 
 def positionToFloxpkg(args): expectedArgs(1; args) |
-  $elements[args[0] | tonumber] | attrPathToFloxpkg(.attrPath);
+  $elements[args[0] | tonumber] | floxpkgFromElement;
 
 #
 # Functions which present output directly to users.
@@ -135,8 +139,10 @@ def listProfile(args):
     error("unknown option: " + args[0])
   end;
 
-def listProfileAsFlakes(args): expectedArgs(0; args) |
-  $elements | map(flakerefFromElement) | .[];
+def listFlakesInProfile(args): expectedArgs(0; args) |
+  $elements | map(
+    if .attrPath then flakerefFromElement else empty end
+  ) | .[];
 
 # For debugging.
 def dump(args): expectedArgs(0; args) |
@@ -155,7 +161,7 @@ else if $function == "flakerefToPosition"  then flakerefToPosition($funcargs)
 else if $function == "storepathToPosition" then storepathToPosition($funcargs)
 else if $function == "positionToFloxpkg"   then positionToFloxpkg($funcargs)
 else if $function == "listProfile"         then listProfile($funcargs)
-else if $function == "listProfileAsFlakes" then listProfileAsFlakes($funcargs)
+else if $function == "listFlakesInProfile" then listFlakesInProfile($funcargs)
 else if $function == "dump"                then dump($funcargs)
 else error("unknown function: \"\($function)\"")
 end end end end end end end end end

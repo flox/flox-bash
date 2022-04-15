@@ -156,7 +156,7 @@ function floxpkgArg() {
 	elif [[ "$1" =~ ^[0-9]+$ ]]; then
 		echo "$1"
 	elif [ -e "$1" ]; then
-		_rp=$(realpath "$1")
+		_rp=$($_realpath "$1")
 		if [[ "$_rp" == /nix/store/* ]]; then
 			echo "$_rp" | $_cut -d/ -f1-4
 		fi
@@ -266,7 +266,7 @@ activate | history | install | list | remove | rollback | \
 	# Commands which accept a flox package reference.
 	install | remove | upgrade)
 		pkgArgs=()
-		floxpkgNames=()
+		pkgNames=()
 		if [ "$subcommand" = "install" ]; then
 			# Nix will create a profile directory, but not its parent.
 			[ -d $($_dirname $profile) ] ||
@@ -281,10 +281,18 @@ activate | history | install | list | remove | rollback | \
 					;;
 				esac
 			done
-			# Infer floxpkg name(s) from flakeref.
-			for flakeref in ${pkgArgs[@]}; do
-				# Look up floxpkg name from the position and set logMessage.
-				floxpkgNames+=($(manifest $profile/manifest.json flakerefToFloxpkg "$flakeref"))
+			# Infer floxpkg name(s) from floxpkgs flakerefs.
+			for pkgArg in ${pkgArgs[@]}; do
+				case "$pkgArg" in
+				flake:${floxFlakePrefix}*)
+					# Look up floxpkg name from flox flake prefix.
+					pkgNames+=($(manifest $profile/manifest.json flakerefToFloxpkg "$pkgArg")) ||
+						error "failed to look up floxpkg reference for flake \"$pkgArg\"" </dev/null
+					;;
+				*)
+					pkgNames+=("$pkgArg")
+					;;
+				esac
 			done
 		else
 			# The remove and upgrade commands operate on flake references and
@@ -319,10 +327,11 @@ activate | history | install | list | remove | rollback | \
 			done
 			# Look up floxpkg name(s) from position.
 			for position in ${pkgArgs[@]}; do
-				floxpkgNames+=($(manifest $profile/manifest.json positionToFloxpkg "$position"))
+				pkgNames+=($(manifest $profile/manifest.json positionToFloxpkg "$position")) ||
+					error "failed to look up package name for position \"$position\" in profile $profile" </dev/null
 			done
 		fi
-		logMessage="$FLOX_USER $(pastTense $subcommand) ${floxpkgNames[@]}"
+		logMessage="$FLOX_USER $(pastTense $subcommand) ${pkgNames[@]}"
 		cmd=($_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgArgs[@]}")
 		;;
 

@@ -6,6 +6,7 @@ let
     bashInteractive # required for read() `-i` flag
     coreutils
     dasel
+    findutils
     git
     gh
     jq
@@ -23,6 +24,6 @@ in stdenv.mkDerivation rec {
   version = "0.0.1";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
-  buildInputs = [ ansifilter bashInteractive coreutils dasel getent git gh jq nix ];
+  buildInputs = [ ansifilter bashInteractive coreutils dasel findutils getent git gh jq nix ];
   makeFlags = [ "PREFIX=$(out)" "FLOXPATH=${lib.makeBinPath buildInputs}" ];
 }
