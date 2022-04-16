@@ -21,7 +21,7 @@ index 000000000..975af9ff6
 +
 +)""
 diff --git a/src/nix/profile.cc b/src/nix/profile.cc
-index a8ff9c78a..d62d37594 100644
+index da990ddc8..abb009aba 100644
 --- a/src/nix/profile.cc
 +++ b/src/nix/profile.cc
 @@ -90,9 +90,10 @@ struct ProfileManifest
@@ -37,7 +37,7 @@ index a8ff9c78a..d62d37594 100644
  
          if (pathExists(manifestPath)) {
              auto json = nlohmann::json::parse(readFile(manifestPath));
-@@ -235,6 +236,59 @@ struct ProfileManifest
+@@ -236,6 +237,64 @@ struct ProfileManifest
      }
  };
  
@@ -72,22 +72,27 @@ index a8ff9c78a..d62d37594 100644
 +        // manifestPath directly rather than profile path.
 +        ProfileManifest manifest(*getEvalState(), manifestPath);
 +
-+        for (size_t i = 0; i < manifest.elements.size(); ++i) {
-+            auto & element(manifest.elements[i]);
-+            if (element.source
-+                && !element.source->originalRef.input.isLocked())
-+            {
-+                auto installable = std::make_shared<InstallableFlake>(
-+                    this,
-+                    getEvalState(),
-+                    FlakeRef(element.source->originalRef),
-+                    "",
-+                    Strings{element.source->attrPath},
-+                    Strings{},
-+                    lockFlags);
++        try {
++            for (size_t i = 0; i < manifest.elements.size(); ++i) {
++                auto & element(manifest.elements[i]);
++                if (element.source
++                    && !element.source->originalRef.input.isLocked())
++                {
++                    auto installable = std::make_shared<InstallableFlake>(
++                        this,
++                        getEvalState(),
++                        FlakeRef(element.source->originalRef),
++                        "",
++                        Strings{element.source->attrPath},
++                        Strings{},
++                        lockFlags);
 +
-+                element.updateStorePaths(getEvalStore(), store, *installable);
++                    element.updateStorePaths(getEvalStore(), store, *installable);
++                }
 +            }
++        } catch (Error & e) {
++            ignoreException();
++            warn("failed to realise all store paths for '%s'", *profile);
 +        }
 +
 +        updateProfile(manifest.build(store));
@@ -97,7 +102,7 @@ index a8ff9c78a..d62d37594 100644
  struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
  {
      std::string description() override
-@@ -251,7 +305,7 @@ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
+@@ -252,7 +311,7 @@ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
  
      void run(ref<Store> store) override
      {
@@ -106,7 +111,7 @@ index a8ff9c78a..d62d37594 100644
  
          auto builtPaths = Installable::build(getEvalStore(), store, Realise::Outputs, installables, bmNormal);
  
-@@ -344,7 +398,7 @@ struct CmdProfileRemove : virtual EvalCommand, MixDefaultProfile, MixProfileElem
+@@ -345,7 +404,7 @@ struct CmdProfileRemove : virtual EvalCommand, MixDefaultProfile, MixProfileElem
  
      void run(ref<Store> store) override
      {
@@ -115,7 +120,7 @@ index a8ff9c78a..d62d37594 100644
  
          auto matchers = getMatchers(store);
  
-@@ -396,7 +450,7 @@ struct CmdProfileUpgrade : virtual SourceExprCommand, MixDefaultProfile, MixProf
+@@ -397,7 +456,7 @@ struct CmdProfileUpgrade : virtual SourceExprCommand, MixDefaultProfile, MixProf
  
      void run(ref<Store> store) override
      {
@@ -124,7 +129,7 @@ index a8ff9c78a..d62d37594 100644
  
          auto matchers = getMatchers(store);
  
-@@ -484,7 +538,7 @@ struct CmdProfileList : virtual EvalCommand, virtual StoreCommand, MixDefaultPro
+@@ -485,7 +544,7 @@ struct CmdProfileList : virtual EvalCommand, virtual StoreCommand, MixDefaultPro
  
      void run(ref<Store> store) override
      {
@@ -133,7 +138,7 @@ index a8ff9c78a..d62d37594 100644
  
          for (size_t i = 0; i < manifest.elements.size(); ++i) {
              auto & element(manifest.elements[i]);
-@@ -555,7 +609,7 @@ struct CmdProfileHistory : virtual StoreCommand, EvalCommand, MixDefaultProfile
+@@ -556,7 +615,7 @@ struct CmdProfileHistory : virtual StoreCommand, EvalCommand, MixDefaultProfile
          bool first = true;
  
          for (auto & gen : gens) {
@@ -142,7 +147,7 @@ index a8ff9c78a..d62d37594 100644
  
              if (!first) std::cout << "\n";
              first = false;
-@@ -650,6 +704,7 @@ struct CmdProfile : NixMultiCommand
+@@ -651,6 +710,7 @@ struct CmdProfile : NixMultiCommand
  {
      CmdProfile()
          : MultiCommand({

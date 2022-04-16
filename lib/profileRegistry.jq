@@ -131,7 +131,7 @@ def syncGeneration:
     "$_rm -f \($profileDir)/\($profileName)-\($generation)-link",
     "$_ln --force -s \($path) \($profileDir)/\($profileName)-\($generation)-link",
     "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link",
-    "manifest $profileMetaDir/\($generation).json listFlakesInProfile | $_xargs --no-run-if-empty -- $_nix build --no-link"
+    "$_nix profile import $profileMetaDir/\($generation).json"
   ] else [] end;
 
 def syncGenerations(args):
