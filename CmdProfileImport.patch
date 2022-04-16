@@ -1,0 +1,152 @@
+diff --git a/src/nix/profile-import.md b/src/nix/profile-import.md
+new file mode 100644
+index 000000000..975af9ff6
+--- /dev/null
++++ b/src/nix/profile-import.md
+@@ -0,0 +1,16 @@
++R""(
++
++# Examples
++
++* Import a profile generation from a manifest:
++
++  ```console
++  # nix profile import path/to/manifest.json
++  ```
++
++# Description
++
++This command imports a profile *generation* from
++a `manifest.json` file copied from another profile.
++
++)""
+diff --git a/src/nix/profile.cc b/src/nix/profile.cc
+index a8ff9c78a..d62d37594 100644
+--- a/src/nix/profile.cc
++++ b/src/nix/profile.cc
+@@ -90,9 +90,10 @@ struct ProfileManifest
+ 
+     ProfileManifest() { }
+ 
+-    ProfileManifest(EvalState & state, const Path & profile)
++    ProfileManifest(EvalState & state, const Path & manifestPath)
+     {
+-        auto manifestPath = profile + "/manifest.json";
++        auto profilePath = dirOf(manifestPath);
++        const Path profile = profilePath.data();
+ 
+         if (pathExists(manifestPath)) {
+             auto json = nlohmann::json::parse(readFile(manifestPath));
+@@ -235,6 +236,59 @@ struct ProfileManifest
+     }
+ };
+ 
++struct CmdProfileImport : SourceExprCommand, MixDefaultProfile
++{
++    Path manifestPath;
++
++    CmdProfileImport()
++    {
++        expectArgs({
++            .label = "path/to/manifest.json",
++            .handler = {&manifestPath},
++            .completer = completePath
++        });
++    }
++
++    std::string description() override
++    {
++        return "import profile generation from manifest";
++    }
++
++    std::string doc() override
++    {
++        return
++          #include "profile-import.md"
++          ;
++    }
++
++    void run(ref<Store> store) override
++    {
++        // Use alternate ProfileManifest version overridden to accept
++        // manifestPath directly rather than profile path.
++        ProfileManifest manifest(*getEvalState(), manifestPath);
++
++        for (size_t i = 0; i < manifest.elements.size(); ++i) {
++            auto & element(manifest.elements[i]);
++            if (element.source
++                && !element.source->originalRef.input.isLocked())
++            {
++                auto installable = std::make_shared<InstallableFlake>(
++                    this,
++                    getEvalState(),
++                    FlakeRef(element.source->originalRef),
++                    "",
++                    Strings{element.source->attrPath},
++                    Strings{},
++                    lockFlags);
++
++                element.updateStorePaths(getEvalStore(), store, *installable);
++            }
++        }
++
++        updateProfile(manifest.build(store));
++    }
++};
++
+ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
+ {
+     std::string description() override
+@@ -251,7 +305,7 @@ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
+ 
+     void run(ref<Store> store) override
+     {
+-        ProfileManifest manifest(*getEvalState(), *profile);
++        ProfileManifest manifest(*getEvalState(), *profile + "/manifest.json");
+ 
+         auto builtPaths = Installable::build(getEvalStore(), store, Realise::Outputs, installables, bmNormal);
+ 
+@@ -344,7 +398,7 @@ struct CmdProfileRemove : virtual EvalCommand, MixDefaultProfile, MixProfileElem
+ 
+     void run(ref<Store> store) override
+     {
+-        ProfileManifest oldManifest(*getEvalState(), *profile);
++        ProfileManifest oldManifest(*getEvalState(), *profile + "/manifest.json");
+ 
+         auto matchers = getMatchers(store);
+ 
+@@ -396,7 +450,7 @@ struct CmdProfileUpgrade : virtual SourceExprCommand, MixDefaultProfile, MixProf
+ 
+     void run(ref<Store> store) override
+     {
+-        ProfileManifest manifest(*getEvalState(), *profile);
++        ProfileManifest manifest(*getEvalState(), *profile + "/manifest.json");
+ 
+         auto matchers = getMatchers(store);
+ 
+@@ -484,7 +538,7 @@ struct CmdProfileList : virtual EvalCommand, virtual StoreCommand, MixDefaultPro
+ 
+     void run(ref<Store> store) override
+     {
+-        ProfileManifest manifest(*getEvalState(), *profile);
++        ProfileManifest manifest(*getEvalState(), *profile + "/manifest.json");
+ 
+         for (size_t i = 0; i < manifest.elements.size(); ++i) {
+             auto & element(manifest.elements[i]);
+@@ -555,7 +609,7 @@ struct CmdProfileHistory : virtual StoreCommand, EvalCommand, MixDefaultProfile
+         bool first = true;
+ 
+         for (auto & gen : gens) {
+-            ProfileManifest manifest(*getEvalState(), gen.path);
++            ProfileManifest manifest(*getEvalState(), gen.path + "/manifest.json");
+ 
+             if (!first) std::cout << "\n";
+             first = false;
+@@ -650,6 +704,7 @@ struct CmdProfile : NixMultiCommand
+ {
+     CmdProfile()
+         : MultiCommand({
++              {"import", []() { return make_ref<CmdProfileImport>(); }},
+               {"install", []() { return make_ref<CmdProfileInstall>(); }},
+               {"remove", []() { return make_ref<CmdProfileRemove>(); }},
+               {"upgrade", []() { return make_ref<CmdProfileUpgrade>(); }},
