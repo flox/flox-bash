@@ -120,23 +120,36 @@ def listGenerations(args):
 
 #
 # Functions which generate script snippets.
-# XXX does not belong in registry library - refactor.
 #
+
+# The process of generating a profile package is straightforward
+# but requires that all storePaths referenced by the manifest are
+# present on the system before invoking `nix profile build`. Take
+# this opportunity to verify all the paths are present by invoking
+# the `nix build` or `nix-store -r` commands that can create them.
 def syncGeneration:
   .key as $generation |
   .value.path as $path |
   .value.created as $created |
   # Cannot embed newlines so best we can do is return array and flatten later.
   if .value.path != null then [
+    # Ensure all flakes referenced in profile are built.
+    "manifest $profileMetaDir/\($generation).json listFlakesInProfile | $_xargs --no-run-if-empty -- $_nix build --no-link",
+    # Ensure all anonymous store paths referenced in profile are copied.
+    "manifest $profileMetaDir/\($generation).json listAnonStorePaths | $_xargs --no-run-if-empty -- $_nix_store -r",
+    # Now we can attempt to build the profile and store in the bash $profilePath variable.
+    "profilePath=$($_nix profile build $profileMetaDir/\($generation).json)",
+    # Now create the generation link.
     "$_rm -f \($profileDir)/\($profileName)-\($generation)-link",
-    "$_ln --force -s \($path) \($profileDir)/\($profileName)-\($generation)-link",
-    "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link",
-    "$_nix profile import $profileMetaDir/\($generation).json"
+    "$_ln --force -s $profilePath \($profileDir)/\($profileName)-\($generation)-link",
+    # And set the symbolic link's date.
+    "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link"
   ] else [] end;
 
 def syncGenerations(args):
   ( $registry | .currentGen ) as $currentGen |
   ( $registry | .generations | to_entries ) | map(syncGeneration) + [
+    # Set the current generation symlink. Let its timestamp be now.
     "$_rm -f \($profileDir)/\($profileName)",
     "$_ln --force -s \($profileName)-\($currentGen)-link \($profileDir)/\($profileName)"
   ] | flatten | .[];
