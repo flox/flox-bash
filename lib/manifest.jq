@@ -88,6 +88,9 @@ def floxpkgFromElementWithRunPath:
 def flakerefFromElement:
   "\(.originalUri)#\(.attrPath)";
 
+def lockedFlakerefFromElement:
+  "\(.originalUri)#\(.attrPath)";
+
 #
 # Functions to look up element and return data in requested format.
 #
@@ -140,14 +143,16 @@ def listProfile(args):
   end;
 
 def listFlakesInProfile(args): expectedArgs(0; args) |
-  $elements | map(
-    if .attrPath then flakerefFromElement else empty end
-  ) | .[];
+  ( $elements | map(
+    if .attrPath then lockedFlakerefFromElement else empty end
+  ) ) as $flakesInProfile |
+  if ($flakesInProfile | length) == 0 then " " else ($flakesInProfile | .[]) end;
 
 def listAnonStorePaths(args): expectedArgs(0; args) |
-  $elements | map(
-    if .attrPath then empty else .storePaths[] end
-  ) | .[];
+  ( $elements | map(
+    if .attrPath then [] else .storePaths end
+  ) | flatten ) as $anonStorePaths |
+  if ($anonStorePaths | length) == 0 then " " else ($anonStorePaths | .[]) end;
 
 # For debugging.
 def dump(args): expectedArgs(0; args) |
