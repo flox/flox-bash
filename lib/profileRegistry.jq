@@ -136,7 +136,7 @@ def syncGeneration:
     # Ensure all flakes referenced in profile are built.
     "manifest $profileMetaDir/\($generation).json listFlakesInProfile | $_xargs --no-run-if-empty -- $_nix build --no-link",
     # Ensure all anonymous store paths referenced in profile are copied.
-    "manifest $profileMetaDir/\($generation).json listAnonStorePaths | $_xargs --no-run-if-empty -- $_nix_store -r",
+    "manifest $profileMetaDir/\($generation).json listStorePaths | $_xargs --no-run-if-empty -- $_nix_store -r",
     # Now we can attempt to build the profile and store in the bash $profilePath variable.
     "profilePath=$($_nix profile build $profileMetaDir/\($generation).json)",
     # Now create the generation link.

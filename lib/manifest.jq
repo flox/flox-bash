@@ -148,10 +148,8 @@ def listFlakesInProfile(args): expectedArgs(0; args) |
   ) ) as $flakesInProfile |
   if ($flakesInProfile | length) == 0 then " " else ($flakesInProfile | .[]) end;
 
-def listAnonStorePaths(args): expectedArgs(0; args) |
-  ( $elements | map(
-    if .attrPath then [] else .storePaths end
-  ) | flatten ) as $anonStorePaths |
+def listStorePaths(args): expectedArgs(0; args) |
+  ( $elements | map(.storePaths) | flatten ) as $anonStorePaths |
   if ($anonStorePaths | length) == 0 then " " else ($anonStorePaths | .[]) end;
 
 # For debugging.
@@ -172,7 +170,7 @@ else if $function == "storepathToPosition" then storepathToPosition($funcargs)
 else if $function == "positionToFloxpkg"   then positionToFloxpkg($funcargs)
 else if $function == "listProfile"         then listProfile($funcargs)
 else if $function == "listFlakesInProfile" then listFlakesInProfile($funcargs)
-else if $function == "listAnonStorePaths"  then listAnonStorePaths($funcargs)
+else if $function == "listStorePaths"      then listStorePaths($funcargs)
 else if $function == "dump"                then dump($funcargs)
 else error("unknown function: \"\($function)\"")
 end end end end end end end end end end
