@@ -1,6 +1,12 @@
+commit 0550020bbb928aa882ae3cae58e1c6eaa782b214
+Author: Michael Brantley <36448130+limeytexan@users.noreply.github.com>
+Date:   Sun Apr 17 05:29:46 2022 +0100
+
+    Create CmdProfileImport()
+
 diff --git a/src/nix/profile-import.md b/src/nix/profile-import.md
 new file mode 100644
-index 000000000..975af9ff6
+index 000000000..d9bf5ee31
 --- /dev/null
 +++ b/src/nix/profile-import.md
 @@ -0,0 +1,16 @@
@@ -11,7 +17,7 @@ index 000000000..975af9ff6
 +* Import a profile generation from a manifest:
 +
 +  ```console
-+  # nix profile import path/to/manifest.json
++  # nix profile import --realize path/to/manifest.json
 +  ```
 +
 +# Description
@@ -21,7 +27,7 @@ index 000000000..975af9ff6
 +
 +)""
 diff --git a/src/nix/profile.cc b/src/nix/profile.cc
-index da990ddc8..abb009aba 100644
+index a8ff9c78a..f49a2a221 100644
 --- a/src/nix/profile.cc
 +++ b/src/nix/profile.cc
 @@ -90,9 +90,10 @@ struct ProfileManifest
@@ -37,13 +43,14 @@ index da990ddc8..abb009aba 100644
  
          if (pathExists(manifestPath)) {
              auto json = nlohmann::json::parse(readFile(manifestPath));
-@@ -236,6 +237,64 @@ struct ProfileManifest
+@@ -235,6 +236,67 @@ struct ProfileManifest
      }
  };
  
 +struct CmdProfileImport : SourceExprCommand, MixDefaultProfile
 +{
 +    Path manifestPath;
++    bool realiseElements = false;
 +
 +    CmdProfileImport()
 +    {
@@ -51,6 +58,12 @@ index da990ddc8..abb009aba 100644
 +            .label = "path/to/manifest.json",
 +            .handler = {&manifestPath},
 +            .completer = completePath
++        });
++        addFlag({
++            .longName = "realise",
++            .shortName = 'r',
++            .description = "Attempt to build or download package outputs referenced by the imported profile.",
++            .handler = {&realiseElements, true},
 +        });
 +    }
 +
@@ -68,31 +81,27 @@ index da990ddc8..abb009aba 100644
 +
 +    void run(ref<Store> store) override
 +    {
-+        // Use alternate ProfileManifest version overridden to accept
-+        // manifestPath directly rather than profile path.
 +        ProfileManifest manifest(*getEvalState(), manifestPath);
 +
-+        try {
++        if (realiseElements) {
++            std::vector<std::shared_ptr<Installable>> installables;
++
 +            for (size_t i = 0; i < manifest.elements.size(); ++i) {
 +                auto & element(manifest.elements[i]);
-+                if (element.source
-+                    && !element.source->originalRef.input.isLocked())
-+                {
++                if (element.source) {
 +                    auto installable = std::make_shared<InstallableFlake>(
 +                        this,
 +                        getEvalState(),
-+                        FlakeRef(element.source->originalRef),
++                        FlakeRef(element.source->resolvedRef),
 +                        "",
 +                        Strings{element.source->attrPath},
 +                        Strings{},
 +                        lockFlags);
 +
-+                    element.updateStorePaths(getEvalStore(), store, *installable);
++                    installables.push_back(installable);
 +                }
 +            }
-+        } catch (Error & e) {
-+            ignoreException();
-+            warn("failed to realise all store paths for '%s'", *profile);
++            auto builtPaths = Installable::build(getEvalStore(), store, Realise::Outputs, installables, bmNormal);
 +        }
 +
 +        updateProfile(manifest.build(store));
@@ -102,7 +111,7 @@ index da990ddc8..abb009aba 100644
  struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
  {
      std::string description() override
-@@ -252,7 +311,7 @@ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
+@@ -251,7 +313,7 @@ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
  
      void run(ref<Store> store) override
      {
@@ -111,7 +120,7 @@ index da990ddc8..abb009aba 100644
  
          auto builtPaths = Installable::build(getEvalStore(), store, Realise::Outputs, installables, bmNormal);
  
-@@ -345,7 +404,7 @@ struct CmdProfileRemove : virtual EvalCommand, MixDefaultProfile, MixProfileElem
+@@ -344,7 +406,7 @@ struct CmdProfileRemove : virtual EvalCommand, MixDefaultProfile, MixProfileElem
  
      void run(ref<Store> store) override
      {
@@ -120,7 +129,7 @@ index da990ddc8..abb009aba 100644
  
          auto matchers = getMatchers(store);
  
-@@ -397,7 +456,7 @@ struct CmdProfileUpgrade : virtual SourceExprCommand, MixDefaultProfile, MixProf
+@@ -396,7 +458,7 @@ struct CmdProfileUpgrade : virtual SourceExprCommand, MixDefaultProfile, MixProf
  
      void run(ref<Store> store) override
      {
@@ -129,7 +138,7 @@ index da990ddc8..abb009aba 100644
  
          auto matchers = getMatchers(store);
  
-@@ -485,7 +544,7 @@ struct CmdProfileList : virtual EvalCommand, virtual StoreCommand, MixDefaultPro
+@@ -484,7 +546,7 @@ struct CmdProfileList : virtual EvalCommand, virtual StoreCommand, MixDefaultPro
  
      void run(ref<Store> store) override
      {
@@ -138,7 +147,7 @@ index da990ddc8..abb009aba 100644
  
          for (size_t i = 0; i < manifest.elements.size(); ++i) {
              auto & element(manifest.elements[i]);
-@@ -556,7 +615,7 @@ struct CmdProfileHistory : virtual StoreCommand, EvalCommand, MixDefaultProfile
+@@ -555,7 +617,7 @@ struct CmdProfileHistory : virtual StoreCommand, EvalCommand, MixDefaultProfile
          bool first = true;
  
          for (auto & gen : gens) {
@@ -147,7 +156,7 @@ index da990ddc8..abb009aba 100644
  
              if (!first) std::cout << "\n";
              first = false;
-@@ -651,6 +710,7 @@ struct CmdProfile : NixMultiCommand
+@@ -650,6 +712,7 @@ struct CmdProfile : NixMultiCommand
  {
      CmdProfile()
          : MultiCommand({
