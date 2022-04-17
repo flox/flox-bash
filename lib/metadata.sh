@@ -127,7 +127,7 @@ function syncProfile() {
 	profileRegistry "$profile" syncGenerations | while read _cline
 	do
 		eval "$_cline"
-	done
+	done || true
 
 	# FIXME REFACTOR based on detecting actual change.
 	[ -z "$_cline" ] || metaGit "$profile" "$system" add "metadata.json"

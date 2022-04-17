@@ -87,12 +87,14 @@ while [ $# -ne 0 ]; do
 		;;
 	-v | --verbose)
 		verbose=1
+		_xargs="$_xargs --verbose"
 		shift
 		;;
 	--debug)
 		set -x
 		debug=1
 		verbose=1
+		_xargs="$_xargs --verbose"
 		shift
 		;;
 	--version)
