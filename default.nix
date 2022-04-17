@@ -19,7 +19,7 @@ let
     ;
   inherit (pkgs.unixtools) getent;
   nix = nixUnstable.overrideAttrs (oldAttrs: {
-    patches = oldAttrs.patches ++ [ ./CmdProfileImport.patch ];
+    patches = oldAttrs.patches ++ [ ./CmdProfileBuild.patch ];
   });
 
 in stdenv.mkDerivation rec {

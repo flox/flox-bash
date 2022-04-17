@@ -1,33 +1,33 @@
-commit 0550020bbb928aa882ae3cae58e1c6eaa782b214
-Author: Michael Brantley <36448130+limeytexan@users.noreply.github.com>
-Date:   Sun Apr 17 05:29:46 2022 +0100
+commit 62085f7a171ad405884fb8c05cec673d7314c4fa
+Author: Michael Brantley <limeytexan@users.noreply.github.com>
+Date:   Sun Apr 17 15:30:24 2022 +0100
 
-    Create CmdProfileImport()
+    Working implementation of `nix profile build`
 
-diff --git a/src/nix/profile-import.md b/src/nix/profile-import.md
+diff --git a/src/nix/profile-build.md b/src/nix/profile-build.md
 new file mode 100644
 index 000000000..d9bf5ee31
 --- /dev/null
-+++ b/src/nix/profile-import.md
++++ b/src/nix/profile-build.md
 @@ -0,0 +1,16 @@
 +R""(
 +
 +# Examples
 +
-+* Import a profile generation from a manifest:
++* Build a profile generation from a manifest:
 +
 +  ```console
-+  # nix profile import --realize path/to/manifest.json
++  # nix profile build path/to/manifest.json
 +  ```
 +
 +# Description
 +
-+This command imports a profile *generation* from
++This command builds a profile *generation* from
 +a `manifest.json` file copied from another profile.
 +
 +)""
 diff --git a/src/nix/profile.cc b/src/nix/profile.cc
-index a8ff9c78a..f49a2a221 100644
+index a8ff9c78a..e14aca97e 100644
 --- a/src/nix/profile.cc
 +++ b/src/nix/profile.cc
 @@ -90,9 +90,10 @@ struct ProfileManifest
@@ -43,75 +43,63 @@ index a8ff9c78a..f49a2a221 100644
  
          if (pathExists(manifestPath)) {
              auto json = nlohmann::json::parse(readFile(manifestPath));
-@@ -235,6 +236,67 @@ struct ProfileManifest
+@@ -235,6 +236,55 @@ struct ProfileManifest
      }
  };
  
-+struct CmdProfileImport : SourceExprCommand, MixDefaultProfile
++struct CmdProfileBuild : SourceExprCommand
 +{
 +    Path manifestPath;
-+    bool realiseElements = false;
++    Path outLink = "result";
 +
-+    CmdProfileImport()
++    CmdProfileBuild()
 +    {
 +        expectArgs({
 +            .label = "path/to/manifest.json",
 +            .handler = {&manifestPath},
 +            .completer = completePath
 +        });
++
 +        addFlag({
-+            .longName = "realise",
-+            .shortName = 'r',
-+            .description = "Attempt to build or download package outputs referenced by the imported profile.",
-+            .handler = {&realiseElements, true},
++            .longName = "out-link",
++            .shortName = 'o',
++            .description = "Use *path* as prefix for the symlinks to the build results. It defaults to `result`.",
++            .labels = {"path"},
++            .handler = {&outLink},
++            .completer = completePath
++        });
++
++        addFlag({
++            .longName = "no-link",
++            .description = "Do not create symlinks to the build results.",
++            .handler = {&outLink, Path("")},
 +        });
 +    }
 +
 +    std::string description() override
 +    {
-+        return "import profile generation from manifest";
++        return "build profile generation from manifest";
 +    }
 +
 +    std::string doc() override
 +    {
 +        return
-+          #include "profile-import.md"
++          #include "profile-build.md"
 +          ;
 +    }
 +
 +    void run(ref<Store> store) override
 +    {
 +        ProfileManifest manifest(*getEvalState(), manifestPath);
-+
-+        if (realiseElements) {
-+            std::vector<std::shared_ptr<Installable>> installables;
-+
-+            for (size_t i = 0; i < manifest.elements.size(); ++i) {
-+                auto & element(manifest.elements[i]);
-+                if (element.source) {
-+                    auto installable = std::make_shared<InstallableFlake>(
-+                        this,
-+                        getEvalState(),
-+                        FlakeRef(element.source->resolvedRef),
-+                        "",
-+                        Strings{element.source->attrPath},
-+                        Strings{},
-+                        lockFlags);
-+
-+                    installables.push_back(installable);
-+                }
-+            }
-+            auto builtPaths = Installable::build(getEvalStore(), store, Realise::Outputs, installables, bmNormal);
-+        }
-+
-+        updateProfile(manifest.build(store));
++        auto storePath = manifest.build(store);
++        std::cout << store->printStorePath(storePath) << std::endl;
 +    }
 +};
 +
  struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
  {
      std::string description() override
-@@ -251,7 +313,7 @@ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
+@@ -251,7 +301,7 @@ struct CmdProfileInstall : InstallablesCommand, MixDefaultProfile
  
      void run(ref<Store> store) override
      {
@@ -120,7 +108,7 @@ index a8ff9c78a..f49a2a221 100644
  
          auto builtPaths = Installable::build(getEvalStore(), store, Realise::Outputs, installables, bmNormal);
  
-@@ -344,7 +406,7 @@ struct CmdProfileRemove : virtual EvalCommand, MixDefaultProfile, MixProfileElem
+@@ -344,7 +394,7 @@ struct CmdProfileRemove : virtual EvalCommand, MixDefaultProfile, MixProfileElem
  
      void run(ref<Store> store) override
      {
@@ -129,7 +117,7 @@ index a8ff9c78a..f49a2a221 100644
  
          auto matchers = getMatchers(store);
  
-@@ -396,7 +458,7 @@ struct CmdProfileUpgrade : virtual SourceExprCommand, MixDefaultProfile, MixProf
+@@ -396,7 +446,7 @@ struct CmdProfileUpgrade : virtual SourceExprCommand, MixDefaultProfile, MixProf
  
      void run(ref<Store> store) override
      {
@@ -138,7 +126,7 @@ index a8ff9c78a..f49a2a221 100644
  
          auto matchers = getMatchers(store);
  
-@@ -484,7 +546,7 @@ struct CmdProfileList : virtual EvalCommand, virtual StoreCommand, MixDefaultPro
+@@ -484,7 +534,7 @@ struct CmdProfileList : virtual EvalCommand, virtual StoreCommand, MixDefaultPro
  
      void run(ref<Store> store) override
      {
@@ -147,7 +135,7 @@ index a8ff9c78a..f49a2a221 100644
  
          for (size_t i = 0; i < manifest.elements.size(); ++i) {
              auto & element(manifest.elements[i]);
-@@ -555,7 +617,7 @@ struct CmdProfileHistory : virtual StoreCommand, EvalCommand, MixDefaultProfile
+@@ -555,7 +605,7 @@ struct CmdProfileHistory : virtual StoreCommand, EvalCommand, MixDefaultProfile
          bool first = true;
  
          for (auto & gen : gens) {
@@ -156,11 +144,11 @@ index a8ff9c78a..f49a2a221 100644
  
              if (!first) std::cout << "\n";
              first = false;
-@@ -650,6 +712,7 @@ struct CmdProfile : NixMultiCommand
+@@ -650,6 +700,7 @@ struct CmdProfile : NixMultiCommand
  {
      CmdProfile()
          : MultiCommand({
-+              {"import", []() { return make_ref<CmdProfileImport>(); }},
++              {"build", []() { return make_ref<CmdProfileBuild>(); }},
                {"install", []() { return make_ref<CmdProfileInstall>(); }},
                {"remove", []() { return make_ref<CmdProfileRemove>(); }},
                {"upgrade", []() { return make_ref<CmdProfileUpgrade>(); }},
