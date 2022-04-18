@@ -334,7 +334,7 @@ activate | history | install | list | remove | rollback | \
 			done
 		fi
 		logMessage="$FLOX_USER $(pastTense $subcommand) ${pkgNames[@]}"
-		cmd=($_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgArgs[@]}")
+		cmd=($invoke_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgArgs[@]}")
 		;;
 
 	rollback | switch-generation | wipe-history)
@@ -346,7 +346,7 @@ activate | history | install | list | remove | rollback | \
 			opts=("--to" "${args[0]}" "${opts[@]}")
 			args=("${args[@]:1}")
 		fi
-		cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
 		;;
 
 	list)
@@ -355,7 +355,7 @@ activate | history | install | list | remove | rollback | \
 
 	history)
 		# Nix history is not a history! It's just a diff of successive generations.
-		#cmd=($_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		#cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
 
 		# Default log format only includes subject %s.
 		logFormat="format:%cd %C(cyan)%s%Creset"
@@ -421,50 +421,50 @@ diff-closures)
 			;;
 		esac
 	done
-	cmd=($_nix "$subcommand" "${opts[@]}" "${args[@]}")
+	cmd=($invoke_nix "$subcommand" "${opts[@]}" "${args[@]}")
 	;;
 
 build)
-	cmd=($_nix "$subcommand" "$@")
+	cmd=($invoke_nix "$subcommand" "$@")
 	;;
 
 develop)
-	cmd=($_nix "$subcommand" "$@")
+	cmd=($invoke_nix "$subcommand" "$@")
 	;;
 
 gh)
-	cmd=($_gh "$@")
+	cmd=($invoke_gh "$@")
 	;;
 
 packages)
 	# iterate over all known flakes listing valid floxpkgs tuples.
 	for flake in $(flakeRegistry get flakes | $_jq -r '.[] | .from.id'); do
-		$_nix eval "flake:${flake}#attrnames.${NIX_CONF_system}" --json | \
-			$_jq -r ".[]"
+		$invoke_nix eval "flake:${flake}#attrnames.${NIX_CONF_system}" --json | \
+			$invoke_jq -r ".[]"
 	done
 	;;
 
 shell)
-	cmd=($_nix "$subcommand" "$@")
+	cmd=($invoke_nix "$subcommand" "$@")
 	;;
 
 # Special "cut-thru" mode to invoke Nix directly.
 nix)
-	cmd=($_nix "$@")
+	cmd=($invoke_nix "$@")
 	;;
 
 search)
     echo "TEST"
-	cmd=($_nix "$subcommand" "$@")
+	cmd=($invoke_nix "$subcommand" "$@")
 	;;
 *)
-	cmd=($_nix "$subcommand" "$@")
+	cmd=($invoke_nix "$subcommand" "$@")
 	;;
 esac
 
 [ ${#cmd[@]} -gt 0 ] || exit
 
-invoke "${cmd[@]}"
+"${cmd[@]}"
 if [ -n "$profile" ]; then
 	profileEndGen=$(profileGen "$profile")
 	if [ -n "$profileStartGen" ]; then

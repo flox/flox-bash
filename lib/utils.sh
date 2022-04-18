@@ -1,7 +1,8 @@
 #
 # Utility functions.
 #
-
+# Track exported environment variables for use in verbose output.
+declare -A exported_variables
 function hash_commands() {
 	set -h # explicitly enable hashing
 	local PATH=@@FLOXPATH@@:$PATH
@@ -9,6 +10,18 @@ function hash_commands() {
 		_i=${i//-/_} # Pesky utilities containing dashes require rewrite.
 		hash $i # Dies with useful/precise error on failure when not found.
 		declare -g _$_i=$(type -P $i)
+
+		# Define $invoke_<name> variables for those invocations we'd
+		# like to wrap with the invoke() subroutine.
+		declare -g invoke_$_i="invoke $(type -P $i)"
+
+		# Some commands require certain environment variables to work properly.
+		# Make note of them here for displaying verbose output in invoke().
+		case $i in
+		nix | nix-store)
+			exported_variables[$(type -P $i)]="NIX_USER_CONF_FILES" ;;
+		*) ;;
+		esac
 	done
 }
 
@@ -56,12 +69,12 @@ function pprint() {
 function invoke() {
 	local vars=()
 	if [ -n "$verbose" ]; then
-		for i in ${exported_variables[@]}; do
+		for i in ${exported_variables[$1]}; do
 			vars+=($(eval "echo $i=\${$i}"))
 		done
 		pprint "${vars[@]}" "$@" 1>&2
 	fi
-	"$@" 1>&2
+	exec "$@"
 }
 
 #
@@ -97,7 +110,7 @@ function manifest() {
 	jqargs+=("--args" "--" "$@")
 
 	# Finally invoke jq.
-	$_jq "${jqargs[@]}"
+	$invoke_jq "${jqargs[@]}"
 }
 
 #
