@@ -27,7 +27,7 @@ _etc=$_prefix/etc
 me="${0##*/}"
 mespaces=$(echo $me | $_tr '[a-z]' ' ')
 medashes=$(echo $me | $_tr '[a-z]' '-')
-
+delim="$(printf '\t')"
 function usage() {
 	$_cat <<EOF 1>&2
 usage: $me [ --stability (stable|staging|unstable) ]
@@ -58,7 +58,7 @@ Nix profile commands:
 
 Developer environment commands:
     flox develop
-
+#cachedPackages.
 EOF
 }
 
@@ -70,7 +70,7 @@ while [ $# -ne 0 ]; do
 	case "$1" in
 	--stability)
 		shift
-		if [ $# -eq 0 ]; then
+	 	if [ $# -eq 0 ]; then
 			echo "ERROR: missing argument to --stability flag" 1>&2
 			exit 1
 		fi
@@ -136,7 +136,7 @@ function profileArg() {
 function profileGen() {
 	local profile="$1"
 	local profileName=$($_basename $profile)
-	if [ -L "$profile" ]; then
+	if [   -L "$profile" ]; then
 		if [[ $($_readlink "$profile") =~ ^${profileName}-([0-9]+)-link$ ]]; then
 			echo ${BASH_REMATCH[1]}
 			return
@@ -437,9 +437,12 @@ gh)
 packages)
 	# iterate over all known flakes listing valid floxpkgs tuples.
 	for flake in $(flakeRegistry get flakes | $_jq -r '.[] | .from.id'); do
-		$invoke_nix eval "flake:${flake}#attrnames.${NIX_CONF_system}" --json | \
-			$invoke_jq -r ".[]"
+		$_nix eval "flake:${flake}#__index.${NIX_CONFIG_system}" --json | jq --stream 'select(length==2)|.[0]|join(".")' -cr
 	done
+	;;
+
+builds)
+		$_nix eval "flake:floxpkgs#cachedPackages.${NIX_CONFIG_system}.$1"  --json --impure --apply 'builtins.mapAttrs (_k: v: v.meta )'  | $_jq -r '["Build Date","Name/Version","Description","Package Ref"], ["-----------","------------","-----------","-------"], ([.[]] | sort_by(.revision_epoch) |.[] |  [(.revision_epoch|(strftime("%Y-%m-%d"))), .name, .description, .flakeref]) | @tsv' | column -ts "$(printf '\t')"
 	;;
 
 shell)
