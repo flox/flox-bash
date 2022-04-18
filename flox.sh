@@ -58,7 +58,6 @@ Nix profile commands:
 
 Developer environment commands:
     flox develop
-#cachedPackages.
 EOF
 }
 
@@ -455,8 +454,8 @@ nix)
 	;;
 
 search)
-    echo "TEST"
-	cmd=($invoke_nix "$subcommand" "$@")
+	#cmd=($invoke_nix "$subcommand" "$@")
+	$_nix search "flake:floxpkgs" "$1"
 	;;
 *)
 	cmd=($invoke_nix "$subcommand" "$@")
