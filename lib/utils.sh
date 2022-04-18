@@ -74,7 +74,7 @@ function invoke() {
 		done
 		pprint "${vars[@]}" "$@" 1>&2
 	fi
-	exec "$@"
+	"$@"
 }
 
 #
