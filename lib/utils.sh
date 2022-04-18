@@ -19,7 +19,7 @@ function hash_commands() {
 		# Make note of them here for displaying verbose output in invoke().
 		case $i in
 		nix | nix-store)
-			exported_variables[$(type -P $i)]="NIX_USER_CONF_FILES" ;;
+			exported_variables[$(type -P $i)]="NIX_CONFIG" ;;
 		*) ;;
 		esac
 	done

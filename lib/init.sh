@@ -70,7 +70,17 @@ nix_show_config()
 #
 
 # Set base configuration before invoking nix commands.
-export NIX_USER_CONF_FILES=$_etc/nix.conf
+# We do this here rather than using NIX_USER_CONF_FILES
+# because we can't reference environment variables like
+# $HOME from within a conf file and the 'netrc-file'
+# variable must be an absolute path in $HOME.
+export NIX_CONFIG="
+experimental-features = nix-command flakes
+netrc-file = $HOME/.netrc
+flake-registry = $_etc/nix/registry.json
+accept-flake-config = true
+${NIX_CONFIG:-}
+"
 
 # Load nix configuration
 eval $(nix_show_config)

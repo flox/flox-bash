@@ -7,7 +7,6 @@ MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)
 ETC = \
 	etc/flox.toml \
-	etc/nix.conf \
 	etc/nix/registry.json
 LIB = \
 	lib/init.sh \
@@ -62,11 +61,6 @@ $(PREFIX)/lib/%: lib/%
 	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
 	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
 	  $< > $@
-
-$(PREFIX)/etc/nix.conf: etc/nix.conf
-	-@rm -f $@
-	@mkdir -p $(@D)
-	sed -e 's%@@PREFIX@@%$(PREFIX)%' $< > $@
 
 $(PREFIX)/etc/nix/registry.json: etc/nix/registry.json
 	-@rm -f $@
