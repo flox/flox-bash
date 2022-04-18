@@ -104,10 +104,10 @@ export FLOX_USER=$USER # XXX FIXME $(flox whoami)
 
 # Define and create flox metadata cache, data, and profiles directories.
 export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"
-export FLOX_METADATA="$FLOX_CACHE_HOME/profilemeta"
+export FLOX_PROFILEMETA="$FLOX_CACHE_HOME/profilemeta"
 export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
 export FLOX_PROFILES="$FLOX_DATA_HOME/profiles"
-mkdir -p "$FLOX_CACHE_HOME" "$FLOX_METADATA" "$FLOX_DATA_HOME" "$FLOX_PROFILES"
+mkdir -p "$FLOX_CACHE_HOME" "$FLOX_PROFILEMETA" "$FLOX_DATA_HOME" "$FLOX_PROFILES"
 
 # Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}

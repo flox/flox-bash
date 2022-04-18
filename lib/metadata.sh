@@ -95,15 +95,15 @@ function metaGit() {
 	local system="$1"; shift
 	local profileName=$($_basename $profile)
 	local userName=$($_basename $($_dirname $profile))
-	local metaDir="$FLOX_METADATA/$userName"
+	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
-	gitCheckout "$metaDir" "${system}.${profileName}"
+	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
 	(
 		[ -z "$verbose" ] || set -x
-		$_git -C $metaDir "$@"
+		$_git -C $profileMetaDir "$@"
 	)
 }
 
@@ -116,18 +116,16 @@ function syncProfile() {
 	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
 	local profileUserName=$($_basename $($_dirname $profile))
-	local metaDir="$FLOX_METADATA/$profileUserName"
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
 
 	# Ensure metadata repo is checked out to correct branch.
-	gitCheckout "$metaDir" "${system}.${profileName}"
+	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
 	# Run snippet to generate links using data from metadata repo.
 	$_mkdir -v -p "$profileDir" 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
-	local _cline
-	profileRegistry "$profile" syncGenerations | while read _cline
-	do
-		eval "$_cline"
-	done || true
+
+	local snippet=$(profileRegistry "$profile" syncGenerations)
+	eval "$snippet" || true
 
 	# FIXME REFACTOR based on detecting actual change.
 	[ -z "$_cline" ] || metaGit "$profile" "$system" add "metadata.json"
@@ -142,11 +140,11 @@ function syncProfile() {
 #
 function syncProfiles() {
 	local userName="$1"
-	local metaDir="$FLOX_METADATA/$userName"
+	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
 
-	local branches=$($_git -C "$metaDir" branch --format="%(refname:short)")
+	local branches=$($_git -C "$profileMetaDir" branch --format="%(refname:short)")
 	for branch in "${branches}"; do
-		syncProfile "$metaDir" "$branch"
+		syncProfile "$profileMetaDir" "$branch" || true # keep going
 	done
 }
 
@@ -231,31 +229,31 @@ function syncMetadata() {
 	local invocation="${@}"
 	local profileName=$($_basename $profile)
 	local userName=$($_basename $($_dirname $profile))
-	local metaDir="$FLOX_METADATA/$userName"
+	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
-	gitCheckout "$metaDir" "${system}.${profileName}"
+	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
 	# Now reconcile the data.
 	for i in ${profile}-+([0-9])-link; do
 		local gen_link=${i#${profile}-} # remove prefix
 		local gen=${gen_link%-link} # remove suffix
-		[ -e "$metaDir/${gen}.json" ] || {
-			$_cp "$i/manifest.json" "$metaDir/${gen}.json"
+		[ -e "$profileMetaDir/${gen}.json" ] || {
+			$_cp "$i/manifest.json" "$profileMetaDir/${gen}.json"
 			metaGit "$profile" "$system" add "${gen}.json"
 		}
 		# Verify that something hasn't gone horribly wrong.
-		$_cmp -s "$i/manifest.json" "$metaDir/${gen}.json" || \
-			error "$i/manifest.json and $metaDir/${gen}.json differ" < /dev/null
+		$_cmp -s "$i/manifest.json" "$profileMetaDir/${gen}.json" || \
+			error "$i/manifest.json and $profileMetaDir/${gen}.json differ" < /dev/null
 	done
 
 	# Update manifest.json to point to current generation.
 	local endMetaGeneration
-	[ ! -e "$metaDir/manifest.json" ] || \
-		endMetaGeneration=$($_readlink "$metaDir/manifest.json")
+	[ ! -e "$profileMetaDir/manifest.json" ] || \
+		endMetaGeneration=$($_readlink "$profileMetaDir/manifest.json")
 	[ "$endMetaGeneration" = "${endGen}.json" ] || {
-		$_ln -f -s "${endGen}.json" "$metaDir/manifest.json"
+		$_ln -f -s "${endGen}.json" "$profileMetaDir/manifest.json"
 		metaGit "$profile" "$system" add "manifest.json"
 	}
 	profileRegistry "$profile" set currentGen "${endGen}"

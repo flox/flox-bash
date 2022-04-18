@@ -208,7 +208,7 @@ function profileRegistry() {
 	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
 	local profileUserName=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_METADATA/$profileUserName"
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
 	local registry="$profileMetaDir/metadata.json"
 	local version=1
 	# jq args:

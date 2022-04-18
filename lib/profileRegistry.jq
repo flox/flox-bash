@@ -135,16 +135,16 @@ def syncGeneration:
   if .value.path != null then [
     # Ensure all flakes referenced in profile are built.
     "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
-    " $_xargs --no-run-if-empty -- $_nix build --no-link",
+    " $_xargs --no-run-if-empty $( [ -z \"$verbose\" ] || echo '--verbose' ) -- $_nix build --no-link && " +
     # Ensure all anonymous store paths referenced in profile are copied.
     "manifest $profileMetaDir/\($generation).json listStorePaths | " +
-    " $_xargs --no-run-if-empty -n 1 -- $_sh -c 'test -d $0 || echo $0' | " +
-    " $_xargs --no-run-if-empty --verbose -- $_nix_store -r",
+    " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
+    " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
     # Now we can attempt to build the profile and store in the bash $profilePath variable.
-    "profilePath=$($_nix profile build $profileMetaDir/\($generation).json)",
+    "profilePath=$($_nix profile build $profileMetaDir/\($generation).json) && " +
     # Now create the generation link.
-    "$_rm -f \($profileDir)/\($profileName)-\($generation)-link",
-    "$_ln --force -s $profilePath \($profileDir)/\($profileName)-\($generation)-link",
+    "$_rm -f \($profileDir)/\($profileName)-\($generation)-link && " +
+    "$_ln --force -s $profilePath \($profileDir)/\($profileName)-\($generation)-link && " +
     # And set the symbolic link's date.
     "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link"
   ] else [] end;

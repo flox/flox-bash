@@ -240,7 +240,7 @@ activate | history | install | list | remove | rollback | \
 		profile=$(profileArg "default")
 		profileName=$($_basename $profile)
 		profileUserName=$($_basename $($_dirname $profile))
-		profileMetaDir="$FLOX_METADATA/$profileUserName"
+		profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
 		profileStartGen=$(profileGen "$profile")
 	fi
 	echo Using profile: $profile >&2
