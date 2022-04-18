@@ -110,7 +110,7 @@ function manifest() {
 	jqargs+=("--args" "--" "$@")
 
 	# Finally invoke jq.
-	$invoke_jq "${jqargs[@]}"
+	$_jq "${jqargs[@]}"
 }
 
 #

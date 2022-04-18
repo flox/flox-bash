@@ -134,9 +134,12 @@ def syncGeneration:
   # Cannot embed newlines so best we can do is return array and flatten later.
   if .value.path != null then [
     # Ensure all flakes referenced in profile are built.
-    "manifest $profileMetaDir/\($generation).json listFlakesInProfile | $_xargs --no-run-if-empty -- $_nix build --no-link",
+    "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
+    " $_xargs --no-run-if-empty -- $_nix build --no-link",
     # Ensure all anonymous store paths referenced in profile are copied.
-    "manifest $profileMetaDir/\($generation).json listStorePaths | $_xargs --no-run-if-empty -- $_nix_store -r",
+    "manifest $profileMetaDir/\($generation).json listStorePaths | " +
+    " $_xargs --no-run-if-empty -n 1 -- $_sh -c 'test -d $0 || echo $0' | " +
+    " $_xargs --no-run-if-empty --verbose -- $_nix_store -r",
     # Now we can attempt to build the profile and store in the bash $profilePath variable.
     "profilePath=$($_nix profile build $profileMetaDir/\($generation).json)",
     # Now create the generation link.
