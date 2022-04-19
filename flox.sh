@@ -69,7 +69,7 @@ while [ $# -ne 0 ]; do
 	case "$1" in
 	--stability)
 		shift
-	 	if [ $# -eq 0 ]; then
+		if [ $# -eq 0 ]; then
 			echo "ERROR: missing argument to --stability flag" 1>&2
 			exit 1
 		fi
@@ -82,7 +82,7 @@ while [ $# -ne 0 ]; do
 			error "missing argument to --date flag" </dev/null
 		fi
 		export FLOX_RENIX_DATE="$1"
-	nix-build 	shift
+		shift
 		;;
 	-v | --verbose)
 		verbose=1
