@@ -16,7 +16,8 @@ LIB = \
 	lib/registry.jq \
 	lib/utils.sh
 SHARE = \
-	share/bash-completion/completions/flox
+	share/bash-completion/completions/flox \
+	share/flox-smoke-and-mirrors/packages-all-libs.txt.gz share/flox-smoke-and-mirrors/packages-all.txt.gz
 LINKBIN = # Add files to be linked to flox here
 
 # String to be prepended to flox flake uri.

@@ -30,7 +30,7 @@ function hash_commands() {
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq getent gh git \
-	ln mkdir mktemp mv nix nix-store readlink realpath rm rmdir sed sh stat touch tr xargs
+	ln mkdir mktemp mv nix nix-store readlink realpath rm rmdir sed sh stat touch tr xargs zgrep
 
 function warn() {
 	[ ${#@} -eq 0 ] || echo "$@" 1>&2

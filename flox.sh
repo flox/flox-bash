@@ -21,6 +21,7 @@ _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
 _lib=$_prefix/lib
 _etc=$_prefix/etc
+_share=$_prefix/share
 . $_lib/init.sh
 
 # Short name for this script, derived from $0.
@@ -272,11 +273,11 @@ activate | history | install | list | remove | rollback | \
 				$_mkdir -v -p $($_dirname $profile) 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
 			for pkg in ${args[@]}; do
 				case "$pkg" in
-				-*) # Don't try to interpret option as floxpkgArg.
-					pkgArgs+=("$pkg")
+				-*) # don't try to interpret option as floxpkgarg.
+					pkgargs+=("$pkg")
 					;;
 				*)
-					pkgArgs+=($(floxpkgArg "$pkg"))
+					pkgargs+=($(floxpkgarg "$pkg"))
 					;;
 				esac
 			done
@@ -434,6 +435,33 @@ gh)
 	;;
 
 packages)
+	smokeandmirrorfile=$_share/flox-smoke-and-mirrors/packages-all.txt.gz
+	packageregexp=
+	for arg in $@; do
+		case "$arg" in
+		--show-libs)
+			smokeandmirrorfile=$_share/flox-smoke-and-mirrors/packages-all-libs.txt.gz
+			shift
+			;;
+		--all)
+			packageregexp="."
+			shift
+			;;
+		*)
+			packageregexp="^$arg\."
+			shift
+			break
+			;;
+		esac
+	done
+	[ -n "$packageregexp" ] ||
+		usage | error "missing channel argument"
+	[ -z "$@" ] ||
+		usage | error "extra arguments \"$@\""
+	cmd=("$_zgrep" "$packageregexp" "$smokeandmirrorfile")
+	;;
+
+newpackages)
 	# iterate over all known flakes listing valid floxpkgs tuples.
 	for flake in $(flakeRegistry get flakes | $_jq -r '.[] | .from.id'); do
 		$_nix eval "flake:${flake}#__index.${NIX_CONFIG_system}" --json | jq --stream 'select(length==2)|.[0]|join(".")' -cr
