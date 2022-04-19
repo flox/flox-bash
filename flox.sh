@@ -37,6 +37,13 @@ usage: $me [ --stability (stable|staging|unstable) ]
        $medashes
        $me [ (-h|--help) ] [ --version ]
 
+Flox package commands:
+    flox packages [ --all | channel[.stability[.package]] ] [--show-libs]
+	    list all packages or filtered by channel[.subchannel[.package]]
+		--show-libs: include library packages
+    flox builds <channel>.<stability>.<package>
+		list all available builds for specified package
+
 Flox profile commands:
     flox activate - fix me
     flox gh - access to the gh CLI
