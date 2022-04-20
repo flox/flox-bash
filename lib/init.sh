@@ -114,6 +114,7 @@ experimental-features = nix-command flakes
 netrc-file = $HOME/.netrc
 flake-registry = $_etc/nix/registry.json
 accept-flake-config = true
+warn-dirty = false
 EOF
 if $_cmp --quiet $tmpNixConf $nixConf; then
 	$_rm $tmpNixConf

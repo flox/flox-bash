@@ -268,8 +268,7 @@ function pastTense() {
 	case "$subcommand" in
 	install)           echo "installed";;
 	remove)            echo "removed";;
-	rollback)          echo "rolled back a generation";;
-	switch-generation) echo "switched generations";;
+	rollback)          echo "switched to generation";;
 	upgrade)           echo "upgraded";;
 	wipe-history)      echo "wiped history";;
 	*)                 echo "$subcommand";;

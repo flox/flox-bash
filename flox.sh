@@ -281,10 +281,10 @@ activate | history | install | list | remove | rollback | \
 			for pkg in ${args[@]}; do
 				case "$pkg" in
 				-*) # don't try to interpret option as floxpkgArg.
-					pkgargs+=("$pkg")
+					pkgArgs+=("$pkg")
 					;;
 				*)
-					pkgargs+=($(floxpkgArg "$pkg"))
+					pkgArgs+=($(floxpkgArg "$pkg"))
 					;;
 				esac
 			done
@@ -339,28 +339,34 @@ activate | history | install | list | remove | rollback | \
 			done
 		fi
 		logMessage="$FLOX_USER $(pastTense $subcommand) ${pkgNames[@]}"
-		cmd=($invoke_nix -v profile "$subcommand" --profile "$profile" "${opts[@]}" "${pkgArgs[@]}")
+		cmd=($invoke_nix -v profile "$subcommand" --profile "$profile" "${pkgArgs[@]}")
 		;;
 
 	rollback | switch-generation | wipe-history)
-		logMessage="$FLOX_USER $(pastTense $subcommand)"
 		if [ "$subcommand" = "switch-generation" ]; then
 			# rewrite switch-generation to instead use the new
 			# "rollback --to" command (which makes no sense IMO).
 			subcommand=rollback
-			opts=("--to" "${args[0]}" "${opts[@]}")
-			args=("${args[@]:1}")
+			args=("--to" "${args[@]}")
 		fi
-		cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		targetGeneration="UNKNOWN"
+		for index in "${!args[@]}"; do
+			case "${args[$index]}" in
+			--to) targetGeneration="${args[$(($index + 1))]}"; break;;
+			   *) ;;
+			esac
+		done
+		logMessage="$FLOX_USER $(pastTense $subcommand) $targetGeneration"
+		cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${args[@]}")
 		;;
 
 	list)
-		manifest $profile/manifest.json listProfile "${opts[@]}" "${args[@]}"
+		manifest $profile/manifest.json listProfile "${args[@]}"
 		;;
 
 	history)
 		# Nix history is not a history! It's just a diff of successive generations.
-		#cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${opts[@]}" "${args[@]}")
+		#cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${args[@]}")
 
 		# Default log format only includes subject %s.
 		logFormat="format:%cd %C(cyan)%s%Creset"
