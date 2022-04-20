@@ -69,19 +69,6 @@ nix_show_config()
 # Global variables
 #
 
-# Set base configuration before invoking nix commands.
-# We do this here rather than using NIX_USER_CONF_FILES
-# because we can't reference environment variables like
-# $HOME from within a conf file and the 'netrc-file'
-# variable must be an absolute path in $HOME.
-export NIX_CONFIG="
-experimental-features = nix-command flakes
-netrc-file = $HOME/.netrc
-flake-registry = $_etc/nix/registry.json
-accept-flake-config = true
-${NIX_CONFIG:-}
-"
-
 # Load nix configuration
 eval $(nix_show_config)
 
@@ -107,14 +94,34 @@ export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"
 export FLOX_PROFILEMETA="$FLOX_CACHE_HOME/profilemeta"
 export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
 export FLOX_PROFILES="$FLOX_DATA_HOME/profiles"
-mkdir -p "$FLOX_CACHE_HOME" "$FLOX_PROFILEMETA" "$FLOX_DATA_HOME" "$FLOX_PROFILES"
+export FLOX_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/flox"
+mkdir -p "$FLOX_CACHE_HOME" "$FLOX_PROFILEMETA" "$FLOX_DATA_HOME" "$FLOX_PROFILES" "$FLOX_CONFIG_HOME"
 
 # Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 
 # Home of the user-specific registry.json.
 # XXX May need further consideration for Enterprise.
-registry="$FLOX_CACHE_HOME/registry.json"
+registry="$FLOX_CONFIG_HOME/registry.json"
+
+# Manage user-specific nix.conf for use with flox only.
+# XXX May need further consideration for Enterprise.
+nixConf="$FLOX_CONFIG_HOME/nix.conf"
+tmpNixConf=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
+$_cat > $tmpNixConf <<EOF
+# Automatically generated - do not edit.
+experimental-features = nix-command flakes
+netrc-file = $HOME/.netrc
+flake-registry = $_etc/nix/registry.json
+accept-flake-config = true
+EOF
+if $_cmp --quiet $tmpNixConf $nixConf; then
+	$_rm $tmpNixConf
+else
+	echo "Updating $nixConf" 1>&2
+	$_mv -f $tmpNixConf $nixConf
+fi
+export NIX_USER_CONF_FILES="$nixConf"
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable

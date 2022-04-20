@@ -28,7 +28,7 @@ _share=$_prefix/share
 me="${0##*/}"
 mespaces=$(echo $me | $_tr '[a-z]' ' ')
 medashes=$(echo $me | $_tr '[a-z]' '-')
-delim="$(printf '\t')"
+
 function usage() {
 	$_cat <<EOF 1>&2
 usage: $me [ --stability (stable|staging|unstable) ]
