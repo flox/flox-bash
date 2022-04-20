@@ -21,7 +21,7 @@ SHARE = \
 LINKBIN = # Add files to be linked to flox here
 
 # String to be prepended to flox flake uri.
-FLOXPKGS_URI = flake:floxpkgs
+FLOXPKGS_URI = floxpkgs
 # FIXME
 SYSTEM = x86_64-linux
 

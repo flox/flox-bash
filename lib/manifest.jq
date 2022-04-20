@@ -10,7 +10,7 @@
 # Start by defining some constants.
 
 # String to be prepended to flox flake uri.
-# "@@FLOXPKGS_URI@@" as $floxpkgsUri
+# "flake:@@FLOXPKGS_URI@@" as $floxpkgsUri
 "flake:floxpkgs" as $floxpkgsUri # making explicit for debugging
 |
 $ARGS.positional[0] as $function
