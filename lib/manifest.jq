@@ -10,7 +10,8 @@
 # Start by defining some constants.
 
 # String to be prepended to flox flake uri.
-"flake:@@FLOX_FLAKE_PREFIX@@" as $originalUri
+# "@@FLOXPKGS_URI@@" as $floxpkgsUri
+"flake:floxpkgs" as $floxpkgsUri # making explicit for debugging
 |
 $ARGS.positional[0] as $function
 |
@@ -43,13 +44,13 @@ def expectedArgs(count; args):
 # Functions which convert between flakeref and floxpkg tuple elements.
 #
 # floxpkg: <channel>.<stability>.<pkgname> (fully-qualified)
-# flake:@@FLOX_FLAKE_PREFIX@@#legacyPackages.<system>.<channel>.<stability>.<pkgname>
+# flake:@@FLOXPKGS_URI@@#legacyPackages.<system>.<channel>.<stability>.<pkgname>
 #
 # Sample element:
 # {
 #   "active": true,
 #   "attrPath": "legacyPackages.@@SYSTEM@@.nixpkgs.stable.vim",
-#   "originalUri": "flake:@@FLOX_FLAKE_PREFIX@@",
+#   "originalUri": "flake:@@FLOXPKGS_URI@@",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
 #   ],
@@ -69,7 +70,7 @@ def flakerefToAttrPath(args): expectedArgs(1; args) |
 
 def floxpkgToFlakeref(args): expectedArgs(1; args) |
   floxpkgToAttrPath(args) as $attrPath |
-  "\($originalUri)#\(.attrPath)";
+  "\($floxpkgsUri)#\(.attrPath)";
 
 def flakerefToFloxpkg(args): expectedArgs(1; args) |
   flakerefToAttrPath(args) as $attrPath |
@@ -77,7 +78,11 @@ def flakerefToFloxpkg(args): expectedArgs(1; args) |
 
 def floxpkgFromElement:
   if .attrPath then
-    attrPathToFloxpkg(.attrPath)
+    if ( .originalUri == $floxpkgsUri ) then
+      attrPathToFloxpkg(.attrPath)
+    else
+      "\(.originalUri)#\(.attrPath)"
+    end
   else .storePaths[] end;
 
 def floxpkgFromElementWithRunPath:
@@ -97,13 +102,13 @@ def lockedFlakerefFromElement:
 def floxpkgToElement(args): expectedArgs(1; args) |
   $elements | map(select(
     (.attrPath == floxpkgToAttrPath(args)) and
-    (.originalUri == $originalUri)
+    (.originalUri == $floxpkgsUri)
   )) | .[0];
 
 def flakerefToElement(args): expectedArgs(1; args) |
   $elements | map(select(
     (.attrPath == flakerefToAttrPath(args)) and
-    (.originalUri == $originalUri)
+    (.originalUri == $floxpkgsUri)
   )) | .[0];
 
 def storepathToElement(args): expectedArgs(1; args) |

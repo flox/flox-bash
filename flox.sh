@@ -181,7 +181,7 @@ function floxpkgArg() {
 			attrPath=(${arr[@]:1})
 			;;
 		esac
-		echo "flake:${floxFlakePrefix}#${floxFlakeAttrPathPrefix}.${channel}.${stability}.${attrPath}"
+		echo "${floxpkgsUri}#${floxFlakeAttrPathPrefix}.${channel}.${stability}.${attrPath}"
 	fi
 }
 
@@ -280,18 +280,18 @@ activate | history | install | list | remove | rollback | \
 				$_mkdir -v -p $($_dirname $profile) 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
 			for pkg in ${args[@]}; do
 				case "$pkg" in
-				-*) # don't try to interpret option as floxpkgarg.
+				-*) # don't try to interpret option as floxpkgArg.
 					pkgargs+=("$pkg")
 					;;
 				*)
-					pkgargs+=($(floxpkgarg "$pkg"))
+					pkgargs+=($(floxpkgArg "$pkg"))
 					;;
 				esac
 			done
 			# Infer floxpkg name(s) from floxpkgs flakerefs.
 			for pkgArg in ${pkgArgs[@]}; do
 				case "$pkgArg" in
-				flake:${floxFlakePrefix}*)
+				${floxpkgsUri}*)
 					# Look up floxpkg name from flox flake prefix.
 					pkgNames+=($(manifest $profile/manifest.json flakerefToFloxpkg "$pkgArg")) ||
 						error "failed to look up floxpkg reference for flake \"$pkgArg\"" </dev/null

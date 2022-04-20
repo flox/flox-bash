@@ -89,7 +89,7 @@ eval $(nix_show_config)
 eval $(read_flox_conf npfs floxpkgs)
 
 # String to be prepended to flox flake uri.
-floxFlakePrefix="@@FLOX_FLAKE_PREFIX@@"
+floxpkgsUri="@@FLOXPKGS_URI@@"
 
 # String to be prepended to flake attrPath (before channel).
 floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system"

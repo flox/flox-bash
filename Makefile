@@ -21,7 +21,7 @@ SHARE = \
 LINKBIN = # Add files to be linked to flox here
 
 # String to be prepended to flox flake uri.
-FLOX_FLAKE_PREFIX = floxpkgs
+FLOXPKGS_URI = flake:floxpkgs
 # FIXME
 SYSTEM = x86_64-linux
 
@@ -39,7 +39,7 @@ all: $(BIN) $(MAN)
 	  -e 's%@@VERSION@@%$(VERSION)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
 	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
-	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
+	  -e 's%@@FLOXPKGS_URI@@%$(FLOXPKGS_URI)%' \
 	  $< > $@
 	chmod +x $@
 
@@ -60,7 +60,7 @@ $(PREFIX)/lib/%: lib/%
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
 	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
-	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
+	  -e 's%@@FLOXPKGS_URI@@%$(FLOXPKGS_URI)%' \
 	  $< > $@
 
 $(PREFIX)/etc/nix/registry.json: etc/nix/registry.json
@@ -68,7 +68,7 @@ $(PREFIX)/etc/nix/registry.json: etc/nix/registry.json
 	@mkdir -p $(@D)
 	sed \
 	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
-	  -e 's%@@FLOX_FLAKE_PREFIX@@%$(FLOX_FLAKE_PREFIX)%' \
+	  -e 's%@@FLOXPKGS_URI@@%$(FLOXPKGS_URI)%' \
 	  $< > $@
 
 $(PREFIX)/share/man/man1/%: %
