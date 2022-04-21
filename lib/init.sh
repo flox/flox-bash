@@ -69,18 +69,6 @@ nix_show_config()
 # Global variables
 #
 
-# Load nix configuration
-eval $(nix_show_config)
-
-# Load configuration from [potentially multiple] flox.toml config file(s).
-eval $(read_flox_conf npfs floxpkgs)
-
-# String to be prepended to flox flake uri.
-floxpkgsUri="flake:@@FLOXPKGS_URI@@"
-
-# String to be prepended to flake attrPath (before channel).
-floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system"
-
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$($_id -un)
 export HOME=$($_getent passwd ${USER} | $_cut -d: -f6)
@@ -99,10 +87,6 @@ mkdir -p "$FLOX_CACHE_HOME" "$FLOX_PROFILEMETA" "$FLOX_DATA_HOME" "$FLOX_PROFILE
 
 # Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
-
-# Home of the user-specific registry.json.
-# XXX May need further consideration for Enterprise.
-registry="$FLOX_CONFIG_HOME/registry.json"
 
 # Manage user-specific nix.conf for use with flox only.
 # XXX May need further consideration for Enterprise.
@@ -123,6 +107,18 @@ else
 	$_mv -f $tmpNixConf $nixConf
 fi
 export NIX_USER_CONF_FILES="$nixConf"
+
+# Load nix configuration (must happen after setting NIX_USER_CONF_FILES)
+eval $(nix_show_config)
+
+# Load configuration from [potentially multiple] flox.toml config file(s).
+eval $(read_flox_conf npfs floxpkgs)
+
+# String to be prepended to flox flake uri.
+floxpkgsUri="flake:@@FLOXPKGS_URI@@"
+
+# String to be prepended to flake attrPath (before channel).
+floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system"
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable
