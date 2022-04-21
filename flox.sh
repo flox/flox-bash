@@ -185,6 +185,25 @@ function floxpkgArg() {
 	fi
 }
 
+# The search command requires a full floxpkgs tuple.
+function searchArg() {
+	local IFS='.'
+	declare -a 'searchArg=($1)'
+	case "${#searchArg[@]}" in
+	3)	# Nothing to change here.
+		echo "$1"
+		;;
+	2)	# Throw "stable" in the middle
+		echo "${searchArg[0]}.stable.${searchArg[1]}"
+		;;
+	1)
+		# FIXME this doesn't work for multiple channels
+		echo "nixpkgs.stable.${searchArg[0]}"
+		;;
+	*)	error "invalid search argument \"$1\"" < /dev/null
+	esac
+}
+
 #
 # main()
 #
@@ -482,7 +501,7 @@ newpackages)
 	;;
 
 builds)
-		$_nix eval "flake:floxpkgs#cachedPackages.${NIX_CONFIG_system}.$1"  --json --impure --apply 'builtins.mapAttrs (_k: v: v.meta )'  | $_jq -r '["Build Date","Name/Version","Description","Package Ref"], ["-----------","------------","-----------","-------"], ([.[]] | sort_by(.revision_epoch) |.[] |  [(.revision_epoch|(strftime("%Y-%m-%d"))), .name, .description, .flakeref]) | @tsv' | column -ts "$(printf '\t')"
+		$_nix eval "$floxpkgsUri#cachedPackages.${NIX_CONFIG_system}.$1"  --json --impure --apply 'builtins.mapAttrs (_k: v: v.meta )'  | $_jq -r '["Build Date","Name/Version","Description","Package Ref"], ["-----------","------------","-----------","-------"], ([.[]] | sort_by(.revision_epoch) |.[] |  [(.revision_epoch|(strftime("%Y-%m-%d"))), .name, .description, .flakeref]) | @tsv' | column -ts "$(printf '\t')"
 	;;
 
 shell)
@@ -495,9 +514,10 @@ nix)
 	;;
 
 search)
-	#cmd=($invoke_nix "$subcommand" "$@")
-	$_nix search "flake:floxpkgs" "$1"
+	$invoke_nix search "${floxpkgsUri}#"$(searchArg "$1") | \
+	  $_sed -e "s%${floxFlakeAttrPathPrefix}\.%%" # FIXME: hacky?
 	;;
+
 *)
 	cmd=($invoke_nix "$subcommand" "$@")
 	;;
