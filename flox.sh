@@ -185,22 +185,22 @@ function floxpkgArg() {
 	fi
 }
 
-# The search command requires a full floxpkgs tuple.
-function searchArg() {
-	local IFS='.'
-	declare -a 'searchArg=($1)'
-	case "${#searchArg[@]}" in
-	3)	# Nothing to change here.
-		echo "$1"
+# Usage: nix search <installable> [<regexp>]
+# If the installable (flake reference) is an exact match
+# then the regexp is not required.
+function searchArgs() {
+	case "${#@}" in
+	2)	# Prepend floxpkgsUri to the channel reference.
+		echo "${floxpkgsUri}#$@"
 		;;
-	2)	# Throw "stable" in the middle
-		echo "${searchArg[0]}.stable.${searchArg[1]}"
+	1)	# Only one arg provided means we have to search
+		# across all known flakes. Punt on this for the MVP.
+		echo "${floxpkgsUri}#nixpkgs $@"
 		;;
-	1)
-		# FIXME this doesn't work for multiple channels
-		echo "nixpkgs.stable.${searchArg[0]}"
+	0)	error "too few arguments to search command" < /dev/null
 		;;
-	*)	error "invalid search argument \"$1\"" < /dev/null
+	*)	error "too many arguments to search command" < /dev/null
+		;;
 	esac
 }
 
@@ -514,8 +514,11 @@ nix)
 	;;
 
 search)
-	$invoke_nix search "${floxpkgsUri}#"$(searchArg "$1") | \
-	  $_sed -e "s%${floxFlakeAttrPathPrefix}\.%%" # FIXME: hacky?
+	# FIXME: sed messes up newlines in following output
+	# --> will need to fix bug in Nix itself.
+	$invoke_nix search $(searchArgs "$@") | \
+	  $_sed -E "s%([^'])${floxFlakeAttrPathPrefix}\.%\1%" | \
+	  $_sed -e "s%^.*\* %* %" -e "/^$/d"
 	;;
 
 *)
