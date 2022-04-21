@@ -190,8 +190,17 @@ function floxpkgArg() {
 # then the regexp is not required.
 function searchArgs() {
 	case "${#@}" in
-	2)	# Prepend floxpkgsUri to the channel reference.
-		echo "${floxpkgsUri}#$@"
+	2)	# Prepend floxpkgsUri to the first argument, and
+		# if the first arg is a stability then prepend the
+		# channel as well.
+		case "$1" in
+		stable | staging | unstable)
+			echo "${floxpkgsUri}#nixpkgs.$@"
+			;;
+		*)
+			echo "${floxpkgsUri}#$@"
+			;;
+		esac
 		;;
 	1)	# Only one arg provided means we have to search
 		# across all known flakes. Punt on this for the MVP.
