@@ -6,9 +6,8 @@
         "type": "indirect"
       },
       "to": {
-        "type": "github",
-        "owner": "flox-examples",
-        "repo": "companypkgs"
+        "type": "git",
+        "url": "ssh://git@github.com/flox-examples/companypkgs"
       }
     }
   ],
