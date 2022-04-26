@@ -275,4 +275,4 @@ function pastTense() {
 	esac
 }
 
-# vim:ts=4:noet:
+# vim:ts=4:noet:syntax=bash

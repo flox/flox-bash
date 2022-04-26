@@ -340,4 +340,4 @@ function pushpullMetadata() {
 	fi
 }
 
-# vim:ts=4:noet:
+# vim:ts=4:noet:syntax=bash

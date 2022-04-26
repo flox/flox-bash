@@ -557,4 +557,4 @@ if [ -n "$profile" ]; then
 	syncProfile "$profile" "$NIX_CONFIG_system"
 fi
 
-# vim:ts=4:noet:
+# vim:ts=4:noet:syntax=bash

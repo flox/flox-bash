@@ -131,4 +131,4 @@ fi
 # Timestamp
 now=$($_date +%s)
 
-# vim:ts=4:noet:
+# vim:ts=4:noet:syntax=bash
