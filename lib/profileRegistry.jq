@@ -148,7 +148,7 @@ def syncGeneration:
     # And set the symbolic link's date.
     "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link && " +
     # Finally add a GC root for the new generation.
-    "$_nix_store -r $profilePath --add-root \($profileDir)/\($profileName)-\($generation)-link >/dev/null"
+    "$_nix_store --add-root \($profileDir)/\($profileName)-\($generation)-link -r >/dev/null"
   ] else [] end;
 
 def syncGenerations(args):
