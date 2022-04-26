@@ -475,6 +475,11 @@ gh)
 	cmd=($invoke_gh "$@")
 	;;
 
+init)
+	choice=$(promptTemplate)
+	cmd=($invoke_nix flake init --template "floxpkgs#templates.$choice" "$@")
+	;;
+
 packages)
 	smokeandmirrorfile=$_share/flox-smoke-and-mirrors/packages-all.txt.gz
 	packageregexp=

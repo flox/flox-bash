@@ -263,6 +263,37 @@ function profileRegistry() {
 	esac
 }
 
+function promptTemplate {
+	local -a _cline
+	local -a _choices
+
+	_choices=($(
+		local count=0
+		($invoke_nix flake show floxpkgs --json 2>/dev/null) | \
+		$_jq -r '.templates | to_entries | map("\(.key) \(.value.description)") | .[]' | \
+		while read -a _cline
+		do
+			count=$(($count+1))
+			echo "$count) ${_cline[0]}: ${_cline[1]}" 1>&2
+			echo "${_cline[0]}"
+		done
+	))
+	local prompt="Choose template by number: "
+	local choice
+	while true
+	do
+		read -e -p "$prompt" choice
+		choice=$((choice + 0)) # make int
+		if [ $choice -gt 0 -a $choice -le ${#_choices[@]} ]; then
+			index=$(($choice - 1))
+			echo "${_choices[$index]}"
+			return
+		fi
+		warn "Incorrect choice try again"
+	done
+	# Not reached
+}
+
 function pastTense() {
 	local subcommand="$1"
 	case "$subcommand" in
