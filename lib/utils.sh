@@ -274,7 +274,7 @@ function promptTemplate {
 		while read -a _cline
 		do
 			count=$(($count+1))
-			echo "$count) ${_cline[0]}: ${_cline[1]}" 1>&2
+			echo "$count) ${_cline[0]}: ${_cline[@]:1}" 1>&2
 			echo "${_cline[0]}"
 		done
 	))
