@@ -6,7 +6,13 @@ BIN = flox
 MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)
 ETC = \
+	etc/flox.bashrc \
 	etc/flox.toml \
+	etc/flox.zdotdir/.zlogin \
+	etc/flox.zdotdir/.zlogout \
+	etc/flox.zdotdir/.zprofile \
+	etc/flox.zdotdir/.zshenv \
+	etc/flox.zdotdir/.zshrc \
 	etc/nix/registry.json
 LIB = \
 	lib/init.sh \

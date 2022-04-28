@@ -78,7 +78,15 @@ to developer environments, profile management, and administration.
 :   Activate profile.
 
 **develop**
-:   Activate profile.
+:   Launch subshell configured for development environment,
+    sourcing the following configuration files in this order:
+
+    - project committed ./flox.toml
+    - personal rc file: ~/.flox.toml
+    - project-specific uncommited ./flox.toml.personal
+
+    The result will be a "flattened" view whereby the configuration
+    directives in each file supersedes the previous.
 
 **register**
 :   Activate profile.

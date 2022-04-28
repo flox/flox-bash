@@ -295,7 +295,21 @@ activate | history | install | list | remove | rollback | \
 		#cmd=("$profile/nix-support/flox/bin/activate) ?
 
 		export PATH="$profile/bin:$PATH"
-		cmd=("$SHELL")
+		case "$SHELL" in
+		*bash)
+			cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
+			;;
+		*zsh)
+			if [ -n "$ZDOTDIR" ]; then
+				export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
+			fi
+			export ZDOTDIR="$_etc/flox.zdotdir"
+			cmd=("invoke" "$SHELL")
+			;;
+		*)
+			error "unsupported shell: \"$SHELL\"" </dev/null
+			;;
+		esac
 		;;
 
 	# Commands which accept a flox package reference.
@@ -550,7 +564,7 @@ if [ -n "$profile" ]; then
 	else
 		logMessage="Generation ${profileEndGen}: $logMessage"
 	fi
-	[ "$profileStartGen" = "$profileEndGen" ] ||
+	if [ "$profileStartGen" != "$profileEndGen" ]; then
 		syncMetadata \
 			"$profile" \
 			"$NIX_CONFIG_system" \
@@ -558,8 +572,9 @@ if [ -n "$profile" ]; then
 			"$profileEndGen" \
 			"$logMessage" \
 			"flox $subcommand ${invocation_args[@]}"
-	# Always follow up action with sync'ing of profiles in reverse.
-	syncProfile "$profile" "$NIX_CONFIG_system"
+		# Follow up action with sync'ing of profiles in reverse.
+		syncProfile "$profile" "$NIX_CONFIG_system"
+	fi
 fi
 
 # vim:ts=4:noet:syntax=bash
