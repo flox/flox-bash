@@ -295,16 +295,28 @@ activate | history | install | list | remove | rollback | \
 		#cmd=("$profile/nix-support/flox/bin/activate) ?
 
 		export PATH="$profile/bin:$PATH"
+		removePathDups PATH
 		case "$SHELL" in
 		*bash)
-			cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
+			if [ -t 1 ]; then
+				exit 0
+				cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
+			else
+				echo "export PATH=$PATH; source $_etc/flox.bashrc"
+				exit 0
+			fi
 			;;
 		*zsh)
-			if [ -n "$ZDOTDIR" ]; then
-				export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
+			if [ -t 1 ]; then
+				if [ -n "$ZDOTDIR" ]; then
+					export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
+				fi
+				export ZDOTDIR="$_etc/flox.zdotdir"
+				cmd=("invoke" "$SHELL")
+			else
+				echo "export PATH=$PATH; source $_etc/flox.zdotdir/.zshrc"
+				exit 0
 			fi
-			export ZDOTDIR="$_etc/flox.zdotdir"
-			cmd=("invoke" "$SHELL")
 			;;
 		*)
 			error "unsupported shell: \"$SHELL\"" </dev/null

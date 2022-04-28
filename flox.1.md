@@ -75,7 +75,16 @@ to developer environments, profile management, and administration.
 ## Development
 
 **activate**
-:   Activate profile.
+:   The "activate" subcommand adds profile paths to your `$PATH`
+    environment variable and either can be invoked from an interactive
+    terminal to launch a sub-shell or non-interactively to produce
+    a series of commands that can be sourced by your current `$SHELL`.
+
+    To use flox most effectively we recommend adding the following
+    to the relevant "rc" file (e.g. `~/.bashrc` or `~/.zprofile`):
+    ```
+    source <(flox activate)
+    ```
 
 **develop**
 :   Launch subshell configured for development environment,

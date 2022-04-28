@@ -1,4 +1,5 @@
 zshrc=${FLOX_ORIG_ZDOTDIR:-$HOME}/.zshrc
+HISTFILE=${FLOX_ORIG_ZDOTDIR:-$HOME}/.zsh_history
 
 # This is the only file in which we need to perform flox actions so
 # take this opportunity to restore the user's original $ZDOTDIR if
