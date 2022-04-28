@@ -17,7 +17,7 @@ then
 fi
 
 # Tweak the (already customized) prompt: add a flox indicator.
-_flox=${FLOXRUN_PROMPT-"[flox] "}
+_flox=${FLOX_PROMPT-"[flox] "}
 
 if [ -n "$_flox" -a -n "$PS1" ]
 then

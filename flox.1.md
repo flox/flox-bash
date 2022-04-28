@@ -101,6 +101,17 @@ to developer environments, profile management, and administration.
 
 # ENVIRONMENT VARIABLES
 
+`$FLOX_PROMPT`
+:   The **FLOX_PROMPT** variable defaults to `[flox] ` and can be used to specify
+    an alternate flox indicator string (including fancy colors, if desired), or set
+    to the empty string to opt out of prompt customization for interactive shells.
+
+    For example, include the following in your `.bashrc` and/or `.zshprofile` file
+    (or equivalent) to display the flox indicator in bright blue:
+
+    - **bash**: `export FLOX_PROMPT="\[\033[1;34m\]flox\[\033[0m\] "`
+    - **zsh**: `export FLOX_PROMPT='%B%F{blue}flox%f%b '`
+
 `$XDG_CACHE_HOME`
 :   asdlkfj
 
