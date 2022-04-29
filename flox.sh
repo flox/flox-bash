@@ -502,7 +502,7 @@ gh)
 	;;
 
 init)
-	choice=$(promptTemplate)
+	choice="python-black" # choice=$(promptTemplate)
 	cmd=($invoke_nix flake init --template "floxpkgs#templates.$choice" "$@")
 	;;
 
