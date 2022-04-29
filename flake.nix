@@ -1,16 +1,16 @@
 {
+  nixConfig.extra-substituters = ["s3://flox-store-public"];
+
   inputs.nixpkgs.url = "github:flox/nixpkgs/stable";
   inputs.nix.url = "github:NixOS/nix/2.8.0";
   outputs = {
     self,
     nixpkgs,
-    nix
+    nix,
   }: rec {
-    packages = nixpkgs.lib.genAttrs ["aarch64-linux" "x86_64-linux" "x86_64-darwin" "aarch64-darwin"] (system:  rec {
-
-
+    packages = nixpkgs.lib.genAttrs ["aarch64-linux" "x86_64-linux" "x86_64-darwin" "aarch64-darwin"] (system: rec {
       nixPatched = nix.packages.${system}.nix.overrideAttrs (oldAttrs: {
-        patches = [ ./CmdProfileBuild.patch ];
+        patches = [./CmdProfileBuild.patch];
       });
       default =
         import ./default.nix
