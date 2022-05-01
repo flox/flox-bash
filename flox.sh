@@ -24,51 +24,6 @@ _etc=$_prefix/etc
 _share=$_prefix/share
 . $_lib/init.sh
 
-# Short name for this script, derived from $0.
-me="${0##*/}"
-mespaces=$(echo $me | $_tr '[a-z]' ' ')
-medashes=$(echo $me | $_tr '[a-z]' '-')
-
-function usage() {
-	$_cat <<EOF 1>&2
-usage: $me [ --stability (stable|staging|unstable) ]
-       $mespaces [ (-d|--date) <date_string> ]
-       $mespaces [ (-v|--verbose) ] [ --debug ] <command>
-       $medashes
-       $me [ (-h|--help) ] [ --version ]
-
-Flox package commands:
-    flox packages [ --all | channel[.stability[.package]] ] [--show-libs]
-	    list all packages or filtered by channel[.subchannel[.package]]
-		--show-libs: include library packages
-    flox builds <channel>.<stability>.<package>
-		list all available builds for specified package
-
-Flox profile commands:
-    flox activate - fix me
-    flox gh - access to the gh CLI
-    flox git - access to the git CLI
-    flox generations - list profile generations with contents
-    flox push - send profile metadata to remote registry
-    flox pull - pull profile metadata from remote registry
-    flox sync - synchronize profile metadata and links
-
-Nix profile commands:
-    flox diff-closures - show the closure difference between each version of a profile
-    flox history - show all versions of a profile
-    flox install - install a package into a profile
-    flox list [ --out-path ] - list installed packages
-    flox (rm|remove) - remove packages from a profile
-    flox rollback - roll back to the previous generation of a profile
-    flox switch-generation - switch to a specific generation of a profile
-    flox upgrade - upgrade packages using their most recent flake
-    flox wipe-history - delete non-current versions of a profile
-
-Developer environment commands:
-    flox develop
-EOF
-}
-
 # If the first arguments are any of -d|--date, -v|--verbose or --debug
 # then we consume this (and in the case of --date, its argument) as
 # argument(s) to the wrapper and not the command to be wrapped. To send
