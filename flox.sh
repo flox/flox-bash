@@ -125,6 +125,9 @@ function profileArg() {
 		if [[ "$1" =~ ^$FLOX_PROFILES ]]; then
 			# Path already a floxpm profile - use it.
 			echo "$1"
+		elif [[ "$1" =~ ^/nix/var/nix/profiles/ ]]; then
+			# Path already a nix profile - use it.
+			echo "$1"
 		elif [[ -L "$1" ]]; then
 			# Path is a link - try again with the link value.
 			echo $(profileArg $(readlink "$1"))
