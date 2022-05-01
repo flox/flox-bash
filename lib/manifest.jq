@@ -19,7 +19,7 @@ $ARGS.positional[1:] as $funcargs
 |
 
 # Verify we're talking to the expected schema version.
-if $manifest[].version != 1 then
+if $manifest[].version != 1 and $manifest[].version != 2 then
   error(
     "unsupported manifest schema version: " +
     ( $manifest[].version | tostring )
@@ -50,11 +50,11 @@ def expectedArgs(count; args):
 # {
 #   "active": true,
 #   "attrPath": "legacyPackages.@@SYSTEM@@.nixpkgs.stable.vim",
-#   "originalUri": "flake:@@FLOXPKGS_URI@@",
+#   "originalUrl": "flake:@@FLOXPKGS_URI@@",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
 #   ],
-#   "uri": "github:flox-examples/companypkgs/ef23087ad88d59f0c0bc0f05de65577009c0c676",
+#   "url": "github:flox-examples/companypkgs/ef23087ad88d59f0c0bc0f05de65577009c0c676",
 #   "position": 3
 # }
 #
@@ -76,7 +76,7 @@ def flakerefToFloxpkg(args): expectedArgs(1; args) |
   flakerefToAttrPath(args) as $attrPath |
   attrPathToFloxpkg($attrPath);
 
-def floxpkgFromElement:
+def floxpkgFromElementV1:
   if .attrPath then
     if ( .originalUri == $floxpkgsUri ) then
       attrPathToFloxpkg(.attrPath)
@@ -84,32 +84,85 @@ def floxpkgFromElement:
       "\(.originalUri)#\(.attrPath)"
     end
   else .storePaths[] end;
+def floxpkgFromElementV2:
+  if .attrPath then
+    if ( .originalUrl == $floxpkgsUri ) then
+      attrPathToFloxpkg(.attrPath)
+    else
+      "\(.originalUrl)#\(.attrPath)"
+    end
+  else .storePaths[] end;
+def floxpkgFromElement:
+  if $manifest[].version == 2 then
+    floxpkgFromElementV2
+  else
+    floxpkgFromElementV1
+  end;
 
 def floxpkgFromElementWithRunPath:
   if .attrPath then
     attrPathToFloxpkg(.attrPath) + "\t" + (.storePaths | join(","))
   else .storePaths[] end;
 
+def flakerefFromElementV1:
+  "\(.originalUri)#\(.attrPath)";
+def flakerefFromElementV2:
+  "\(.originalUrl)#\(.attrPath)";
 def flakerefFromElement:
-  "\(.originalUri)#\(.attrPath)";
+  if $manifest[].version == 2 then
+    flakerefFromElementV2(args)
+  else
+    flakerefFromElementV1(args)
+  end;
 
-def lockedFlakerefFromElement:
+def lockedFlakerefFromElementV1:
   "\(.originalUri)#\(.attrPath)";
+def lockedFlakerefFromElementV2:
+  "\(.originalUrl)#\(.attrPath)";
+def lockedFlakerefFromElement:
+  if $manifest[].version == 2 then
+    lockedFlakerefFromElementV2
+  else
+    lockedFlakerefFromElementV1
+  end;
 
 #
 # Functions to look up element and return data in requested format.
 #
-def floxpkgToElement(args): expectedArgs(1; args) |
+
+def floxpkgToElementV1(args): expectedArgs(1; args) |
   $elements | map(select(
     (.attrPath == floxpkgToAttrPath(args)) and
     (.originalUri == $floxpkgsUri)
   )) | .[0];
+def floxpkgToElementV2(args): expectedArgs(1; args) |
+  $elements | map(select(
+    (.attrPath == floxpkgToAttrPath(args)) and
+    (.originalUrl == $floxpkgsUri)
+  )) | .[0];
+def floxpkgToElement(args):
+  if $manifest[].version == 2 then
+    floxpkgToElementV2(args)
+  else
+    floxpkgToElementV1(args)
+  end;
 
-def flakerefToElement(args): expectedArgs(1; args) |
+def flakerefToElementV1(args): expectedArgs(1; args) |
   $elements | map(select(
     (.attrPath == flakerefToAttrPath(args)) and
     (.originalUri == $floxpkgsUri)
   )) | .[0];
+def flakerefToElementV2(args): expectedArgs(1; args) |
+  $elements | map(select(
+    (.attrPath == flakerefToAttrPath(args)) and
+    (.originalUrl == $floxpkgsUri)
+  )) | .[0];
+def flakerefToElement(args):
+  if $manifest[].version == 2 then
+    flakerefToElementV2(args)
+  else
+    flakerefToElementV1(args)
+  end;
 
 def storepathToElement(args): expectedArgs(1; args) |
   $elements | map(select(.storePaths | contains([args[0]]))) | .[0];
