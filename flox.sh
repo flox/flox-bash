@@ -275,28 +275,32 @@ activate | history | install | list | remove | rollback | \
 		;;
 
 	history)
-		# Nix history is not a history! It's just a diff of successive generations.
-		#cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${args[@]}")
+		if [[ "$profile" =~ ^$FLOX_PROFILES ]]; then
+			# Default log format only includes subject %s.
+			logFormat="format:%cd %C(cyan)%s%Creset"
 
-		# Default log format only includes subject %s.
-		logFormat="format:%cd %C(cyan)%s%Creset"
-
-		# Step through args looking for (-v|--verbose).
-		for arg in ${args[@]}; do
-			case "$arg" in
-			-v | --verbose)
-				# If verbose then add body as well.
-				logFormat="format:%cd %C(cyan)%B%Creset"
-				;;
-			-*)
-				error "unknown option \"$opt\"" </dev/null
-				;;
-			*)
-				error "extra argument \"$opt\"" </dev/null
-				;;
-			esac
-		done
-		metaGit "$profile" "$NIX_CONFIG_system" log --pretty="$logFormat"
+			# Step through args looking for (-v|--verbose).
+			for arg in ${args[@]}; do
+				case "$arg" in
+				-v | --verbose)
+					# If verbose then add body as well.
+					logFormat="format:%cd %C(cyan)%B%Creset"
+					;;
+				-*)
+					error "unknown option \"$opt\"" </dev/null
+					;;
+				*)
+					error "extra argument \"$opt\"" </dev/null
+					;;
+				esac
+			done
+			metaGit "$profile" "$NIX_CONFIG_system" log --pretty="$logFormat"
+		else
+			# Assume plain Nix profile - launch Nix version.
+			cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${args[@]}")
+			# Clear $profile to avoid post-processing.
+			profile=
+		fi
 		;;
 
 	# Flox commands
