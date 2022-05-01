@@ -322,4 +322,102 @@ function removePathDups {
   done
 }
 
+function profileArg() {
+	# flox profiles must resolve to fully-qualified paths within
+	# $FLOX_PROFILES. Resolve paths in a variety of ways:
+	if [[ ${1:0:1} = "/" ]]; then
+		if [[ "$1" =~ ^$FLOX_PROFILES ]]; then
+			# Path already a floxpm profile - use it.
+			echo "$1"
+		elif [[ "$1" =~ ^/nix/var/nix/profiles/ ]]; then
+			# Path already a nix profile - use it.
+			echo "$1"
+		elif [[ -L "$1" ]]; then
+			# Path is a link - try again with the link value.
+			echo $(profileArg $(readlink "$1"))
+		else
+			error "\"$1\" is not a Flox profile path" >&2
+		fi
+	elif [[ "$1" =~ \	|\  ]]; then
+		error "profile \"$1\" cannot contain whitespace" >&2
+	else
+		# Return default path for the profile directory.
+		echo "$FLOX_PROFILES/${FLOX_USER}/$1"
+	fi
+}
+
+# Parses generation from profile path.
+function profileGen() {
+	local profile="$1"
+	local profileName=$($_basename $profile)
+	if [   -L "$profile" ]; then
+		if [[ $($_readlink "$profile") =~ ^${profileName}-([0-9]+)-link$ ]]; then
+			echo ${BASH_REMATCH[1]}
+			return
+		fi
+	fi
+}
+
+# Package args can take one of 3 formats:
+# 1) flake references containing "#" character: return as-is.
+# 2) positional integer references containing only numbers [0-9]+.
+# 3) paths which resolve to /nix/store/*: return first 3 path components.
+# 4) floxpkgs "channel.stability.attrPath" tuple: convert to flox catalog
+#    flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
+function floxpkgArg() {
+	if [[ "$1" == *#* ]]; then
+		echo "$1"
+	elif [[ "$1" =~ ^[0-9]+$ ]]; then
+		echo "$1"
+	elif [ -e "$1" ]; then
+		_rp=$($_realpath "$1")
+		if [[ "$_rp" == /nix/store/* ]]; then
+			echo "$_rp" | $_cut -d/ -f1-4
+		fi
+	else
+		local IFS='.'
+		declare -a attrPath 'arr=($1)'
+		local channel="${arr[0]}"
+		local stability="stable"
+		case "${arr[1]}" in
+		stable | staging | unstable)
+			stability="${arr[1]}"
+			attrPath=(${arr[@]:2})
+			;;
+		*)
+			attrPath=(${arr[@]:1})
+			;;
+		esac
+		echo "${floxpkgsUri}#${floxFlakeAttrPathPrefix}.${channel}.${stability}.${attrPath}"
+	fi
+}
+
+# Usage: nix search <installable> [<regexp>]
+# If the installable (flake reference) is an exact match
+# then the regexp is not required.
+function searchArgs() {
+	case "${#@}" in
+	2)	# Prepend floxpkgsUri to the first argument, and
+		# if the first arg is a stability then prepend the
+		# channel as well.
+		case "$1" in
+		stable | staging | unstable)
+			echo "${floxpkgsUri}#nixpkgs.$@"
+			;;
+		*)
+			echo "${floxpkgsUri}#$@"
+			;;
+		esac
+		;;
+	1)	# Only one arg provided means we have to search
+		# across all known flakes. Punt on this for the MVP.
+		echo "${floxpkgsUri}#nixpkgs $@"
+		;;
+	0)	error "too few arguments to search command" < /dev/null
+		;;
+	*)	error "too many arguments to search command" < /dev/null
+		;;
+	esac
+}
+
 # vim:ts=4:noet:syntax=bash
