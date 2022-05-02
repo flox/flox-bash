@@ -243,9 +243,9 @@ function syncMetadata() {
 			$_cp "$i/manifest.json" "$profileMetaDir/${gen}.json"
 			metaGit "$profile" "$system" add "${gen}.json"
 		}
-		# Verify that something hasn't gone horribly wrong.
+		# Upgrade manifest.json with change of schema version.
 		$_cmp -s "$i/manifest.json" "$profileMetaDir/${gen}.json" || \
-			error "$i/manifest.json and $profileMetaDir/${gen}.json differ" < /dev/null
+			metaGit "$profile" "$system" add "${gen}.json"
 	done
 
 	# Update manifest.json to point to current generation.
