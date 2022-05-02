@@ -134,7 +134,7 @@ activate | history | install | list | remove | rollback | \
 		profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
 		profileStartGen=$(profileGen "$profile")
 	fi
-	echo Using profile: $profile >&2
+	[ -z "$verbose" ] || echo Using profile: $profile >&2
 
 	case "$subcommand" in
 
@@ -362,7 +362,11 @@ gh)
 	;;
 
 init)
-	choice="python-black" # choice=$(promptTemplate)
+	if [ -z "$FLOXDEMO" ]; then
+		choice=$(promptTemplate)
+	else
+		choice="python-black"
+	fi
 	cmd=($invoke_nix flake init --template "floxpkgs#templates.$choice" "$@")
 	;;
 
