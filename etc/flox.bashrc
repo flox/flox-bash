@@ -26,7 +26,7 @@ then
     then
         # Remove all color and escape sequences from $_flox
         # before adding to window titles and icon names.
-        _flox=$(echo "${_flox@P}" | ansifilter)
+        _flox=$(echo "${_flox@P}" | $_ansifilter)
 
         # Prepend the flox indicator to window titles and icon names.
         PS1="${PS1//\\e]0;/\\e]0;$_flox}"
