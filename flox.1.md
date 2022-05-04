@@ -52,8 +52,8 @@ The following options are applicable to `flox` commands affecting profiles:
 -p *name*, \--profile-name=*name*
 :   Syntactic sugar for specifying **flox profile** configuration file paths
     maintained in the user's `$FLOX_HOME` directory.
-    Defaults to `$XDG_CACHE_HOME/flox/profiles` or `$HOME/.cache/flox/profiles`
-    if `$XDG_CACHE_HOME` is not defined.
+    Defaults to `$XDG_DATA_HOME/flox/profiles` or `$HOME/.local/share/flox/profiles`
+    if `$XDG_DATA_HOME` is not defined.
 
 If neither of the above options are provided
 `flox` looks for a `flox.toml` file in the current directory,
