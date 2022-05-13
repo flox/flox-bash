@@ -73,10 +73,6 @@ nix_show_config()
 export USER=$($_id -un)
 export HOME=$($_getent passwd ${USER} | $_cut -d: -f6)
 
-# FLOX_USER can be completely different, e.g. the GitHub user,
-# or can be the same as the UNIX $USER. Only flox knows!
-export FLOX_USER=$USER # XXX FIXME $(flox whoami)
-
 # Define and create flox metadata cache, data, and profiles directories.
 export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"
 export FLOX_PROFILEMETA="$FLOX_CACHE_HOME/profilemeta"
@@ -88,6 +84,13 @@ mkdir -p "$FLOX_CACHE_HOME" "$FLOX_PROFILEMETA" "$FLOX_DATA_HOME" "$FLOX_PROFILE
 # Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 
+# Define place to store user-specific metadata separate
+# from profile metadata.
+floxUserMeta="$FLOX_CONFIG_HOME/floxUserMeta.json"
+
+# Define location for user-specific flox flake registry.
+floxFlakeRegistry="$FLOX_CONFIG_HOME/floxFlakeRegistry.json"
+
 # Manage user-specific nix.conf for use with flox only.
 # XXX May need further consideration for Enterprise.
 nixConf="$FLOX_CONFIG_HOME/nix.conf"
@@ -96,7 +99,7 @@ $_cat > $tmpNixConf <<EOF
 # Automatically generated - do not edit.
 experimental-features = nix-command flakes
 netrc-file = $HOME/.netrc
-flake-registry = $_etc/nix/registry.json
+flake-registry = $floxFlakeRegistry
 accept-flake-config = true
 warn-dirty = false
 EOF
@@ -114,8 +117,27 @@ eval $(nix_show_config)
 # Load configuration from [potentially multiple] flox.toml config file(s).
 eval $(read_flox_conf npfs floxpkgs)
 
+# Bootstrap user-specific configuration.
+. $_lib/bootstrap.sh
+
+# Populate user-specific flake registry.
+# FIXME: support multiple flakes.
+tmpFloxFlakeRegistry=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
+$_jq . > $tmpFloxFlakeRegistry <<EOF
+{
+  "flakes": [{$(flakeURLToRegistryJSON $defaultFlake)}],
+  "version": 2
+}
+EOF
+if $_cmp --quiet $tmpFloxFlakeRegistry $floxFlakeRegistry; then
+	$_rm $tmpFloxFlakeRegistry
+else
+	echo "Updating $floxFlakeRegistry" 1>&2
+	$_mv -f $tmpFloxFlakeRegistry $floxFlakeRegistry
+fi
+
 # String to be prepended to flox flake uri.
-floxpkgsUri="flake:@@FLOXPKGS_URI@@"
+floxpkgsUri="flake:floxpkgs"
 
 # String to be prepended to flake attrPath (before channel).
 floxFlakeAttrPathPrefix="legacyPackages.$NIX_CONFIG_system"

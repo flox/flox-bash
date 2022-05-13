@@ -296,7 +296,9 @@ function setGitRemote() {
 		# Proceed to set origin using a variety of defaults.
 		local profileName=$($_basename $profile)
 		local userName=$($_basename $($_dirname $profile))
-		local defaultOrigin="${FLOX_CONF_floxpkgs_gitBaseURL}$userName/floxmeta"
+		# HACK: redact "+ssh" from the origin for use with gh
+		# find better way ...
+		local defaultOrigin="${FLOX_CONF_floxpkgs_gitBaseURL/+ssh/}$userName/floxmeta"
 		origin=$(registry ${FLOX_DATA_HOME}/metadata.json 1 \
 			getPromptSet "git URL for storing profile metadata: " $defaultOrigin \
 			profiles $userName $profileName origin)

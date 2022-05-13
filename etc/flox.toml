@@ -1,4 +1,6 @@
-# Package-specific defaults here
+# Package-specific defaults here.
+# Company-specific defaults in /etc/flox.toml.
+# User-specific overrides in ~/.floxrc.
 
 [npfs]
 
@@ -6,4 +8,5 @@
 
 [floxpkgs]
 
-    gitBaseURL = "git@github.com:"
+    gitBaseURL = "git+ssh@github.com:"
+    organization = "flox"

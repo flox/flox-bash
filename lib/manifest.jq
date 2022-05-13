@@ -10,7 +10,6 @@
 # Start by defining some constants.
 
 # String to be prepended to flox flake uri.
-# "flake:@@FLOXPKGS_URI@@" as $floxpkgsUri
 "flake:floxpkgs" as $floxpkgsUri # making explicit for debugging
 |
 $ARGS.positional[0] as $function
@@ -44,13 +43,13 @@ def expectedArgs(count; args):
 # Functions which convert between flakeref and floxpkg tuple elements.
 #
 # floxpkg: <channel>.<stability>.<pkgname> (fully-qualified)
-# flake:@@FLOXPKGS_URI@@#legacyPackages.<system>.<channel>.<stability>.<pkgname>
+# flake:floxpkgs#legacyPackages.<system>.<channel>.<stability>.<pkgname>
 #
 # Sample element:
 # {
 #   "active": true,
 #   "attrPath": "legacyPackages.@@SYSTEM@@.nixpkgs.stable.vim",
-#   "originalUrl": "flake:@@FLOXPKGS_URI@@",
+#   "originalUrl": "flake:floxpkgs",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
 #   ],

@@ -165,15 +165,15 @@ function manifest() {
 # Accessor method for jq-based registry library functions.
 #
 # Usage:
-#   registry path/to/registry.json (set|setString) a b c
-#   registry path/to/registry.json setNumber a b 3
-#   registry path/to/registry.json delete a b c
-#   registry path/to/registry.json (addArray|addArrayString) d e f
-#   registry path/to/registry.json addArrayNumber d e 6
-#   registry path/to/registry.json (delArray|delArrayString) d e f
-#   registry path/to/registry.json delArrayNumber d e 6
-#   registry path/to/registry.json get a b
-#   registry path/to/registry.json dump
+#   registry path/to/registry.json 1 (set|setString) a b c
+#   registry path/to/registry.json 1 setNumber a b 3
+#   registry path/to/registry.json 1 delete a b c
+#   registry path/to/registry.json 1 (addArray|addArrayString) d e f
+#   registry path/to/registry.json 1 addArrayNumber d e 6
+#   registry path/to/registry.json 1 (delArray|delArrayString) d e f
+#   registry path/to/registry.json 1 delArrayNumber d e 6
+#   registry path/to/registry.json 1 get a b
+#   registry path/to/registry.json 1 dump
 #
 function registry() {
 	local registry="$1"; shift
@@ -468,13 +468,28 @@ function searchArgs() {
 		;;
 	1)	# Only one arg provided means we have to search
 		# across all known flakes. Punt on this for the MVP.
-		echo "${floxpkgsUri}#nixpkgs $@"
+		echo "${floxpkgsUri} $@"
 		;;
 	0)	error "too few arguments to search command" < /dev/null
 		;;
 	*)	error "too many arguments to search command" < /dev/null
 		;;
 	esac
+}
+
+#
+# Convert flake URL to flake registry JSON.
+# FIXME: implement real URL parser.
+# FIXME: support multiple flakes in registry.
+#
+function flakeURLToRegistryJSON() {
+	local url="$1"; shift
+	if [[ "$url" =~ ^git\+ssh@github.com:(.*) ]]; then
+		echo '"from": {"id": "floxpkgs", "type": "indirect"},'
+		echo '"to": {"type": "git", "url": "ssh://git@github.com/'${BASH_REMATCH[1]}'"}'
+	else
+		error "Cannot convert URL to flake registry: \"$url\"" < /dev/null
+	fi
 }
 
 # vim:ts=4:noet:syntax=bash

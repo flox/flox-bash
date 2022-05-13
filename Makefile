@@ -12,9 +12,9 @@ ETC = \
 	etc/flox.zdotdir/.zlogout \
 	etc/flox.zdotdir/.zprofile \
 	etc/flox.zdotdir/.zshenv \
-	etc/flox.zdotdir/.zshrc \
-	etc/nix/registry.json
+	etc/flox.zdotdir/.zshrc
 LIB = \
+	lib/bootstrap.sh \
 	lib/init.sh \
 	lib/manifest.jq \
 	lib/metadata.sh \
@@ -25,11 +25,6 @@ SHARE = \
 	share/bash-completion/completions/flox \
 	share/flox-smoke-and-mirrors/packages-all-libs.txt.gz share/flox-smoke-and-mirrors/packages-all.txt.gz
 LINKBIN = # Add files to be linked to flox here
-
-# String to be prepended to flox flake uri.
-FLOXPKGS_URI = floxpkgs
-# FIXME
-SYSTEM = x86_64-linux
 
 all: $(BIN) $(MAN)
 
@@ -44,8 +39,6 @@ all: $(BIN) $(MAN)
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
 	  -e 's%@@VERSION@@%$(VERSION)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
-	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
-	  -e 's%@@FLOXPKGS_URI@@%$(FLOXPKGS_URI)%' \
 	  $< > $@
 	chmod +x $@
 
@@ -65,16 +58,6 @@ $(PREFIX)/lib/%: lib/%
 	sed \
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
-	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
-	  -e 's%@@FLOXPKGS_URI@@%$(FLOXPKGS_URI)%' \
-	  $< > $@
-
-$(PREFIX)/etc/nix/registry.json: etc/nix/registry.json
-	-@rm -f $@
-	@mkdir -p $(@D)
-	sed \
-	  -e 's%@@SYSTEM@@%$(SYSTEM)%' \
-	  -e 's%@@FLOXPKGS_URI@@%$(FLOXPKGS_URI)%' \
 	  $< > $@
 
 $(PREFIX)/share/man/man1/%: %
