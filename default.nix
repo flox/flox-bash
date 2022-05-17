@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs>{}, nixPatched}:
+{ pkgs ? import <nixpkgs>{} }:
 let
   inherit (pkgs)
     stdenv
@@ -14,11 +14,16 @@ let
     gzip
     jq
     lib
+    nixUnstable
     pandoc
     which
     unixutils
     ;
   inherit (pkgs.unixtools) getent;
+  nixPatched = nixUnstable.overrideAttrs (oldAttrs: {
+    patches = (oldAttrs.patches or []) ++ [ ./CmdProfileBuild.patch ];
+  });
+
 in stdenv.mkDerivation rec {
   pname = "flox";
   version = "0.0.1";
