@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs>{} }:
+{ pkgs ? import <nixpkgs>{} , revision ? "" }:
 let
   inherit (pkgs)
     stdenv
@@ -26,7 +26,7 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.1";
+  version = "0.0.1${revision}";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
   buildInputs = [ ansifilter bashInteractive coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];

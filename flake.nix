@@ -13,6 +13,7 @@
         import ./default.nix
         {
           pkgs = nixpkgs.legacyPackages.${system};
+          revision = "-${toString self.revCount or "dirty"}";
         };
     });
     defaultPackage = {
