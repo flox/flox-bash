@@ -109,7 +109,9 @@ else
 	echo "Updating $nixConf" 1>&2
 	$_mv -f $tmpNixConf $nixConf
 fi
+export NIX_REMOTE=daemon
 export NIX_USER_CONF_FILES="$nixConf"
+export NIX_SSL_CERT_FILE="@@SSL_CERT_FILE@@"
 
 # Load nix configuration (must happen after setting NIX_USER_CONF_FILES)
 eval $(nix_show_config)

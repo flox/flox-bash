@@ -4,6 +4,7 @@ let
     stdenv
     ansifilter
     bashInteractive # required for read() `-i` flag
+    cacert
     coreutils
     dasel
     fetchpatch
@@ -29,6 +30,10 @@ in stdenv.mkDerivation rec {
   version = "0.0.1${revision}";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
-  buildInputs = [ ansifilter bashInteractive coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
-  makeFlags = [ "PREFIX=$(out)" "FLOXPATH=${lib.makeBinPath buildInputs}" ];
+  buildInputs = [ ansifilter bashInteractive cacert coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
+  makeFlags = [
+    "PREFIX=$(out)"
+    "FLOXPATH=${lib.makeBinPath buildInputs}"
+    "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
+  ];
 }

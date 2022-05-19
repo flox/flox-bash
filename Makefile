@@ -58,6 +58,7 @@ $(PREFIX)/lib/%: lib/%
 	sed \
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
+	  -e 's%@@SSL_CERT_FILE@@%$(SSL_CERT_FILE)%' \
 	  $< > $@
 
 $(PREFIX)/share/man/man1/%: %
