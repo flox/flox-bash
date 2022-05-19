@@ -43,12 +43,12 @@ def expectedArgs(count; args):
 # Functions which convert between flakeref and floxpkg tuple elements.
 #
 # floxpkg: <channel>.<stability>.<pkgname> (fully-qualified)
-# flake:floxpkgs#legacyPackages.<system>.<channel>.<stability>.<pkgname>
+# flake:floxpkgs#catalog.<system>.<channel>.<stability>.<pkgname>
 #
 # Sample element:
 # {
 #   "active": true,
-#   "attrPath": "legacyPackages.@@SYSTEM@@.nixpkgs.stable.vim",
+#   "attrPath": "catalog.@@SYSTEM@@.nixpkgs.stable.vim",
 #   "originalUrl": "flake:floxpkgs",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
@@ -59,10 +59,10 @@ def expectedArgs(count; args):
 #
 #
 def attrPathToFloxpkg(arg):
-  arg | ltrimstr("legacyPackages.\($system).");
+  arg | ltrimstr("catalog.\($system).");
 
 def floxpkgToAttrPath(args): expectedArgs(1; args) |
-  ["legacyPackages", $system, args[0]] | join(".");
+  ["catalog", $system, args[0]] | join(".");
 
 def flakerefToAttrPath(args): expectedArgs(1; args) |
   args[0] | split("#") | .[1];
@@ -115,9 +115,9 @@ def flakerefFromElement:
   end;
 
 def lockedFlakerefFromElementV1:
-  "\(.originalUri)#\(.attrPath)";
+  "\(.uri)#\(.attrPath)";
 def lockedFlakerefFromElementV2:
-  "\(.originalUrl)#\(.attrPath)";
+  "\(.url)#\(.attrPath)";
 def lockedFlakerefFromElement:
   if $manifest[].version == 2 then
     lockedFlakerefFromElementV2

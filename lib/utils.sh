@@ -445,7 +445,7 @@ function floxpkgArg() {
 			attrPath=(${arr[@]:1})
 			;;
 		esac
-		echo "${floxpkgsUri}#${floxFlakeAttrPathPrefix}.${channel}.${stability}.${attrPath}"
+		echo "${floxpkgsUri}#${catalogAttrPathPrefix}.${channel}.${stability}.${attrPath}"
 	fi
 }
 

@@ -421,7 +421,7 @@ search)
 	# FIXME: sed messes up newlines in following output
 	# --> will need to fix bug in Nix itself.
 	$invoke_nix search $(searchArgs "$@") | \
-	  $_sed -E "s%([^'])${floxFlakeAttrPathPrefix}\.%\1%" | \
+	  $_sed -E "s%([^'])${catalogAttrPathPrefix}\.%\1%" | \
 	  $_sed -e "s%^.*\* %* %" -e "/^$/d"
 	;;
 
