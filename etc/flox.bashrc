@@ -4,6 +4,9 @@ then
     source ~/.bashrc
 fi
 
+# Bring in the set of default environment variables.
+source @@PREFIX@@/etc/flox.profile
+
 # Tweak the (already customized) prompt: add a flox indicator.
 _flox=${FLOX_PROMPT-"[flox] "}
 

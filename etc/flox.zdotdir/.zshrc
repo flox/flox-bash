@@ -12,10 +12,14 @@ else
 	unset ZDOTDIR
 fi
 
+# Do all of the usual initializations.
 if [ -f ${zshrc} ]
 then
     source ${zshrc}
 fi
+
+# Bring in the set of default environment variables.
+source @@PREFIX@@/etc/flox.profile
 
 # Tweak the (already customized) prompt: add a flox indicator.
 _flox=${FLOX_PROMPT-"[flox] "}

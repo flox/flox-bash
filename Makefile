@@ -7,6 +7,7 @@ MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)
 ETC = \
 	etc/flox.bashrc \
+	etc/flox.profile \
 	etc/flox.toml \
 	etc/flox.zdotdir/.zlogin \
 	etc/flox.zdotdir/.zlogout \
@@ -51,6 +52,19 @@ $(PREFIX)/bin/%: %
 	-@rm -f $@
 	@mkdir -p $(@D)
 	cp $< $@
+
+# This file is mastered in default.nix, passed by makeFlags.
+$(PREFIX)/etc/flox.profile: $(FLOX_PROFILE)
+	-@rm -f $@
+	@mkdir -p $(@D)
+	cp $< $@
+
+$(PREFIX)/etc/%: etc/%
+	-@rm -f $@
+	@mkdir -p $(@D)
+	sed \
+	  -e 's%@@PREFIX@@%$(PREFIX)%' \
+	  $< > $@
 
 $(PREFIX)/lib/%: lib/%
 	-@rm -f $@

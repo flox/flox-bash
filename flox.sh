@@ -150,15 +150,20 @@ activate | history | install | list | remove | rollback | \
 
 		#cmd=("$profile/nix-support/flox/bin/activate) ?
 
-		export PATH="$profile/bin:$PATH"
-		removePathDups PATH
+		# This is challenging because it is invoked in two contexts:
+		# * interactive: we need to take over the shell "rc" entrypoint
+		#   so that we can guarantee to prepend to the PATH *AFTER* all
+		#   other processing has been completed
+		# * non-interactive: here we simply prepend to the PATH and set
+		#   required env variables.
+
+		export FLOX_PATH_PREPEND="$profile/bin"
 		case "$SHELL" in
 		*bash)
 			if [ -t 1 ]; then
-				exit 0
 				cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
 			else
-				echo "export PATH=$PATH; source $_etc/flox.bashrc"
+				echo "source $_etc/flox.profile"
 				exit 0
 			fi
 			;;
@@ -170,7 +175,7 @@ activate | history | install | list | remove | rollback | \
 				export ZDOTDIR="$_etc/flox.zdotdir"
 				cmd=("invoke" "$SHELL")
 			else
-				echo "export PATH=$PATH; source $_etc/flox.zdotdir/.zshrc"
+				echo "source $_etc/flox.profile"
 				exit 0
 			fi
 			;;
