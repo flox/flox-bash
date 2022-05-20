@@ -163,7 +163,7 @@ activate | history | install | list | remove | rollback | \
 			if [ -t 1 ]; then
 				cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
 			else
-				echo "source $_etc/flox.profile"
+				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
 				exit 0
 			fi
 			;;
@@ -175,7 +175,7 @@ activate | history | install | list | remove | rollback | \
 				export ZDOTDIR="$_etc/flox.zdotdir"
 				cmd=("invoke" "$SHELL")
 			else
-				echo "source $_etc/flox.profile"
+				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
 				exit 0
 			fi
 			;;
