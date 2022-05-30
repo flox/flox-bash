@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs>{} , revision ? "" }:
+{pkgs, withRev, ...}:
 let
   inherit (pkgs)
     stdenv
@@ -63,7 +63,7 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.2${revision}";
+  version = withRev "0.0.2";
   src = ./.;
   nativeBuildInputs = [ makeWrapper pandoc which ];
   buildInputs = [
