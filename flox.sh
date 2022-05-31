@@ -99,8 +99,8 @@ fi
 # Store the original invocation arguments.
 invocation_args="$@"
 
-# Flox profile path.
-profile=
+# Flox profile path(s).
+declare -a profiles=()
 
 # Build log message as we go.
 logMessage=
@@ -112,13 +112,12 @@ activate | history | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
 	generations | git | push | pull | sync) # Flox commands
 
-	# Look for the --profile argument.
-	profile=""
+	# Look for the --profile argument(s).
 	args=()
 	while test $# -gt 0; do
 		case "$1" in
 		-p | --profile)
-			profile=$(profileArg $2)
+			profiles+=($(profileArg $2))
 			shift 2
 			;;
 		*)
@@ -127,62 +126,95 @@ activate | history | install | list | remove | rollback | \
 			;;
 		esac
 	done
-	if [ "$profile" == "" ]; then
-		profile=$(profileArg "default")
-		profileName=$($_basename $profile)
-		profileUserName=$($_basename $($_dirname $profile))
-		profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
-		profileStartGen=$(profileGen "$profile")
+	if [ ${#profiles[@]} -eq 0 ]; then
+		profiles+=($(profileArg "default"))
 	fi
-	[ -z "$verbose" ] || echo Using profile: $profile >&2
+
+	# Only the "activate" subcommand accepts multiple profiles.
+	if [ "$subcommand" != "activate" -a ${#profiles[@]} -gt 1 ]; then
+		usage | error "\"$subcommand\" does not accept multiple -p|--profile arguments"
+	fi
+
+	profile=${profiles[0]}
+	profileName=$($_basename $profile)
+	profileUserName=$($_basename $($_dirname $profile))
+	profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
+	profileStartGen=$(profileGen "$profile")
+
+	[ -z "$verbose" ] || [ "$subcommand" = "activate" ] || echo Using profile: $profile >&2
 
 	case "$subcommand" in
 
 	activate)
-		#export XDG_OTHER
-		# FLOX_PROFILES/default/nix-support/bin/activate
-		# FLOX_PROFILES/default/nix-support/etc/hooks
-		# FLOX_PROFILES/default/nix-support/etc/environment
-		# FLOX_PROFILES/default/nix-support/etc/profile
-		# FLOX_PROFILES/default/nix-support/etc/systemd
-		# or put these mechanisms behind a "flox-support" dir?
-		# open new shell?
-
-		#cmd=("$profile/nix-support/flox/bin/activate) ?
-
-		# This is challenging because it is invoked in two contexts:
+		# This is challenging because it is invoked in three contexts:
+		# * with arguments: prepend profile bin directories to PATH and
+		#   invoke the commands provided, else ...
 		# * interactive: we need to take over the shell "rc" entrypoint
 		#   so that we can guarantee to prepend to the PATH *AFTER* all
-		#   other processing has been completed
+		#   other processing has been completed, else ...
 		# * non-interactive: here we simply prepend to the PATH and set
 		#   required env variables.
 
-		export FLOX_PATH_PREPEND="$profile/bin"
-		case "$SHELL" in
-		*bash)
-			if [ -t 1 ]; then
-				cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
-			else
-				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
-				exit 0
-			fi
-			;;
-		*zsh)
-			if [ -t 1 ]; then
-				if [ -n "$ZDOTDIR" ]; then
-					export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
+		# Build up string to be prepended to PATH. Add in order provided,
+		# and always add "default" to end of the list.
+		_flox_path_prepend=
+		for i in "${profiles[@]}" $(profileArg "default"); do
+			[ -d "$i/." ] || warn "INFO profile not found: $i"
+			_flox_path_prepend="${_flox_path_prepend:+$_flox_path_prepend:}$i/bin"
+		done
+		removePathDups _flox_path_prepend
+		export FLOX_PATH_PREPEND="${_flox_path_prepend}"
+
+		cmdArgs=()
+		inCmdArgs=0
+		for arg in "${args[@]}"; do
+			case "$arg" in
+			--)
+				inCmdArgs=1
+				;;
+			*)
+				if [ $inCmdArgs -eq 1 ]; then
+					cmdArgs+=("$arg")
+				else
+					usage | error "unexpected argument \"$arg\" passed to \"$subcommand\""
 				fi
-				export ZDOTDIR="$_etc/flox.zdotdir"
-				cmd=("invoke" "$SHELL")
-			else
-				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
-				exit 0
-			fi
-			;;
-		*)
-			error "unsupported shell: \"$SHELL\"" </dev/null
-			;;
-		esac
+				;;
+			esac
+		done
+
+		if [ ${#cmdArgs[@]} -gt 0 ]; then
+			export PATH="$FLOX_PATH_PREPEND:$PATH"
+			cmd=("invoke" "${cmdArgs[@]}")
+		else
+			case "$SHELL" in
+			*bash)
+				if [ -t 1 ]; then
+					cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
+				else
+					echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
+					exit 0
+				fi
+				;;
+			*zsh)
+				if [ -t 1 ]; then
+					if [ -n "$ZDOTDIR" ]; then
+						export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
+					fi
+					export ZDOTDIR="$_etc/flox.zdotdir"
+					cmd=("invoke" "$SHELL")
+				else
+					echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
+					exit 0
+				fi
+				;;
+			*)
+				error "unsupported shell: \"$SHELL\"" </dev/null
+				;;
+			esac
+		fi
+
+		# Finally, undefine $profile so we don't audit profiles.
+		profile=
 		;;
 
 	# Commands which accept a flox package reference.

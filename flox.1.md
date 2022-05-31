@@ -70,20 +70,33 @@ to developer environments, profile management, and administration.
 :   Install package(s) to profile.
 
 **upgrade**
-:   Upgrade package(s in profile.
+:   Upgrade package(s) in profile.
 
 ## Development
 
 **activate**
 :   The "activate" subcommand adds profile paths to your `$PATH`
-    environment variable and either can be invoked from an interactive
-    terminal to launch a sub-shell or non-interactively to produce
-    a series of commands that can be sourced by your current `$SHELL`.
+    environment variable and can be invoked from an interactive
+    terminal to launch a sub-shell, non-interactively to produce
+    a series of commands to be sourced by your current `$SHELL`,
+    or with a command and arguments to be invoked directly.
 
-    To use flox most effectively we recommend adding the following
-    to the relevant "rc" file (e.g. `~/.bashrc` or `~/.zprofile`):
+    Examples:
+
+    - activate "default" flox profile only within the current shell
+    (add to the relevant "rc" file, e.g. `~/.bashrc` or `~/.zprofile`)
     ```
-    source <(flox activate)
+    . <(flox activate)
+    ```
+
+    - activate "foo" and "default" flox profiles in a new subshell
+    ```
+    flox activate -p foo
+    ```
+
+    - invoke command using "foo" and "default" flox profiles
+    ```
+    flox activate -p foo -- cmd --cmdflag cmdflagarg cmdarg
     ```
 
 **develop**
@@ -99,14 +112,6 @@ to developer environments, profile management, and administration.
 
 **register**
 :   Activate profile.
-
-## Administration
-
-**foo**
-:   Do foo.
-
-**bar**
-:   Do bar.
 
 # ENVIRONMENT VARIABLES
 

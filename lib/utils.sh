@@ -69,7 +69,10 @@ Flox package commands:
 		list all available builds for specified package
 
 Flox profile commands:
-    flox activate - fix me
+    flox activate [ (-p|--profile) <profile> ]: activate profile
+      current shell: . <(flox activate)
+        in subshell: flox activate
+        for command: flox activate -- <command> <args>
     flox gh - access to the gh CLI
     flox git - access to the git CLI
     flox generations - list profile generations with contents
