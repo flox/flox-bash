@@ -239,13 +239,15 @@ function syncMetadata() {
 	for i in ${profile}-+([0-9])-link; do
 		local gen_link=${i#${profile}-} # remove prefix
 		local gen=${gen_link%-link} # remove suffix
-		[ -e "$profileMetaDir/${gen}.json" ] || {
-			$_cp "$i/manifest.json" "$profileMetaDir/${gen}.json"
-			metaGit "$profile" "$system" add "${gen}.json"
-		}
-		# Upgrade manifest.json with change of schema version.
-		$_cmp -s "$i/manifest.json" "$profileMetaDir/${gen}.json" || \
-			metaGit "$profile" "$system" add "${gen}.json"
+		if [ -e "$i/manifest.json" ]; then
+			[ -e "$profileMetaDir/${gen}.json" ] || {
+				$_cp "$i/manifest.json" "$profileMetaDir/${gen}.json"
+				metaGit "$profile" "$system" add "${gen}.json"
+			}
+			# Upgrade manifest.json with change of schema version.
+			$_cmp -s "$i/manifest.json" "$profileMetaDir/${gen}.json" || \
+				metaGit "$profile" "$system" add "${gen}.json"
+		fi
 	done
 
 	# Update manifest.json to point to current generation.
