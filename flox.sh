@@ -368,6 +368,21 @@ activate | history | install | list | remove | rollback | \
 	esac
 	;;
 
+# The profiles subcommand takes no arguments.
+profiles)
+	branches=$(metaGit $(profileArg "default") "$NIX_CONFIG_system" branch | $_awk -F. "/$NIX_CONFIG_system/ {print \$NF}")
+	for b in $branches; do
+		g=$($_readlink $FLOX_PROFILES/$FLOX_USER/$b | $_awk -F- '{print $(NF-1)}')
+		cat <<EOF
+$FLOX_USER/$b
+    Name      $b
+    Path      $FLOX_PROFILES/$FLOX_USER/$b
+    Curr Gen  $g
+
+EOF
+	done
+	;;
+
 # The diff-closures command takes two profile arguments.
 diff-closures)
 	# Step through remaining arguments sorting options from args.

@@ -72,6 +72,9 @@ to developer environments, profile management, and administration.
 **upgrade**
 :   Upgrade package(s) in profile.
 
+**profiles**
+:   List all profiles.
+
 ## Development
 
 **activate**

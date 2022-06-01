@@ -55,26 +55,38 @@ function error() {
 
 function usage() {
 	$_cat <<EOF 1>&2
-usage: $me [ --stability (stable|staging|unstable) ]
-       $mespaces [ (-d|--date) <date_string> ]
-       $mespaces [ (-v|--verbose) ] [ --debug ] <command>
+usage: $me [ (-h|--help) ] [ --version ]
        $medashes
-       $me [ (-h|--help) ] [ --version ]
+       $me [ (-v|--verbose) ] [ --debug ] <command> [ <args> ]
+       $medashes
+       $me <development-command> \\
+       $mespaces[ --stability (stable|staging|unstable) ] \\
+       $mespaces[ (-d|--date) <date_string> ] [ <args> ]
+       $me <profile-command> \\
+       $mespaces[ (-p|--profile) <profile> ] [ <args> ]
+       $medashes
 
-Flox package commands:
+Flox general commands:
     flox packages [ --all | channel[.stability[.package]] ] [--show-libs]
-	    list all packages or filtered by channel[.subchannel[.package]]
-		--show-libs: include library packages
+        list all packages or filtered by channel[.subchannel[.package]]
+        --show-libs: include library packages
     flox builds <channel>.<stability>.<package>
-		list all available builds for specified package
-
-Flox profile commands:
-    flox activate [ (-p|--profile) <profile> ]: activate profile
+        list all available builds for specified package
+    flox profiles
+        list available profiles owned by "$FLOX_USER"
+    flox activate [ (-p|--profile) <profile> ] - activate profile
       current shell: . <(flox activate)
         in subshell: flox activate
         for command: flox activate -- <command> <args>
     flox gh - access to the gh CLI
     flox git - access to the git CLI
+
+Flox development commands:
+    flox develop - launch development shell for current project
+    flox build - build package from current project
+    flox shell - launch build shell for current project
+
+Flox profile commands:
     flox generations - list profile generations with contents
     flox push - send profile metadata to remote registry
     flox pull - pull profile metadata from remote registry
