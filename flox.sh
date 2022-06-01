@@ -308,7 +308,26 @@ activate | history | install | list | remove | rollback | \
 		;;
 
 	list)
-		manifest $profile/manifest.json listProfile "${args[@]}"
+		if [ ${#args[@]} -gt 0 ]; then
+			# First argument to list can be generation number.
+			if [[ ${args[0]} =~ ^[0-9]*$ ]]; then
+				if [ -e "$profile-${args[0]}-link" ]; then
+					profileStartGen=${args[0]}
+					args=(${args[@]:1}) # aka shift
+					profile="$profile-$profileStartGen-link"
+				fi
+			fi
+		fi
+		cat <<EOF
+Profile
+  Name      $profileName
+  System    $NIX_CONFIG_system
+  Path      $FLOX_PROFILES/$FLOX_USER/$profileName
+  Curr Gen  $profileStartGen
+
+Packages
+EOF
+		manifest $profile/manifest.json listProfile "${args[@]}" | $_sed 's/^/  /'
 		;;
 
 	history)
