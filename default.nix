@@ -3,7 +3,6 @@ let
   inherit (pkgs)
     stdenv
     ansifilter
-    bashInteractive # required for read() `-i` flag
     cacert
     coreutils
     dasel
@@ -22,6 +21,14 @@ let
     writeText
     unixutils
     ;
+  # bashInteractive required for read() `-i` flag.
+  # Override --localedir attribute to avoid warnings on distros
+  # with locale directories in different places.
+  bashInteractive' = pkgs.bashInteractive.overrideAttrs (oldAttrs: {
+    configureFlags = oldAttrs.configureFlags ++ [
+      "--localedir=${pkgs.glibcLocales}/lib/locale/locale-archive"
+    ];
+  });
   inherit (pkgs.unixtools) getent;
   nixPatched = nixUnstable.overrideAttrs (oldAttrs: {
     patches = (oldAttrs.patches or []) ++ [ ./CmdProfileBuild.patch ];
@@ -56,7 +63,7 @@ in stdenv.mkDerivation rec {
   version = "0.0.1${revision}";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
-  buildInputs = [ ansifilter bashInteractive cacert coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
+  buildInputs = [ ansifilter bashInteractive' cacert coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
   makeFlags = [
     "PREFIX=$(out)"
     "FLOXPATH=${lib.makeBinPath buildInputs}"
