@@ -474,16 +474,16 @@ function searchArgs() {
 		# channel as well.
 		case "$1" in
 		stable | staging | unstable)
-			echo "${floxpkgsUri}#nixpkgs.$@"
+			echo "${floxpkgsUri}#${catalogAttrPathPrefix}.nixpkgs.$@"
 			;;
 		*)
-			echo "${floxpkgsUri}#$@"
+			echo "${floxpkgsUri}#${catalogAttrPathPrefix}.$@"
 			;;
 		esac
 		;;
 	1)	# Only one arg provided means we have to search
 		# across all known flakes. Punt on this for the MVP.
-		echo "${floxpkgsUri} $@"
+		echo "${floxpkgsUri}#${catalogAttrPathPrefix} $@"
 		;;
 	0)	error "too few arguments to search command" < /dev/null
 		;;
