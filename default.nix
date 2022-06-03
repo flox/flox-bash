@@ -8,19 +8,19 @@ let
     dasel
     fetchpatch
     findutils
-    git
-    gh
     gnused
     gzip
     hostPlatform
     jq
     lib
+    makeWrapper
     nixUnstable
     pandoc
     which
     writeText
     unixutils
     ;
+
   # bashInteractive required for read() `-i` flag.
   # Override --localedir attribute to avoid warnings on distros
   # with locale directories in different places.
@@ -30,9 +30,25 @@ let
     ];
   });
   inherit (pkgs.unixtools) getent;
+
+  # Choose a smaller version of git.
+  git' = pkgs.gitMinimal;
+
+  # gh cannot find fallback versions of git without being wrapped.
+  # It also needs to find ssh, codesign and a few other things, but
+  # less confident about providing Nix versions of those packages.
+  gh' = pkgs.gh.overrideAttrs (oldAttrs: rec {
+    nativeBuildInputs = ( oldAttrs.nativeBuildInputs or [] ) ++ [ makeWrapper ];
+    buildInputs = ( oldAttrs.buildInputs or [] ) ++ [ git' ];
+    postInstall = ( oldAttrs.postInstall or "" ) + ''
+      wrapProgram $out/bin/gh --suffix PATH : "${lib.makeBinPath(buildInputs)}"
+    '';
+  });
+
   nixPatched = nixUnstable.overrideAttrs (oldAttrs: {
     patches = (oldAttrs.patches or []) ++ [ ./CmdProfileBuild.patch ];
   });
+
   # TODO: create floxProfile for other shell dialects (e.g. csh).
   floxProfile = writeText "flox.profile" (''
     # Nix packages rely on "system" files that are found in different
@@ -63,7 +79,7 @@ in stdenv.mkDerivation rec {
   version = "0.0.1${revision}";
   src = ./.;
   nativeBuildInputs = [ pandoc which ];
-  buildInputs = [ ansifilter bashInteractive' cacert coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
+  buildInputs = [ ansifilter bashInteractive' cacert coreutils dasel findutils getent git' gh' gnused gzip jq nixPatched ];
   makeFlags = [
     "PREFIX=$(out)"
     "FLOXPATH=${lib.makeBinPath buildInputs}"
