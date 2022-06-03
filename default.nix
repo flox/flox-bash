@@ -66,7 +66,7 @@ in stdenv.mkDerivation rec {
   buildInputs = [ ansifilter bashInteractive cacert coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
   makeFlags = [
     "PREFIX=$(out)"
-    "FLOXPATH=$(out)/libexec:${lib.makeBinPath buildInputs}"
+    "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
     "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
     "FLOX_PROFILE=${floxProfile}"
   ];
@@ -82,9 +82,9 @@ in stdenv.mkDerivation rec {
     #       version advances to the version that supports it.
     #
     mkdir -p $out/libexec
-    makeWrapper ${nixPatched}/bin/nix $out/libexec/nix --argv0 '$0' \
+    makeWrapper ${nixPatched}/bin/nix $out/libexec/flox/nix --argv0 '$0' \
       --suffix PATH : "${lib.makeBinPath([ git ])}"
-    makeWrapper ${gh}/bin/gh $out/libexec/gh --argv0 '$0' \
+    makeWrapper ${gh}/bin/gh $out/libexec/flox/gh --argv0 '$0' \
       --suffix PATH : "${lib.makeBinPath([ git ])}"
   '';
 }
