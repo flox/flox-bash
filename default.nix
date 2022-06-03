@@ -66,7 +66,7 @@ in stdenv.mkDerivation rec {
   buildInputs = [ ansifilter bashInteractive cacert coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
   makeFlags = [
     "PREFIX=$(out)"
-    "FLOXPATH=$(out)/bin:${lib.makeBinPath buildInputs}"
+    "FLOXPATH=$(out)/libexec:${lib.makeBinPath buildInputs}"
     "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
     "FLOX_PROFILE=${floxProfile}"
   ];
@@ -81,9 +81,10 @@ in stdenv.mkDerivation rec {
     # TODO: replace "--argv0 '$0'" with "--inherit-argv0" once Nix
     #       version advances to the version that supports it.
     #
-    makeWrapper ${nixPatched}/bin/nix $out/bin/nix --argv0 '$0' \
+    mkdir -p $out/libexec
+    makeWrapper ${nixPatched}/bin/nix $out/libexec/nix --argv0 '$0' \
       --suffix PATH : "${lib.makeBinPath([ git ])}"
-    makeWrapper ${gh}/bin/gh $out/bin/gh --argv0 '$0' \
+    makeWrapper ${gh}/bin/gh $out/libexec/gh --argv0 '$0' \
       --suffix PATH : "${lib.makeBinPath([ git ])}"
   '';
 }
