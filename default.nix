@@ -12,6 +12,7 @@ let
     findutils
     gawk
     gh
+    glibcLocales
     gnused
     gzip
     hostPlatform
@@ -54,7 +55,7 @@ let
     # set by NixOS, the principal proving ground for Nix packaging efforts.
     export PATH=$FLOX_PATH_PREPEND:$PATH
   '' + lib.optionalString hostPlatform.isLinux ''
-    export LOCALE_ARCHIVE="${pkgs.glibcLocales}/lib/locale/locale-archive"
+    export LOCALE_ARCHIVE="${glibcLocales}/lib/locale/locale-archive"
   '' + lib.optionalString hostPlatform.isDarwin ''
     export NIX_COREFOUNDATION_RPATH="${pkgs.darwin.CF}/Library/Frameworks"
     export PATH_LOCALE="${pkgs.darwin.locale}/share/locale"
@@ -71,6 +72,7 @@ in stdenv.mkDerivation rec {
   ];
   makeFlags = [
     "PREFIX=$(out)"
+    "LOCALE_ARCHIVE=${glibcLocales}/lib/locale/locale-archive"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
     "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
     "FLOX_PROFILE=${floxProfile}"

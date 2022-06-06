@@ -2,6 +2,9 @@
 PKGNAME = flox
 VERSION = 0.0.1
 PREFIX ?= ./build
+CFLAGS = \
+	-DFLOXSH='"$(PREFIX)/libexec/flox/flox"' \
+	-DLOCALE_ARCHIVE='"$(LOCALE_ARCHIVE)"'
 BIN = flox
 MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)
@@ -22,6 +25,7 @@ LIB = \
 	lib/profileRegistry.jq \
 	lib/registry.jq \
 	lib/utils.sh
+LIBEXEC = libexec/flox/flox
 SHARE = \
 	share/bash-completion/completions/flox \
 	share/flox-smoke-and-mirrors/packages-all-libs.txt.gz share/flox-smoke-and-mirrors/packages-all.txt.gz
@@ -33,15 +37,6 @@ all: $(BIN) $(MAN)
 
 .md:
 	pandoc -s -t man $< -o $@
-
-.sh:
-	-@rm -f $@
-	sed \
-	  -e 's%@@PREFIX@@%$(PREFIX)%' \
-	  -e 's%@@VERSION@@%$(VERSION)%' \
-	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
-	  $< > $@
-	chmod +x $@
 
 $(PREFIX)/%: %
 	-@rm -f $@
@@ -75,6 +70,16 @@ $(PREFIX)/lib/%: lib/%
 	  -e 's%@@SSL_CERT_FILE@@%$(SSL_CERT_FILE)%' \
 	  $< > $@
 
+$(PREFIX)/libexec/flox/flox: flox.sh
+	-@rm -f $@
+	@mkdir -p $(@D)
+	sed \
+	  -e 's%@@PREFIX@@%$(PREFIX)%' \
+	  -e 's%@@VERSION@@%$(VERSION)%' \
+	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
+	  $< > $@
+	chmod +x $@
+
 $(PREFIX)/share/man/man1/%: %
 	-@rm -f $@
 	@mkdir -p $(@D)
@@ -83,7 +88,7 @@ $(PREFIX)/share/man/man1/%: %
 .PHONY: install
 install: $(addprefix $(PREFIX)/bin/,$(BIN)) \
          $(addprefix $(PREFIX)/share/man/man1/,$(MAN1)) \
-         $(addprefix $(PREFIX)/,$(LIB) $(ETC) $(SHARE))
+         $(addprefix $(PREFIX)/,$(LIBEXEC) $(LIB) $(ETC) $(SHARE))
 
 define LINK_template =
   $(PREFIX)/bin/$(link):
