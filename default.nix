@@ -7,8 +7,10 @@ let
     cacert
     coreutils
     dasel
+    diffutils
     fetchpatch
     findutils
+    gawk
     gh
     gnused
     gzip
@@ -63,7 +65,10 @@ in stdenv.mkDerivation rec {
   version = "0.0.1${revision}";
   src = ./.;
   nativeBuildInputs = [ makeWrapper pandoc which ];
-  buildInputs = [ ansifilter bashInteractive cacert coreutils dasel findutils getent git gh gnused gzip jq nixPatched ];
+  buildInputs = [
+    ansifilter bashInteractive coreutils dasel diffutils
+    findutils gawk getent git gh gnused gzip jq nixPatched
+  ];
   makeFlags = [
     "PREFIX=$(out)"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"

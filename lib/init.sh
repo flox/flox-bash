@@ -39,7 +39,7 @@ read_flox_conf()
 				# the equivalent dasel output is to report "unknown parser".
 				$_cat "$f" | $_dasel -p toml $i | while read _cline
 				do
-					local _xline=$(echo "$_cline" | tr -d ' \t')
+					local _xline=$(echo "$_cline" | $_tr -d ' \t')
 					local _i=${i/-/_}
 					echo FLOX_CONF_"$_i"_"$_xline"
 				done
@@ -56,7 +56,7 @@ nix_show_config()
 		case "${_cline[0]}" in
 		# List below the parameters you want to use within the script.
 		system)
-			local _xline=$(echo "${_cline[@]}" | tr -d ' \t')
+			local _xline=$(echo "${_cline[@]}" | $_tr -d ' \t')
 			echo NIX_CONFIG_"$_xline"
 			;;
 		*)
@@ -79,7 +79,7 @@ export FLOX_PROFILEMETA="$FLOX_CACHE_HOME/profilemeta"
 export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
 export FLOX_PROFILES="$FLOX_DATA_HOME/profiles"
 export FLOX_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/flox"
-mkdir -p "$FLOX_CACHE_HOME" "$FLOX_PROFILEMETA" "$FLOX_DATA_HOME" "$FLOX_PROFILES" "$FLOX_CONFIG_HOME"
+$_mkdir -p "$FLOX_CACHE_HOME" "$FLOX_PROFILEMETA" "$FLOX_DATA_HOME" "$FLOX_PROFILES" "$FLOX_CONFIG_HOME"
 
 # Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
