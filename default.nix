@@ -72,10 +72,14 @@ in stdenv.mkDerivation rec {
   ];
   makeFlags = [
     "PREFIX=$(out)"
-    "LOCALE_ARCHIVE=${glibcLocales}/lib/locale/locale-archive"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
     "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
     "FLOX_PROFILE=${floxProfile}"
+  ] ++ lib.optionals hostPlatform.isLinux [
+    "LOCALE_ARCHIVE=${glibcLocales}/lib/locale/locale-archive"
+  ] ++ lib.optionals hostPlatform.isDarwin [
+    "NIX_COREFOUNDATION_RPATH=${pkgs.darwin.CF}/Library/Frameworks"
+    "PATH_LOCALE=${pkgs.darwin.locale}/share/locale"
   ];
   postInstall = ''
     # Some programs cannot function without git, ssh, and other

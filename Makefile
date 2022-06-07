@@ -2,9 +2,28 @@
 PKGNAME = flox
 VERSION = 0.0.1
 PREFIX ?= ./build
-CFLAGS = \
-	-DFLOXSH='"$(PREFIX)/libexec/flox/flox"' \
-	-DLOCALE_ARCHIVE='"$(LOCALE_ARCHIVE)"'
+
+# `nix show-config` does not work on Darwin, dies within a build:
+#
+#   libc++abi: terminating with uncaught exception of type nix::SysError: error: getting status of /System/Library/LaunchDaemons/com.apple.oahd.plist: Operation not permitted
+#
+# For now we'll just punt and fall back to (coreutils) `uname -s`.
+#
+# SYSTEM := $(shell nix --extra-experimental-features nix-command show-config | awk '/system = / {print $$NF}')
+# CPU = $(firstword $(subst -, ,$(SYSTEM)))
+# OS = $(lastword $(subst -, ,$(SYSTEM)))
+OS := $(shell uname -s | tr A-Z a-z)
+
+CFLAGS = -DFLOXSH='"$(PREFIX)/libexec/flox/flox"'
+ifeq ($(OS),linux)
+  CFLAGS += -DLOCALE_ARCHIVE='"$(LOCALE_ARCHIVE)"'
+endif
+ifeq ($(OS),darwin)
+  CFLAGS += \
+	-DNIX_COREFOUNDATION_RPATH='"$(NIX_COREFOUNDATION_RPATH)"' \
+	-DPATH_LOCALE='"$(PATH_LOCALE)"'
+endif
+
 BIN = flox
 MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)

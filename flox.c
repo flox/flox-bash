@@ -3,8 +3,11 @@
  */
 
 #include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <err.h>
 #include <syslog.h>
 
 #define LOG_STRERROR ": %m"
@@ -36,23 +39,36 @@ int
 main(int argc, char **argv)
 {
 	/*
-	 * XXX Nixpkgs itself is broken in that the packages it creates
-	 * depends upon the LOCALE_ARCHIVE path being set to point to
-	 * the full locale-archive file. This is usually set for users
-	 * by NixOS and the client-side nix programs (e.g. nix-env) but
-	 * that breaks the portability of Nix-compiled packages copied
-	 * to other systems and containers where Nix/NixOS is not used.
+	 * Nixpkgs itself is broken in that the packages it creates depends
+	 * upon a variety of environment variables at runtime.  On NixOS
+	 * these are convenient to set on a system-wide basis but that
+	 * essentially masks the problem, and it's not uncommon to see Nix
+	 * packages trip over the absence of environment variables when
+	 * invoked on other Linux distributions.
 	 *
-	 * For flox specifically, set a reasonable default for the
-	 * LOCALE_ARCHIVE variable if it is not already set while we
-	 * work to convince the Nix community that this is a problem
-	 * to be fixed in Nixpkgs itself.
+	 * For flox specifically, set Nix-provided defaults for certain
+	 * environment variables that we know to be required on the various
+	 * operating systems.
 	 */
-	char *localeArchive = getenv("LOCALE_ARCHIVE");
-	if (localeArchive == NULL) {
+	char *envVar;
+#ifdef __APPLE__
+	envVar = getenv("NIX_COREFOUNDATION_RPATH");
+	if (envVar == NULL) {
+		if (setenv("NIX_COREFOUNDATION_RPATH", NIX_COREFOUNDATION_RPATH, 1) != 0)
+			fatal("setenv");
+	}
+	envVar = getenv("PATH_LOCALE");
+	if (envVar == NULL) {
+		if (setenv("PATH_LOCALE", PATH_LOCALE, 1) != 0)
+			fatal("setenv");
+	}
+#else  /* __APPLE__ */
+	envVar = getenv("LOCALE_ARCHIVE");
+	if (envVar == NULL) {
 		if (setenv("LOCALE_ARCHIVE", LOCALE_ARCHIVE, 1) != 0)
 			fatal("setenv");
 	}
+#endif /* __APPLE__ */
 
 	/*
 	 * Run the command.
