@@ -129,11 +129,16 @@ to developer environments, profile management, and administration.
     - **bash**: `export FLOX_PROMPT="\[\033[1;34m\]flox\[\033[0m\] "`
     - **zsh**: `export FLOX_PROMPT='%B%F{blue}flox%f%b '`
 
-`$XDG_CACHE_HOME`
-:   asdlkfj
+`$FLOX_VERBOSE`
+:   Setting **FLOX_VERBOSE=1** is the same as invoking `flox` with the `--verbose`
+    argument except that it can be convenient to set this in the environment for
+    the purposes of development.
 
-`$FLOX_HOME`
-:   asdlkfj
+`$FLOX_DEBUG`
+:   Setting **FLOX_DEBUG=1** is the same as invoking `flox` with the `--debug`
+    argument except that it activates debugging prior to the start of argument
+    parsing and that it can be convenient to set this in the environment for
+    the purposes of development.
 
 # EXAMPLES
 
