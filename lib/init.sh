@@ -72,6 +72,7 @@ nix_show_config()
 # NIX honors ${USER} over the euid, so make them match.
 export USER=$($_id -un)
 export HOME=$($_getent passwd ${USER} | $_cut -d: -f6)
+export PWD=$($_pwd)
 
 # Define and create flox metadata cache, data, and profiles directories.
 export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"

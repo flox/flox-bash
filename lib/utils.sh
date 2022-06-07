@@ -30,7 +30,7 @@ function hash_commands() {
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq getent gh git \
-	ln mkdir mktemp mv nix nix-store readlink realpath rm rmdir sed sh stat touch tr xargs zgrep
+	ln mkdir mktemp mv nix nix-store pwd readlink realpath rm rmdir sed sh stat touch tr xargs zgrep
 
 # Short name for this script, derived from $0.
 me="${0##*/}"
@@ -503,7 +503,7 @@ function flakeURLToRegistryJSON() {
 	local url="$1"; shift
 	if [[ "$url" =~ ^git\+ssh@github.com:(.*) ]]; then
 		echo '"from": {"id": "floxpkgs", "type": "indirect"},'
-		echo '"to": {"type": "git", "url": "ssh://git@github.com/'${BASH_REMATCH[1]}'",ref:"master"}'
+		echo '"to": {"type": "git", "url": "ssh://git@github.com/'${BASH_REMATCH[1]}'","ref":"master"}'
 	else
 		error "Cannot convert URL to flake registry: \"$url\"" < /dev/null
 	fi
