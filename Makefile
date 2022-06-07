@@ -14,7 +14,9 @@ PREFIX ?= ./build
 # OS = $(lastword $(subst -, ,$(SYSTEM)))
 OS := $(shell uname -s | tr A-Z a-z)
 
-CFLAGS = -DFLOXSH='"$(PREFIX)/libexec/flox/flox"'
+CFLAGS = \
+	-DFLOXSH='"$(PREFIX)/libexec/flox/flox"' \
+	-DSSL_CERT_FILE='"$(SSL_CERT_FILE)"'
 ifeq ($(OS),linux)
   CFLAGS += -DLOCALE_ARCHIVE='"$(LOCALE_ARCHIVE)"'
 endif

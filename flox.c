@@ -51,6 +51,11 @@ main(int argc, char **argv)
 	 * operating systems.
 	 */
 	char *envVar;
+	envVar = getenv("SSL_CERT_FILE");
+	if (envVar == NULL) {
+		if (setenv("SSL_CERT_FILE", SSL_CERT_FILE, 1) != 0)
+			fatal("setenv");
+	}
 #ifdef __APPLE__
 	envVar = getenv("NIX_COREFOUNDATION_RPATH");
 	if (envVar == NULL) {

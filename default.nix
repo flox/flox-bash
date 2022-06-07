@@ -4,7 +4,6 @@ let
     stdenv
     ansifilter
     bashInteractive
-    cacert
     coreutils
     dasel
     diffutils
@@ -12,7 +11,6 @@ let
     findutils
     gawk
     gh
-    glibcLocales
     gnused
     gzip
     hostPlatform
@@ -54,8 +52,9 @@ let
     # and borrows liberally from the set of default environment variables
     # set by NixOS, the principal proving ground for Nix packaging efforts.
     export PATH=$FLOX_PATH_PREPEND:$PATH
+    export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
   '' + lib.optionalString hostPlatform.isLinux ''
-    export LOCALE_ARCHIVE="${glibcLocales}/lib/locale/locale-archive"
+    export LOCALE_ARCHIVE="${pkgs.glibcLocales}/lib/locale/locale-archive"
   '' + lib.optionalString hostPlatform.isDarwin ''
     export NIX_COREFOUNDATION_RPATH="${pkgs.darwin.CF}/Library/Frameworks"
     export PATH_LOCALE="${pkgs.darwin.locale}/share/locale"
@@ -73,10 +72,10 @@ in stdenv.mkDerivation rec {
   makeFlags = [
     "PREFIX=$(out)"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
-    "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
+    "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
     "FLOX_PROFILE=${floxProfile}"
   ] ++ lib.optionals hostPlatform.isLinux [
-    "LOCALE_ARCHIVE=${glibcLocales}/lib/locale/locale-archive"
+    "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
   ] ++ lib.optionals hostPlatform.isDarwin [
     "NIX_COREFOUNDATION_RPATH=${pkgs.darwin.CF}/Library/Frameworks"
     "PATH_LOCALE=${pkgs.darwin.locale}/share/locale"
