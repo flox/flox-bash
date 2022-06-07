@@ -330,9 +330,11 @@ function promptTemplate {
 
 	_choices=($(
 		local count=0
-		($invoke_nix flake show floxpkgs --json 2>/dev/null) | \
-		$_jq -r '.templates | to_entries | map("\(.key) \(.value.description)") | .[]' | \
-		while read -a _cline
+		$invoke_nix eval --raw --apply '
+		  x: with builtins; concatStringsSep "\n" (
+			attrValues (mapAttrs (k: v: k + " " + v.description) x)
+		  ) + "\n"
+		' "floxpkgs#templates" | while read -a _cline
 		do
 			count=$(($count+1))
 			echo "$count) ${_cline[0]}: ${_cline[@]:1}" 1>&2
