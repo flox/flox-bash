@@ -131,24 +131,30 @@ def syncGeneration:
   .key as $generation |
   .value.path as $path |
   .value.created as $created |
+  "\($profileDir)/\($profileName)-\($generation)-link" as $targetLink |
   # Cannot embed newlines so best we can do is return array and flatten later.
   if .value.path != null then [
-    # Ensure all flakes referenced in profile are built.
-    "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
-    " $_xargs --no-run-if-empty $( [ -z \"$verbose\" ] || echo '--verbose' ) -- $_nix build --no-link && " +
-    # Ensure all anonymous store paths referenced in profile are copied.
-    "manifest $profileMetaDir/\($generation).json listStorePaths | " +
-    " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
-    " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
-    # Now we can attempt to build the profile and store in the bash $profilePath variable.
-    "profilePath=$($_nix profile build $profileMetaDir/\($generation).json) && " +
-    # Now create the generation link.
-    "$_rm -f \($profileDir)/\($profileName)-\($generation)-link && " +
-    "$_ln --force -s $profilePath \($profileDir)/\($profileName)-\($generation)-link && " +
-    # And set the symbolic link's date.
-    "$_touch -h --date=@\($created) \($profileDir)/\($profileName)-\($generation)-link && " +
-    # Finally add a GC root for the new generation.
-    "$_nix_store --add-root \($profileDir)/\($profileName)-\($generation)-link -r >/dev/null"
+    # Don't rebuild links/profiles for generations that already exist.
+    "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then" +
+      ": verified existence of \($targetLink);" +
+    "else" +
+      # Ensure all flakes referenced in profile are built.
+      "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
+      " $_xargs --no-run-if-empty $( [ -z \"$verbose\" ] || echo '--verbose' ) -- $_nix build --no-link && " +
+      # Ensure all anonymous store paths referenced in profile are copied.
+      "manifest $profileMetaDir/\($generation).json listStorePaths | " +
+      " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
+      " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
+      # Now we can attempt to build the profile and store in the bash $profilePath variable.
+      "profilePath=$($_nix profile build $profileMetaDir/\($generation).json) && " +
+      # Now create the generation link.
+      "$_rm -f \($targetLink) && " +
+      "$_ln --force -s $profilePath \($targetLink) && " +
+      # And set the symbolic link's date.
+      "$_touch -h --date=@\($created) \($targetLink) && " +
+      # Finally add a GC root for the new generation.
+      "$_nix_store --add-root \($targetLink) -r >/dev/null;" +
+    "fi"
   ] else [] end;
 
 def syncGenerations(args):
