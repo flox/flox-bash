@@ -496,6 +496,11 @@ search)
 	  $_sed -e "s%^.*\* %* %" -e "/^$/d"
 	;;
 
+update)
+	$_nix run floxpkgs#update-versions "$PWD"
+	$_nix run floxpkgs#update-extensions "$PWD"
+	;;
+
 *)
 	cmd=($invoke_nix "$subcommand" "$@")
 	;;
