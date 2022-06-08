@@ -281,6 +281,7 @@ function profileRegistry() {
 	#	--arg version "$2" \        # required schema version
 	local jqargs=(
 		"-n" "-e" "-r" "-f" "$_lib/profileRegistry.jq"
+		"--argjson" "now" "$now"
 		"--arg" "version" "$version"
 		"--arg" "profileDir" "$profileDir"
 		"--arg" "profileName" "$profileName"

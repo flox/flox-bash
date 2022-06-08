@@ -127,39 +127,52 @@ def listGenerations(args):
 # present on the system before invoking `nix profile build`. Take
 # this opportunity to verify all the paths are present by invoking
 # the `nix build` or `nix-store -r` commands that can create them.
-def syncGeneration:
+def _syncGeneration(args):
+  args[0] as $currentGen |
+  args[1] as $ageDays |
   .key as $generation |
   .value.path as $path |
   .value.created as $created |
+  .value.lastActive as $lastActive |
+  (($now-$lastActive)/(24*60*60)) as $daysSinceActive |
   "\($profileDir)/\($profileName)-\($generation)-link" as $targetLink |
   # Cannot embed newlines so best we can do is return array and flatten later.
-  if .value.path != null then [
-    # Don't rebuild links/profiles for generations that already exist.
-    "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then " +
-      ": verified existence of \($targetLink); " +
-    "else " +
-      # Ensure all flakes referenced in profile are built.
-      "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
-      " $_xargs --no-run-if-empty $( [ -z \"$verbose\" ] || echo '--verbose' ) -- $_nix build --no-link && " +
-      # Ensure all anonymous store paths referenced in profile are copied.
-      "manifest $profileMetaDir/\($generation).json listStorePaths | " +
-      " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
-      " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
-      # Now we can attempt to build the profile and store in the bash $profilePath variable.
-      "profilePath=$($_nix profile build $profileMetaDir/\($generation).json) && " +
-      # Now create the generation link.
-      "$_rm -f \($targetLink) && " +
-      "$_ln --force -s $profilePath \($targetLink) && " +
-      # And set the symbolic link's date.
-      "$_touch -h --date=@\($created) \($targetLink) && " +
-      # Finally add a GC root for the new generation.
-      "$_nix_store --add-root \($targetLink) -r >/dev/null; " +
-    "fi"
-  ] else [] end;
+  if .value.path != null then (
+    # Don't bother building an old generation *unless* it's the current one.
+    if (($currentGen == $generation) or ($daysSinceActive <= $ageDays)) then [
+      # Don't rebuild links/profiles for generations that already exist.
+      "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then " +
+        ": verified existence of \($targetLink); " +
+      "else " +
+        # Ensure all flakes referenced in profile are built.
+        "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
+        " $_xargs --no-run-if-empty $( [ -z \"$verbose\" ] || echo '--verbose' ) -- $_nix build --no-link && " +
+        # Ensure all anonymous store paths referenced in profile are copied.
+        "manifest $profileMetaDir/\($generation).json listStorePaths | " +
+        " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
+        " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
+        # Now we can attempt to build the profile and store in the bash $profilePath variable.
+        "profilePath=$($_nix profile build $profileMetaDir/\($generation).json) && " +
+        # Now create the generation link.
+        "$_rm -f \($targetLink) && " +
+        "$_ln --force -s $profilePath \($targetLink) && " +
+        # And set the symbolic link's date.
+        "$_touch -h --date=@\($created) \($targetLink) && " +
+        # Finally add a GC root for the new generation.
+        "$_nix_store --add-root \($targetLink) -r >/dev/null; " +
+      "fi"
+    ] else [
+      # Remove old generation symlinks to allow package GC.
+      "if [ -L \($targetLink) ]; then " +
+        "$_rm -f \($targetLink); " +
+      "fi"
+    ] end
+  ) else [] end;
 
 def syncGenerations(args):
   ( $registry | .currentGen ) as $currentGen |
-  ( $registry | .generations | to_entries ) | map(syncGeneration) + [
+  ( $registry | (if has("ageDays") then .ageDays else 10 end) ) as $ageDays |
+  ( $registry | .generations | to_entries ) | map(_syncGeneration([$currentGen, $ageDays])) + [
     # Set the current generation symlink. Let its timestamp be now.
     "$_rm -f \($profileDir)/\($profileName)",
     "$_ln --force -s \($profileName)-\($currentGen)-link \($profileDir)/\($profileName)"
