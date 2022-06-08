@@ -135,9 +135,9 @@ def syncGeneration:
   # Cannot embed newlines so best we can do is return array and flatten later.
   if .value.path != null then [
     # Don't rebuild links/profiles for generations that already exist.
-    "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then" +
-      ": verified existence of \($targetLink);" +
-    "else" +
+    "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then " +
+      ": verified existence of \($targetLink); " +
+    "else " +
       # Ensure all flakes referenced in profile are built.
       "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
       " $_xargs --no-run-if-empty $( [ -z \"$verbose\" ] || echo '--verbose' ) -- $_nix build --no-link && " +
@@ -153,7 +153,7 @@ def syncGeneration:
       # And set the symbolic link's date.
       "$_touch -h --date=@\($created) \($targetLink) && " +
       # Finally add a GC root for the new generation.
-      "$_nix_store --add-root \($targetLink) -r >/dev/null;" +
+      "$_nix_store --add-root \($targetLink) -r >/dev/null; " +
     "fi"
   ] else [] end;
 
