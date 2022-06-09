@@ -50,7 +50,7 @@ EOF
 	# Convention: Flox Nix expression repository for organization
 	# always called "floxpkgs".
 	registry $floxUserMeta 1 get defaultFlake > /dev/null || \
-		registry $floxUserMeta 1 set defaultFlake "${gitBaseURL}${organization}/floxpkgs"
+		registry $floxUserMeta 1 set defaultFlake "${gitBaseURL}${organization}/floxpkgs?=master"
 	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake)
 
 else
@@ -59,7 +59,7 @@ else
 	username=$(registry $floxUserMeta 1 get username || echo "$USER")
 	export FLOX_USER="$username"
 	organization=$(registry $floxUserMeta 1 get organization || echo "$FLOX_CONF_floxpkgs_organization")
-	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake || echo "${gitBaseURL}${organization}/floxpkgs")
+	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake || echo "${gitBaseURL}${organization}/floxpkgs?=master")
 
 fi
 

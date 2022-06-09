@@ -504,7 +504,7 @@ function flakeURLToRegistryJSON() {
 	local url="$1"; shift
 	if [[ "$url" =~ ^git\+ssh@github.com:(.*) ]]; then
 		echo '"from": {"id": "floxpkgs", "type": "indirect"},'
-		echo '"to": {"type": "git", "url": "ssh://git@github.com/'${BASH_REMATCH[1]}'", "ref": "master"}'
+		echo '"to": {"type": "git", "url": "ssh://git@github.com/'${BASH_REMATCH[1]}'"}'
 	else
 		error "Cannot convert URL to flake registry: \"$url\"" < /dev/null
 	fi
