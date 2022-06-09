@@ -125,17 +125,13 @@ eval $(read_flox_conf npfs floxpkgs)
 
 # Populate user-specific flake registry.
 # FIXME: support multiple flakes.
-tmpFloxFlakeRegistry=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
-$_jq . > $tmpFloxFlakeRegistry <<EOF
-{
-  "flakes": [{$(flakeURLToRegistryJSON $defaultFlake)}],
-  "version": 2
-}
-EOF
+# Note: avoids problems to let nix create the temporary file.
+tmpFloxFlakeRegistry=$($_mktemp --dry-run --tmpdir=$FLOX_CONFIG_HOME)
+$invoke_nix registry add --registry $tmpFloxFlakeRegistry floxpkgs $defaultFlake
+$invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs github:flox/nixpkgs/${FLOX_STABILITY:-stable}
 if $_cmp --quiet $tmpFloxFlakeRegistry $floxFlakeRegistry; then
 	$_rm $tmpFloxFlakeRegistry
 else
-	echo "Updating $floxFlakeRegistry" 1>&2
 	$_mv -f $tmpFloxFlakeRegistry $floxFlakeRegistry
 fi
 

@@ -22,7 +22,6 @@ _prefix=${_prefix:-.}
 _lib=$_prefix/lib
 _etc=$_prefix/etc
 _share=$_prefix/share
-. $_lib/init.sh
 
 # If the first arguments are any of -d|--date, -v|--verbose or --debug
 # then we consume this (and in the case of --date, its argument) as
@@ -68,6 +67,9 @@ while [ $# -ne 0 ]; do
 	*) break ;;
 	esac
 done
+
+# Perform initialization with benefit of flox CLI args set above.
+. $_lib/init.sh
 
 #
 # main()

@@ -496,17 +496,15 @@ function searchArgs() {
 }
 
 #
-# Convert flake URL to flake registry JSON.
+# Convert gitBaseURL to URL for use in flake registry.
 # FIXME: implement real URL parser.
-# FIXME: support multiple flakes in registry.
 #
-function flakeURLToRegistryJSON() {
+function gitBaseURLToFlakeURL() {
 	local url="$1"; shift
-	if [[ "$url" =~ ^git\+ssh@github.com:(.*) ]]; then
-		echo '"from": {"id": "floxpkgs", "type": "indirect"},'
-		echo '"to": {"type": "git", "url": "ssh://git@github.com/'${BASH_REMATCH[1]}'"}'
+	if [ "$url" = "git+ssh@github.com:" ]; then
+		echo "git+ssh://git@github.com/"
 	else
-		error "Cannot convert URL to flake registry: \"$url\"" < /dev/null
+		error "Cannot convert to flake URL: \"$url\"" < /dev/null
 	fi
 }
 
