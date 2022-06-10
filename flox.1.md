@@ -72,6 +72,18 @@ to developer environments, profile management, and administration.
 **upgrade**
 :   Upgrade package(s) in profile.
 
+**edit**
+:   Edit declarative manifest for profile. Note that this has these
+    effects in the following scenarios:
+
+    1. profile does not exist: creates new profile of declarative type
+    1. profile already exists of declarative type: edits manifest
+    1. profile already exists of imperative type: edits manifest and
+       converts profile to declarative type
+
+    To convert a profile back to the imperative type simply use an
+    imperative command such as `flox install` or `flox remove`.
+
 **profiles**
 :   List all profiles.
 
@@ -113,9 +125,6 @@ to developer environments, profile management, and administration.
     The result will be a "flattened" view whereby the configuration
     directives in each file supersedes the previous.
 
-**register**
-:   Activate profile.
-
 # ENVIRONMENT VARIABLES
 
 `$FLOX_PROMPT`
@@ -139,6 +148,9 @@ to developer environments, profile management, and administration.
     argument except that it activates debugging prior to the start of argument
     parsing and that it can be convenient to set this in the environment for
     the purposes of development.
+
+`$EDITOR`, `$VISUAL`
+:   Override the default editor used for editing profile manifests and commit messages.
 
 # EXAMPLES
 

@@ -86,6 +86,10 @@ function gitCheckout() {
 			$_git -C "$repoDir" checkout --quiet "$branch"
 		else
 			$_git -C "$repoDir" checkout --quiet --orphan "$branch"
+			$_git -C "$repoDir" ls-files | $_xargs $_git -C "$repoDir" rm -f
+			# A commit is needed in order to make the branch visible.
+			$_git -C "$repoDir" commit --quiet --allow-empty \
+				-m "$FLOX_USER created profile"
 		fi
 	}
 }
@@ -105,6 +109,110 @@ function metaGit() {
 		[ -z "$verbose" ] || set -x
 		$_git -C $profileMetaDir "$@"
 	)
+}
+
+function verifyImperative() {
+	local profile="$1"; shift
+	local system="$1"; shift
+	local profileName=$($_basename $profile)
+	local userName=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
+
+	# First verify that the clone is not out of date and check
+	# out requested branch.
+	gitCheckout "$profileMetaDir" "${system}.${profileName}"
+
+	# Return false if it does not exist.
+	[ -f "$profileMetaDir/manifest.json" ] || return 1
+
+	# Return true if the declarative manifest is found.
+	[ -f "$profileMetaDir/manifest.toml" ] || return 0
+
+	# Otherwise return false.
+	return 1
+}
+
+function verifyDeclarative() {
+	verifyImperative "$@" || return 0
+	return 1
+}
+
+protoManifestToml=$(cat <<EOF
+# This is a prototype profile declarative manifest in TOML format,
+# supporting comments and the ability to invoke "shellHook" commands
+# upon profile activation. See the flox(1) man page for more details.
+[packages]
+    # Packages listed below with optional constraints, e.g.:
+    # [packages."curl"]
+    # channel = "nixpkgs"
+    # stability = "staging"
+    # version = "7.79"
+EOF
+)
+
+# metaEdit($profile, $system)
+#
+# Edits profile declarative manifest. Is only invoked from an
+# interactive terminal.
+function metaEdit() {
+	local profile="$1"; shift
+	local system="$1"; shift
+	local profileName=$($_basename $profile)
+	local userName=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
+
+	# First verify that the clone is not out of date and check
+	# out requested branch. This is essential because we're
+	# about to edit a file in that directory and it needs to be
+	# the correct version.
+	gitCheckout "$profileMetaDir" "${system}.${profileName}"
+
+	# Create a temp file for editing.
+	tmpfile=$($_mktemp)
+
+	# If the declarative manifest does not yet exist then we need
+	# to initialize it first with a blank version
+	if [ -f "$profileMetaDir/manifest.toml" ]; then
+		cp "$profileMetaDir/manifest.toml" $tmpfile
+	else
+		if verifyImperative "$profile" "$system"; then
+			# Profile already exists as imperative profile - confirm
+			# user really wants to convert to declarative.
+			$_cat <<EOF 1>&2
+"$profile" already exists as an imperatively-managed profile.
+EOF
+			boolPrompt "Are you sure you want to convert it to a declarative profile?" "no" || {
+				warn "aborting ..." < /dev/null
+				exit 1
+			}
+		fi
+		$_cat > $tmpfile <<EOF
+$protoManifestToml
+
+EOF
+		# If manifest.json already exists then append current package manifest.
+		if [ -f "$profileMetaDir/manifest.json" ]; then
+			manifest $profile/manifest.json listProfileTOML >> $tmpfile
+		fi
+	fi
+
+	# Edit then copy back.
+	$editorCommand $tmpfile
+	[ -s $tmpfile ] || (
+		$_rm -f $tmpfile
+		error "editor returned empty manifest .. aborting" < /dev/null
+	)
+	# We copy rather than move to preserve bespoke ownership and mode.
+	$_cp $tmpfile "$profileMetaDir/manifest.toml"
+	$_rm -f $tmpfile
+
+	# Following the edit the user must either commit or revert the
+	# changes. We cannot allow uncommitted changes to sit around
+	# because that would break the ability to edit the declarative
+	# manifest for another profile (branch).
+	if [ -f "$profileMetaDir/manifest.toml" ]; then
+		metaGit "$profile" "$system" add "manifest.toml"
+	fi
 }
 
 #

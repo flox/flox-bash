@@ -112,7 +112,7 @@ case "$subcommand" in
 # Nix and Flox commands which take a (-p|--profile) profile argument.
 activate | history | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
-	generations | git | push | pull | sync) # Flox commands
+	edit | generations | git | push | pull | sync) # Flox commands
 
 	# Look for the --profile argument(s).
 	args=()
@@ -219,7 +219,7 @@ activate | history | install | list | remove | rollback | \
 		profile=
 		;;
 
-	# Commands which accept a flox package reference.
+	# Imperative commands which accept a flox package reference.
 	install | remove | upgrade)
 		pkgArgs=()
 		pkgNames=()
@@ -288,7 +288,76 @@ activate | history | install | list | remove | rollback | \
 			done
 		fi
 		logMessage="$FLOX_USER $(pastTense $subcommand) ${pkgNames[@]}"
+		if verifyDeclarative "$profile" "$NIX_CONFIG_system"; then
+			warn "\"$profile\" already exists as a declaratively-managed profile."
+			if boolPrompt "Are you sure you want to convert it to an imperative profile?" "no"; then
+				metaGit "$profile" "$NIX_CONFIG_system" rm "manifest.toml"
+				logMessage="$FLOX_USER converted to imperative profile and $(pastTense $subcommand) ${pkgNames[@]}"
+			else
+				warn "aborting ..." < /dev/null
+				exit 1
+			fi
+		fi
 		cmd=($invoke_nix -v profile "$subcommand" --profile "$profile" "${pkgArgs[@]}")
+		;;
+
+	edit)
+		[ -t 1 ] ||
+			usage | error "\"$subcommand\" requires an interactive terminal"
+		metaEdit "$profile" "$NIX_CONFIG_system"
+
+		# Having edited the manifest (and "git added" the update), attempt
+		# to render a new generation from the manifest.
+		#
+		# TODO: we will write an external filter which reads TOML and outputs
+		# a manifest.json, but in the meantime do the equivalent more or less
+		# by hand.
+		#
+		# First collect a list of "installable" flox pkgnames from the TOML.
+		# XXX Forgive the inline jq ...
+		#
+		packagesToInstArgs=$($_cat <<EOF
+		  .packages | to_entries | map(
+		    if .value.storePaths then .value.storePaths[] else (
+		      (if .value.channel then .value.channel else "nixpkgs" end) as \$channel |
+		      (if .value.stability then .value.stability else "stable" end) as \$stability |
+		      "\(\$channel).\(\$stability).\(.key)"
+		    ) end \
+		  ) | .[]
+EOF
+)
+		declare -a installables=($($_dasel -f "$profileMetaDir/manifest.toml" -w json | $_jq -r "$packagesToInstArgs"))
+
+		# Convert this list of installables to a list of floxpkgArgs.
+		declare -a floxpkgArgs
+		for i in "${installables[@]}"; do
+			floxpkgArgs+=($(floxpkgArg "$i"))
+		done
+
+		# Now we use this list of floxpkgArgs to create a temporary profile.
+		tmpdir=$(mktemp -d)
+		$invoke_nix profile install --profile $tmpdir/profile "${floxpkgArgs[@]}"
+
+		# If we've gotten this far we have a profile. Follow the links to
+		# identify the package, then (carefully) discard the tmpdir.
+		profilePackage=$(cd $tmpdir && readlink $(readlink profile))
+		$_rm $tmpdir/profile $tmpdir/profile-1-link
+		$_rmdir $tmpdir
+
+		# Finally, activate the new generation just as Nix would have done.
+		# First check to see if profile has actually changed.
+		oldProfilePackage=$($_realpath $profile)
+		if [ "$profilePackage" != "$oldProfilePackage" ]; then
+			logMessage="$FLOX_USER edited declarative profile"
+			declare -i newgen=$(maxProfileGen $profile)
+			let ++newgen
+			$invoke_ln -s $profilePackage "${profile}-${newgen}-link"
+			$invoke_rm -f $profile
+			$invoke_ln -s "${profileName}-${newgen}-link" $profile
+		fi
+
+		# Need a command to trigger post-command profile reconciliation.
+		cmd=(:) # shell built-in
 		;;
 
 	rollback | switch-generation | wipe-history)

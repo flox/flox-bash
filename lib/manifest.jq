@@ -26,10 +26,6 @@ if $manifest[].version != 1 and $manifest[].version != 2 then
 else . end
 |
 
-# Add "position" index as we define $elements.
-( $manifest[].elements | to_entries | map(.value * {position:.key}) ) as $elements
-|
-
 # Helper method to validate number of arguments to function call.
 def expectedArgs(count; args):
   (args | length) as $argc |
@@ -48,7 +44,7 @@ def expectedArgs(count; args):
 # Sample element:
 # {
 #   "active": true,
-#   "attrPath": "catalog.@@SYSTEM@@.nixpkgs.stable.vim",
+#   "attrPath": "$catalogAttrPathPrefix.nixpkgs.stable.vim",
 #   "originalUrl": "flake:floxpkgs",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
@@ -58,8 +54,50 @@ def expectedArgs(count; args):
 # }
 #
 #
+
+# Convert flake attrPath to floxpkgs <channel>.<stability>.<name> triple.
 def attrPathToFloxpkg(arg):
-  arg | ltrimstr("catalog.\($system).");
+  arg |
+  ltrimstr("catalog.\($system).") | # XXX FIXME once the dust settles.
+  ltrimstr("\($catalogAttrPathPrefix).");
+
+# Add "position" index as we define $elements.
+( $manifest[].elements | to_entries | map(
+  .value * {
+    position:.key,
+    packageName: (
+      if .value.attrPath then (
+        attrPathToFloxpkg(.value.attrPath)
+        | split(".")
+        | .[0] as $channel
+        | .[1] as $stability
+        | (.[2:] | join("."))
+      ) else (
+        .value.storePaths[0] | .[44:]
+      ) end
+    )
+  }
+) ) as $elements
+|
+
+def attrPathToTOML(arg):
+  attrPathToFloxpkg(arg) | split(".") |
+  .[0] as $channel |
+  .[1] as $stability |
+  (.[2:] | join(".")) as $nameAttrPath |
+  "    [packages.\"\($nameAttrPath)\"]
+    channel = \"\($channel)\"
+    stability = \"\($stability)\"
+";
+
+def storePathsToTOML(storePaths):
+  ( "\"" + ( storePaths | join("\",\n      \"") ) + "\"" ) as $storePaths |
+  ( storePaths[0] | .[44:] ) as $pkgname |
+  "    [packages.\"\($pkgname)\"]
+    storePaths = [
+      \($storePaths)
+    ]
+";
 
 def floxpkgToAttrPath(args): expectedArgs(1; args) |
   ["catalog", $system, args[0]] | join(".");
@@ -102,6 +140,13 @@ def floxpkgFromElementWithRunPath:
   if .attrPath then
     attrPathToFloxpkg(.attrPath) + "\t" + (.storePaths | join(","))
   else .storePaths[] end;
+
+def TOMLFromElement:
+  if .attrPath then
+    attrPathToTOML(.attrPath)
+  else
+    storePathsToTOML(.storePaths)
+  end;
 
 def flakerefFromElementV1:
   "\(.originalUri)#\(.attrPath)";
@@ -199,6 +244,11 @@ def listProfile(args):
     error("unknown option: " + args[0])
   end;
 
+def listProfileTOML(args): expectedArgs(0; args) |
+  $elements | sort_by(.packageName) | unique_by(.packageName) | map(
+    TOMLFromElement
+  ) | join("\n");
+
 def listFlakesInProfile(args): expectedArgs(0; args) |
   ( $elements | map(
     if .attrPath then lockedFlakerefFromElement else empty end
@@ -226,8 +276,9 @@ else if $function == "flakerefToPosition"  then flakerefToPosition($funcargs)
 else if $function == "storepathToPosition" then storepathToPosition($funcargs)
 else if $function == "positionToFloxpkg"   then positionToFloxpkg($funcargs)
 else if $function == "listProfile"         then listProfile($funcargs)
+else if $function == "listProfileTOML"     then listProfileTOML($funcargs)
 else if $function == "listFlakesInProfile" then listFlakesInProfile($funcargs)
 else if $function == "listStorePaths"      then listStorePaths($funcargs)
 else if $function == "dump"                then dump($funcargs)
 else error("unknown function: \"\($function)\"")
-end end end end end end end end end end
+end end end end end end end end end end end

@@ -32,6 +32,23 @@ function hash_commands() {
 hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq getent gh git \
 	ln mkdir mktemp mv nix nix-store pwd readlink realpath rm rmdir sed sh stat touch tr xargs zgrep
 
+# Return full path of first command available in PATH.
+#
+# Usage: first_in_PATH foo bar baz
+function first_in_PATH() {
+	set -h # explicitly enable hashing
+	local PATH=@@FLOXPATH@@:$PATH
+	for i in $@; do
+		if hash $i 2>/dev/null; then
+			echo $(type -P $i)
+			return
+		fi
+	done
+}
+
+bestAvailableEditor=$(first_in_PATH vim vi nano emacs ed)
+editorCommand=${EDITOR:-${VISUAL:-${bestAvailableEditor:-vi}}}
+
 # Short name for this script, derived from $0.
 me="${0##*/}"
 mespaces=$(echo $me | $_tr '[a-z]' ' ')
@@ -91,6 +108,7 @@ Flox profile commands:
     flox push - send profile metadata to remote registry
     flox pull - pull profile metadata from remote registry
     flox sync - synchronize profile metadata and links
+    flox edit - edit declarative profile manifest
 
 Nix profile commands:
     flox diff-closures - show the closure difference between each version of a profile
@@ -166,12 +184,46 @@ function manifest() {
 	# Append arg which defines $system.
 	jqargs+=("--arg" "system" "$NIX_CONFIG_system")
 
+	# Append arg which defines $catalogAttrPathPrefix.
+	jqargs+=("--arg" "catalogAttrPathPrefix" "$catalogAttrPathPrefix")
+
 	# Append remaining args using jq "--args" flag and "--" to
 	# prevent jq from interpreting provided args as options.
 	jqargs+=("--args" "--" "$@")
 
 	# Finally invoke jq.
 	$_jq "${jqargs[@]}"
+}
+
+# boolPrompt($prompt, $default)
+#
+# Displays prompt, collects boolean "y/n" response,
+# returns 0 for yes and 1 for no.
+function boolPrompt() {
+	local prompt="$1"; shift
+	local default="$1"; shift
+	local defaultLower=$(echo $default | tr A-Z a-z)
+	local defaultrc
+	case "$defaultLower" in
+	n|no) defaultrc=1 ;;
+	y|yes) defaultrc=0 ;;
+	*)
+		error "boolPrompt() called with invalid default" < /dev/null
+		;;
+	esac
+	local defaultCaps=$(echo $default | tr a-z A-Z)
+	local defaultPrompt=$(echo "y/n" | tr "$defaultLower" "$defaultCaps")
+	read -e -p "$prompt ($defaultPrompt) " value
+	local valueLower=$(echo $value | tr A-Z a-z)
+	case "$valueLower" in
+	n|no) return 1 ;;
+	y|yes) return 0 ;;
+	"") return $defaultrc ;;
+	*)
+		echo "invalid response \"$value\" .. try again" 1>&2
+		boolPrompt "$prompt" "$default"
+		;;
+	esac
 }
 
 #
@@ -431,6 +483,20 @@ function profileGen() {
 			return
 		fi
 	fi
+}
+
+# Identifies max profile generation.
+function maxProfileGen() {
+	local profile="$1"
+	declare -i max=0
+	for i in ${profile}-*-link; do
+		if [[ $i =~ ^${profile}-([0-9]+)-link$ ]]; then
+			if [ ${BASH_REMATCH[1]} -gt $max ]; then
+				max=${BASH_REMATCH[1]}
+			fi
+		fi
+	done
+	echo $max
 }
 
 # Package args can take one of 3 formats:
