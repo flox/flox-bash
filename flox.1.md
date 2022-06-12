@@ -87,6 +87,13 @@ to developer environments, profile management, and administration.
 **profiles**
 :   List all profiles.
 
+**generations**
+:   List generations of selected profile.
+
+**list** [ <generation> ]
+:   List contents of selected profile. Provide optional generation
+    argument to list the contents of a specific generation.
+
 **history** [ \--oneline ]
 :   List history of selected profile. With `--oneline` arg, display concise
     format including only the subject line for history log entries.
