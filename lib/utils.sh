@@ -574,4 +574,22 @@ function gitBaseURLToFlakeURL() {
 	fi
 }
 
+# validateTOML(path)
+function validateTOML() {
+	local path="$1"; shift
+	# XXX do more here to highlight what the problem is.
+	tmpstderr=$($_mktemp)
+	if $_cat $path | $_dasel -p toml >/dev/null 2>$tmpstderr; then
+		: confirmed valid TOML
+	else
+		warn "'$path' contains invalid TOML syntax - see below:"
+		$_cat $tmpstderr 1>&2
+		warn "see '$tmpstderr' for invalid TOML"
+		$_cp -f $path $tmpstderr
+		return 1
+	fi
+	$_rm -f $tmpstderr
+	return 0
+}
+
 # vim:ts=4:noet:syntax=bash

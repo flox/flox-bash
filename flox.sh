@@ -288,16 +288,6 @@ activate | history | install | list | remove | rollback | \
 			done
 		fi
 		logMessage="$FLOX_USER $(pastTense $subcommand) ${pkgNames[@]}"
-		if verifyDeclarative "$profile" "$NIX_CONFIG_system"; then
-			warn "\"$profile\" already exists as a declaratively-managed profile."
-			if boolPrompt "Are you sure you want to convert it to an imperative profile?" "no"; then
-				metaGit "$profile" "$NIX_CONFIG_system" rm "manifest.toml"
-				logMessage="$FLOX_USER converted to imperative profile and $(pastTense $subcommand) ${pkgNames[@]}"
-			else
-				warn "aborting ..." < /dev/null
-				exit 1
-			fi
-		fi
 		cmd=($invoke_nix -v profile "$subcommand" --profile "$profile" "${pkgArgs[@]}")
 		;;
 
@@ -335,7 +325,7 @@ EOF
 		done
 
 		# Now we use this list of floxpkgArgs to create a temporary profile.
-		tmpdir=$(mktemp -d)
+		tmpdir=$($_mktemp -d)
 		$invoke_nix profile install --profile $tmpdir/profile "${floxpkgArgs[@]}"
 
 		# If we've gotten this far we have a profile. Follow the links to
@@ -403,14 +393,18 @@ EOF
 
 	history)
 		if [[ "$profile" =~ ^$FLOX_PROFILES ]]; then
-			# Default log format only includes subject %s.
-			logFormat="format:%cd %C(cyan)%s%Creset"
+			# Default to verbose log format (like git).
+			logFormat="format:%cd %C(cyan)%B%Creset"
 
-			# Step through args looking for (-v|--verbose).
+			# Step through args looking for (--oneline).
 			for arg in ${args[@]}; do
 				case "$arg" in
-				-v | --verbose)
-					# If verbose then add body as well.
+				--oneline)
+					# If --oneline then just include log subjects.
+					logFormat="format:%cd %C(cyan)%s%Creset"
+					;;
+				-v | --verbose) # deprecated
+					# If verbose (default) then add body as well.
 					logFormat="format:%cd %C(cyan)%B%Creset"
 					;;
 				-*)
@@ -587,14 +581,14 @@ if [ -n "$profile" ]; then
 	else
 		logMessage="Generation ${profileEndGen}: $logMessage"
 	fi
+	syncMetadata \
+		"$profile" \
+		"$NIX_CONFIG_system" \
+		"$profileStartGen" \
+		"$profileEndGen" \
+		"$logMessage" \
+		"flox $subcommand ${invocation_args[@]}"
 	if [ "$profileStartGen" != "$profileEndGen" ]; then
-		syncMetadata \
-			"$profile" \
-			"$NIX_CONFIG_system" \
-			"$profileStartGen" \
-			"$profileEndGen" \
-			"$logMessage" \
-			"flox $subcommand ${invocation_args[@]}"
 		# Follow up action with sync'ing of profiles in reverse.
 		syncProfile "$profile" "$NIX_CONFIG_system"
 	fi

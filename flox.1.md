@@ -87,6 +87,10 @@ to developer environments, profile management, and administration.
 **profiles**
 :   List all profiles.
 
+**history** [ \--oneline ]
+:   List history of selected profile. With `--oneline` arg, display concise
+    format including only the subject line for history log entries.
+
 ## Development
 
 **activate**

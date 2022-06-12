@@ -85,18 +85,18 @@ def attrPathToTOML(arg):
   .[0] as $channel |
   .[1] as $stability |
   (.[2:] | join(".")) as $nameAttrPath |
-  "    [packages.\"\($nameAttrPath)\"]
-    channel = \"\($channel)\"
-    stability = \"\($stability)\"
+  "  [packages.\"\($nameAttrPath)\"]
+  channel = \"\($channel)\"
+  stability = \"\($stability)\"
 ";
 
 def storePathsToTOML(storePaths):
   ( "\"" + ( storePaths | join("\",\n      \"") ) + "\"" ) as $storePaths |
   ( storePaths[0] | .[44:] ) as $pkgname |
-  "    [packages.\"\($pkgname)\"]
-    storePaths = [
-      \($storePaths)
-    ]
+  "  [packages.\"\($pkgname)\"]
+  storePaths = [
+    \($storePaths)
+  ]
 ";
 
 def floxpkgToAttrPath(args): expectedArgs(1; args) |
@@ -245,9 +245,9 @@ def listProfile(args):
   end;
 
 def listProfileTOML(args): expectedArgs(0; args) |
-  $elements | sort_by(.packageName) | unique_by(.packageName) | map(
-    TOMLFromElement
-  ) | join("\n");
+  $elements | sort_by(.packageName) | unique_by(.packageName) |
+    map( TOMLFromElement) as $TOMLelements |
+  (["[packages]"] + $TOMLelements) | join("\n");
 
 def listFlakesInProfile(args): expectedArgs(0; args) |
   ( $elements | map(
