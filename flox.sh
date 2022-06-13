@@ -65,6 +65,8 @@ while [ $# -ne 0 ]; do
 		exit 0
 		;;
 	-h | --help)
+		# Perform initialization to pull in usage().
+		. $_lib/init.sh
 		usage
 		exit 0
 		;;
