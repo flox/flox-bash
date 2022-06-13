@@ -106,7 +106,7 @@ function metaGit() {
 	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
 	(
-		[ -z "$verbose" ] || set -x
+		[ $verbose -eq 0 ] || set -x
 		$_git -C $profileMetaDir "$@"
 	)
 }
@@ -118,15 +118,17 @@ protoManifestToml=$(cat <<EOF
 # upon profile activation. See the flox(1) man page for more details.
 
 # [environment]
-#   [environment."LANG"]
-#     value = "en_US.UTF-8"
-#   [environment."LC_ALL"]
-#     value = "\$LANG"
+#   LANG = "en_US.UTF-8"
+#   LC_ALL = "\$LANG"
+#
+# [aliases]
+#   foo = "bar"
+#   baz = "bing"
 #
 # [hooks]
-#   [hooks."aliases"] = '''
-#     alias foo=bar
-#   '''
+#   sayhi = """
+#     echo "Supercharged by flox!" 1>&2
+#   """
 #
 # Edit below the "--- >8 ---" delimiter to define the list of packages to
 # be installed, but note that comments and the ordering of packages will

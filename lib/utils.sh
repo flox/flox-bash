@@ -147,7 +147,7 @@ function pprint() {
 #
 function invoke() {
 	local vars=()
-	if [ -n "$verbose" ]; then
+	if [ $verbose -eq 1 ]; then
 		for i in ${exported_variables[$1]}; do
 			vars+=($(eval "echo $i=\${$i}"))
 		done
@@ -193,6 +193,38 @@ function manifest() {
 
 	# Finally invoke jq.
 	$_jq "${jqargs[@]}"
+}
+
+#
+# manifestTOML(manifest,command,[args])
+#
+# Accessor method for declarative TOML manifest library functions.
+#
+function manifestTOML() {
+	local manifest="$1"; shift
+	# jq args:
+	#   -r \                        # raw output (i.e. don't add quotes)
+	#   -f $_lib/manifest.jq \      # the manifest processing library
+	#   --arg system $system \      # set "$system"
+	#   --slurpfile manifest "$1" \ # slurp json into "$manifest"
+	local jqargs=("-r" "-f" "$_lib/manifestTOML.jq")
+
+	# Add "slurp" mode for pulling manifest from STDIN.
+	jqargs+=("-s")
+
+	# Append various args.
+	jqargs+=("--arg" "system" "$NIX_CONFIG_system")
+	jqargs+=("--argjson" "verbose" "$verbose")
+	jqargs+=("--arg" "profileUserName" "$profileUserName")
+	jqargs+=("--arg" "profileName" "$profileName")
+	jqargs+=("--arg" "FLOX_PATH_PREPEND" "$FLOX_PATH_PREPEND")
+
+	# Append remaining args using jq "--args" flag and "--" to
+	# prevent jq from interpreting provided args as options.
+	jqargs+=("--args" "--" "$@")
+
+	# Finally invoke jq.
+	$_dasel -f "$manifest" -r toml -w json | $_jq "${jqargs[@]}"
 }
 
 # boolPrompt($prompt, $default)

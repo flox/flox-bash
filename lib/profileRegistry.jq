@@ -146,7 +146,7 @@ def _syncGeneration(args):
       "else " +
         # Ensure all flakes referenced in profile are built.
         "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
-        " $_xargs --no-run-if-empty $( [ -z \"$verbose\" ] || echo '--verbose' ) -- $_nix build --no-link && " +
+        " $_xargs --no-run-if-empty $( [ $verbose -eq 0 ] || echo '--verbose' ) -- $_nix build --no-link && " +
         # Ensure all anonymous store paths referenced in profile are copied.
         "manifest $profileMetaDir/\($generation).json listStorePaths | " +
         " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +

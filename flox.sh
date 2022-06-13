@@ -7,6 +7,10 @@
 set -e
 set -o pipefail
 
+# Declare default values for debugging variables.
+declare -i verbose=0
+declare -i debug=0
+
 # set -x if debugging, can never remember which way this goes so do both.
 # Note need to do this here in addition to "-d" flag to be able to debug
 # initial argument parsing.
@@ -143,7 +147,7 @@ activate | history | install | list | remove | rollback | \
 	profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
 	profileStartGen=$(profileGen "$profile")
 
-	[ -z "$verbose" ] || [ "$subcommand" = "activate" ] || echo Using profile: $profile >&2
+	[ $verbose -eq 0 ] || [ "$subcommand" = "activate" ] || echo Using profile: $profile >&2
 
 	case "$subcommand" in
 
@@ -186,19 +190,27 @@ activate | history | install | list | remove | rollback | \
 
 		if [ ${#cmdArgs[@]} -gt 0 ]; then
 			export PATH="$FLOX_PATH_PREPEND:$PATH"
+			. <(manifestTOML "$profileMetaDir/manifest.toml" bashInit)
 			cmd=("invoke" "${cmdArgs[@]}")
 		else
 			case "$SHELL" in
 			*bash)
 				if [ -t 1 ]; then
+					# TODO: export variable for setting flox env from within flox.profile,
+					# *after* the PATH has been set.
+					. <(manifestTOML "$profileMetaDir/manifest.toml" bashInit)
 					cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
 				else
 					echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
+					manifestTOML "$profileMetaDir/manifest.toml" bashInit
 					exit 0
 				fi
 				;;
 			*zsh)
 				if [ -t 1 ]; then
+					# TODO: export variable for setting flox env from within flox.profile,
+					# *after* the PATH has been set.
+					. <(manifestTOML "$profileMetaDir/manifest.toml" bashInit)
 					if [ -n "$ZDOTDIR" ]; then
 						export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
 					fi
@@ -206,6 +218,7 @@ activate | history | install | list | remove | rollback | \
 					cmd=("invoke" "$SHELL")
 				else
 					echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\"; source $_etc/flox.profile"
+					manifestTOML "$profileMetaDir/manifest.toml" bashInit
 					exit 0
 				fi
 				;;
@@ -296,27 +309,7 @@ activate | history | install | list | remove | rollback | \
 			usage | error "\"$subcommand\" requires an interactive terminal"
 		metaEdit "$profile" "$NIX_CONFIG_system"
 
-		# Having edited the manifest (and "git added" the update), attempt
-		# to render a new generation from the manifest.
-		#
-		# TODO: we will write an external filter which reads TOML and outputs
-		# a manifest.json, but in the meantime do the equivalent more or less
-		# by hand.
-		#
-		# First collect a list of "installable" flox pkgnames from the TOML.
-		# XXX Forgive the inline jq ...
-		#
-		packagesToInstArgs=$($_cat <<EOF
-		  .packages | to_entries | map(
-		    if .value.storePaths then .value.storePaths[] else (
-		      (if .value.channel then .value.channel else "nixpkgs" end) as \$channel |
-		      (if .value.stability then .value.stability else "stable" end) as \$stability |
-		      "\(\$channel).\(\$stability).\(.key)"
-		    ) end \
-		  ) | .[]
-EOF
-)
-		declare -a installables=($($_dasel -f "$profileMetaDir/manifest.toml" -w json | $_jq -r "$packagesToInstArgs"))
+		declare -a installables=($(manifestTOML "$profileMetaDir/manifest.toml" installables))
 
 		# Convert this list of installables to a list of floxpkgArgs.
 		declare -a floxpkgArgs

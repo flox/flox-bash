@@ -42,6 +42,7 @@ LIB = \
 	lib/bootstrap.sh \
 	lib/init.sh \
 	lib/manifest.jq \
+	lib/manifestTOML.jq \
 	lib/metadata.sh \
 	lib/profileRegistry.jq \
 	lib/registry.jq \
