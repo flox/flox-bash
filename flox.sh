@@ -51,13 +51,13 @@ while [ $# -ne 0 ]; do
 		shift
 		;;
 	-v | --verbose)
-		verbose=1
+		let ++verbose
 		shift
 		;;
 	--debug)
 		set -x
-		debug=1
-		verbose=1
+		let ++debug
+		let ++verbose
 		shift
 		;;
 	--version)
@@ -381,6 +381,10 @@ Profile
 
 Packages
 EOF
+		if [ $verbose -eq 1 ]; then
+			# Increase verbosity when invoking list command.
+			let ++verbose
+		fi
 		manifest $profile/manifest.json listProfile "${args[@]}" | $_sed 's/^/  /'
 		;;
 

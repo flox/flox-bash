@@ -145,9 +145,10 @@ function pprint() {
 # Helper function to print invocation to terminal when
 # running with verbose flag.
 #
+declare -i minverbosity=1
 function invoke() {
 	local vars=()
-	if [ $verbose -eq 1 ]; then
+	if [ $verbose -ge $minverbosity ]; then
 		for i in ${exported_variables[$1]}; do
 			vars+=($(eval "echo $i=\${$i}"))
 		done
@@ -192,7 +193,7 @@ function manifest() {
 	jqargs+=("--args" "--" "$@")
 
 	# Finally invoke jq.
-	$_jq "${jqargs[@]}"
+	minverbosity=2 $invoke_jq "${jqargs[@]}"
 }
 
 #
@@ -224,7 +225,7 @@ function manifestTOML() {
 	jqargs+=("--args" "--" "$@")
 
 	# Finally invoke jq.
-	$_dasel -f "$manifest" -r toml -w json | $_jq "${jqargs[@]}"
+	minverbosity=2 $invoke_dasel -f "$manifest" -r toml -w json | $invoke_jq "${jqargs[@]}"
 }
 
 # boolPrompt($prompt, $default)
@@ -321,7 +322,7 @@ function registry() {
 		addArray | addArrayNumber | addArrayString | \
 		delete | delArray | delArrayNumber | delArrayString)
 			local _tmpfile=$($_mktemp)
-			$_jq "${jqargs[@]}" > $_tmpfile
+			minverbosity=2 $invoke_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
@@ -335,7 +336,7 @@ function registry() {
 
 		# All others return data from the registry.
 		*)
-			$_jq "${jqargs[@]}"
+			minverbosity=2 $invoke_jq "${jqargs[@]}"
 		;;
 	esac
 }
