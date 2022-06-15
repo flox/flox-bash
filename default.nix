@@ -69,6 +69,10 @@ in stdenv.mkDerivation rec {
     ansifilter bashInteractive coreutils dasel diffutils
     findutils gawk getent git gh gnused gzip jq nixPatched
   ];
+  postPatch = ''
+    substituteInPlace Makefile \
+      --replace "VERSION = 0.0.1" "VERSION = ${version}"
+  '';
   makeFlags = [
     "PREFIX=$(out)"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
