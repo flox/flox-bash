@@ -614,15 +614,15 @@ function validateTOML() {
 	tmpstderr=$($_mktemp)
 	if $_cat $path | $_dasel -p toml >/dev/null 2>$tmpstderr; then
 		: confirmed valid TOML
+		$_rm -f $tmpstderr
+		return 0
 	else
 		warn "'$path' contains invalid TOML syntax - see below:"
 		$_cat $tmpstderr 1>&2
-		warn "see '$tmpstderr' for invalid TOML"
-		$_cp -f $path $tmpstderr
+		$_rm -f $tmpstderr
+		echo "" 1>&2
 		return 1
 	fi
-	$_rm -f $tmpstderr
-	return 0
 }
 
 # vim:ts=4:noet:syntax=bash

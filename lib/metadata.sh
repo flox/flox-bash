@@ -180,19 +180,26 @@ EOF
 	fi
 
 	# Edit
-	$editorCommand $tmpfile
+	while true; do
+		$editorCommand $tmpfile
 
-	# Verify valid TOML syntax
-	[ -s $tmpfile ] || (
-		$_rm -f $tmpfile
-		error "editor returned empty manifest .. aborting" < /dev/null
-	)
-	if validateTOML $tmpfile; then
-		: confirmed valid TOML
-	else
-		$_rm -f $tmpfile
-		error "editor returned invalid TOML .. aborting" < /dev/null
-	fi
+		# Verify valid TOML syntax
+		[ -s $tmpfile ] || (
+			$_rm -f $tmpfile
+			error "editor returned empty manifest .. aborting" < /dev/null
+		)
+		if validateTOML $tmpfile; then
+			: confirmed valid TOML
+			break
+		else
+			if boolPrompt "Try again?" "yes"; then
+				: will try again
+			else
+				$_rm -f $tmpfile
+				error "editor returned invalid TOML .. aborting" < /dev/null
+			fi
+		fi
+	done
 
 	# We copy rather than move to preserve bespoke ownership and mode.
 	if $_cmp -s $tmpfile "$profileMetaDir/manifest.toml"; then
