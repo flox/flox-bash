@@ -505,10 +505,10 @@ init)
 	cmd=($invoke_nix flake init --template "floxpkgs#templates.$choice" "$@")
 	;;
 
-packages)
+packages|search)
 	smokeandmirrorfile=$_share/flox-smoke-and-mirrors/packages-all.txt.gz
 	packageregexp=
-	for arg in $@; do
+	for arg in "$@"; do
 		case "$arg" in
 		--show-libs)
 			smokeandmirrorfile=$_share/flox-smoke-and-mirrors/packages-all-libs.txt.gz
@@ -519,7 +519,19 @@ packages)
 			shift
 			;;
 		*)
-			packageregexp="^$arg\."
+			if [ "$subcommand" = "packages" ]; then
+				# Expecting a channel name (and optionally a jobset).
+				packageregexp="^$arg\."
+			else
+				# Expecting a package name (or part of a package name)
+				packageregexp="$arg"
+				# In the event that someone has passed a space or "|"-separated
+				# search term (thank you Eelco :-\), turn that into an equivalent
+				# regexp.
+				if [[ "$packageregexp" =~ [:space:] ]]; then
+					packageregexp="(${packageregexp// /|})"
+				fi
+			fi
 			shift
 			break
 			;;
@@ -529,10 +541,13 @@ packages)
 		usage | error "missing channel argument"
 	[ -z "$@" ] ||
 		usage | error "extra arguments \"$@\""
-	cmd=("$_zgrep" "$packageregexp" "$smokeandmirrorfile")
+	if [ -z "$GREP_COLOR" ]; then
+		export GREP_COLOR='1;32'
+	fi
+	cmd=($invoke_zgrep -E --ignore-case --color "$packageregexp" "$smokeandmirrorfile")
 	;;
 
-newpackages)
+nixpackages)
 	# iterate over all known flakes listing valid floxpkgs tuples.
 	for flake in $(flakeRegistry get flakes | $_jq -r '.[] | .from.id'); do
 		$_nix eval "flake:${flake}#__index.${NIX_CONFIG_system}" --json | jq --stream 'select(length==2)|.[0]|join(".")' -cr
@@ -552,7 +567,8 @@ nix)
 	cmd=($invoke_nix "$@")
 	;;
 
-search)
+# XXX Temporary: replace Nix search with "packages" above while we work on catalog.
+nixsearch)
 	# FIXME: sed messes up newlines in following output
 	# --> will need to fix bug in Nix itself.
 	$invoke_nix search $(searchArgs "$@") | \
