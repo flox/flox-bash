@@ -1,10 +1,10 @@
-% FLOX(1) Flox User Manuals
+% FLOX(1) flox User Manuals
 % Michael Brantley, Tom Bereknyei
 % March 8, 2022
 
 # NAME
 
-flox - Flox command-line interface (CLI)
+flox - command-line interface (CLI)
 
 # SYNOPSIS
 
@@ -12,7 +12,7 @@ flox [*options*] command [*command options*] [*args*]...
 
 # DESCRIPTION
 
-Flox is a platform for developing, building, and using packages created with Nix.
+flox is a platform for developing, building, and using packages created with Nix.
 It can be used alone to simplify the process of working with Nix,
 within a team for the sharing of development environments,
 and in enterprises as system development lifecycle (SDLC) framework.
@@ -20,14 +20,14 @@ and in enterprises as system development lifecycle (SDLC) framework.
 The `flox` CLI is used:
 
 1. To manage collections of packages, environment variables and services
-   known as *Flox profiles*,
+   known as *flox profiles*,
    which can be used in a variety of contexts
    on any Linux distribution, in or out of a container.
 2. As a wrapper for providing the Nix functionality
-   which drives the process of building packages with Flox.
+   which drives the process of building packages with flox.
 
 See *floxtutorial(7)* to get started.
-More in-depth information is available by way of the [Flox User's Manual](https://floxdev.com/docs).
+More in-depth information is available by way of the [flox User's Manual](https://alpha.floxsdlc.com/docs).
 
 # OPTIONS
 
@@ -61,7 +61,7 @@ and if not found will fall back to `$FLOX_HOME/default.toml`.
 
 # FLOX COMMANDS
 
-Flox commands are grouped into categories pertaining
+flox commands are grouped into categories pertaining
 to developer environments, profile management, and administration.
 
 ## Profile management
@@ -71,6 +71,9 @@ to developer environments, profile management, and administration.
 
 **upgrade**
 :   Upgrade package(s) in profile.
+
+**remove**
+:   Remove package(s) from profile.
 
 **edit**
 :   Edit declarative manifest for profile. Note that this has these
@@ -97,6 +100,15 @@ to developer environments, profile management, and administration.
 **history** [ \--oneline ]
 :   List history of selected profile. With `--oneline` arg, display concise
     format including only the subject line for history log entries.
+
+**push** / **pull**
+:   (`git`) Push or pull metadata to the profile's `floxmeta` repository.
+    With this mechanism profiles can be pushed and pulled between machines
+    and within teams just as you would any project managed with `git`.
+
+**git** <git-subcommand> [ <args> ]
+:   Direct access to git command invoked in the `floxmeta` repository clone.
+    For expert use only.
 
 ## Development
 
@@ -135,6 +147,14 @@ to developer environments, profile management, and administration.
 
     The result will be a "flattened" view whereby the configuration
     directives in each file supersedes the previous.
+
+## Administration
+
+**config** [ (--list|-l) ]
+:   Configure and/or display user-specific parameters.
+
+**gh** <gh-subcommand> [ <args> ]
+:   Direct access to gh command. For expert use only.
 
 # ENVIRONMENT VARIABLES
 

@@ -581,6 +581,30 @@ update)
 	$_nix run floxpkgs#update-extensions "$PWD"
 	;;
 
+config)
+	declare -i configListMode=0
+	for arg in "$@"; do
+		case "$arg" in
+		--list|-l)
+			configListMode=1
+			shift
+			;;
+		*)
+			usage | error "unexpected argument \"$arg\" passed to \"$subcommand\""
+			;;
+		esac
+	done
+	if [ $configListMode -eq 0 ]; then
+		# Re-run bootstrap with getPromptSetConfirm=1
+		getPromptSetConfirm=1
+		. $_lib/bootstrap.sh
+	fi
+	# Finish by listing values.
+	registry $floxUserMeta 1 dump |
+		$_jq -r 'del(.version) | to_entries | map("\(.key) = \"\(.value)\"") | .[]'
+	exit 0
+	;;
+
 *)
 	cmd=($invoke_nix "$subcommand" "$@")
 	;;

@@ -83,7 +83,7 @@ usage: $me [ (-h|--help) ] [ --version ]
        $mespaces[ (-p|--profile) <profile> ] [ <args> ]
        $medashes
 
-Flox general commands:
+flox general commands:
     flox packages [ --all | channel[.stability[.package]] ] [--show-libs]
         list all packages or filtered by channel[.subchannel[.package]]
         --show-libs: include library packages
@@ -95,15 +95,16 @@ Flox general commands:
       current shell: . <(flox activate)
         in subshell: flox activate
         for command: flox activate -- <command> <args>
+    flox config - configure user parameters
     flox gh - access to the gh CLI
     flox git - access to the git CLI
 
-Flox development commands:
+flox development commands:
     flox develop - launch development shell for current project
     flox build - build package from current project
     flox shell - launch build shell for current project
 
-Flox profile commands:
+flox profile commands:
     flox generations - list profile generations with contents
     flox push - send profile metadata to remote registry
     flox pull - pull profile metadata from remote registry
@@ -275,6 +276,8 @@ function boolPrompt() {
 #   registry path/to/registry.json 1 get a b
 #   registry path/to/registry.json 1 dump
 #
+# Global variable for prompting to confirm existing values.
+declare -i getPromptSetConfirm=0
 function registry() {
 	local registry="$1"; shift
 	local version="$1"; shift
@@ -289,6 +292,9 @@ function registry() {
 		local value=$(registry "$registry" "$version" "get" "$@" || true)
 		if [ -z "$value" ]; then
 			read -e -p "$prompt" -i "$defaultVal" value
+			registry "$registry" "$version" "set" "$@" "$value"
+		elif [ $getPromptSetConfirm -gt 0 ]; then
+			read -e -p "$prompt" -i "$value" value
 			registry "$registry" "$version" "set" "$@" "$value"
 		fi
 		echo "$value"
@@ -485,7 +491,7 @@ function profileArg() {
 			# Path is a link - try again with the link value.
 			echo $(profileArg $(readlink "$1"))
 		else
-			error "\"$1\" is not a Flox profile path" >&2
+			error "\"$1\" is not a flox profile path" >&2
 		fi
 	elif [[ "$1" =~ \	|\  ]]; then
 		error "profile \"$1\" cannot contain whitespace" >&2

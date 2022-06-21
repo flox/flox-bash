@@ -31,27 +31,27 @@ EOF
 	# Guess organization from configuration defaults.
 	registry $floxUserMeta 1 get organization > /dev/null || $_cat <<EOF 1>&2
 
-The packages available for installation with Flox are determined
-by a single "base" repository from which additional package sets
-can be included. By convention this repository is always called
-"floxpkgs" as found either in your personal organization or in
-the primary organization for your company.
+The packages available for installation with Flox are determined by
+a single "root" floxpkgs repository from which additional floxpkgs
+repositories can be included. By convention this repository is called
+"floxpkgs" as found either in your personal organization or in the
+primary organization for your company.
 
-If you are only looking to install public domain software or
-otherwise unsure then start by using the one provided by the
-"flox" organization - you can always change it later with the
-\`flox defaults\` command.
+If none of this is familiar to you, or if you are only looking to install
+public domain software then start by accepting the defaults below to use
+the one provided by the "flox" organization. You can always change it later
+with the \`flox config\` command.
 
 EOF
 	organization=$(registry $floxUserMeta 1 getPromptSet \
 		"primary git organization: " \
 		"$FLOX_CONF_floxpkgs_organization" organization)
 
-	# Convention: Flox Nix expression repository for organization
-	# always called "floxpkgs".
-	registry $floxUserMeta 1 get defaultFlake > /dev/null || \
-		registry $floxUserMeta 1 set defaultFlake "$(gitBaseURLToFlakeURL ${gitBaseURL})${organization}/floxpkgs?ref=master"
-	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake)
+	# Convention: flox expression repository called "floxpkgs" by default.
+	defaultFlake=$(registry $floxUserMeta 1 getPromptSet \
+		"default floxpkgs repository: " \
+		"$(gitBaseURLToFlakeURL ${gitBaseURL})${organization}/floxpkgs?ref=master" \
+		defaultFlake)
 
 else
 
