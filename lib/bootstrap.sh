@@ -12,6 +12,37 @@ to get you started ...
 
 EOF
 
+  # XXX For design partners only: front-run the configuration
+  #     process by defining certain fixed defaults.
+  # -------------------- >8 --------------------
+  if true; then
+	gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL) || {
+		gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
+		registry $floxUserMeta 1 set gitBaseURL "$gitBaseURL"
+	}
+	organization=$(registry $floxUserMeta 1 get organization) || {
+		organization="$FLOX_CONF_floxpkgs_organization"
+		registry $floxUserMeta 1 set organization "$organization"
+	}
+	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake) || {
+		defaultFlake="$(gitBaseURLToFlakeURL ${gitBaseURL})${organization}/floxpkgs?ref=master"
+		validateFlakeURL $defaultFlake || \
+			error "invalid defaultFlake URL: \"$defaultFlake\"" < /dev/null
+		registry $floxUserMeta 1 set defaultFlake "$defaultFlake"
+	}
+	registry $floxUserMeta 1 get username > /dev/null || $_cat <<EOF 1>&2
+Flox works by storing metadata using git. Let's start by
+identifying your GitHub username.
+
+EOF
+	# Guess git username from UNIX username (likely to be incorrect).
+	username=$(registry $floxUserMeta 1 getPromptSet \
+		"GitHub username: " "$USER" username)
+	export FLOX_USER="$username"
+
+  else # Remove when design partner phase is complete. XXX
+  # -------------------- >8 --------------------
+
 	registry $floxUserMeta 1 get gitBaseURL > /dev/null || $_cat <<EOF 1>&2
 Flox works by storing metadata using git. Let's start by
 identifying your primary git server and username.
@@ -52,6 +83,8 @@ EOF
 		"default floxpkgs repository: " \
 		"$(gitBaseURLToFlakeURL ${gitBaseURL})${organization}/floxpkgs?ref=master" \
 		defaultFlake)
+
+  fi
 
 else
 

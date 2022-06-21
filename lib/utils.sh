@@ -632,4 +632,16 @@ function validateTOML() {
 	fi
 }
 
+# validateFlakeURL()
+#
+# Perform basic sanity check of FlakeURL to make sure it exists.
+function validateFlakeURL() {
+	local flakeURL="$1"; shift
+	if $invoke_nix flake metadata "$flakeURL" --json >/dev/null; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # vim:ts=4:noet:syntax=bash

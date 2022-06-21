@@ -587,10 +587,15 @@ update)
 
 config)
 	declare -i configListMode=0
+	declare -i configResetMode=0
 	for arg in "$@"; do
 		case "$arg" in
 		--list|-l)
 			configListMode=1
+			shift
+			;;
+		--reset|-r)
+			configResetMode=1
 			shift
 			;;
 		*)
@@ -598,6 +603,10 @@ config)
 			;;
 		esac
 	done
+	if [ $configResetMode -eq 1 ]; then
+		# Easiest way to reset is to simply remove the $floxUserMeta file.
+		$invoke_rm -f $floxUserMeta
+	fi
 	if [ $configListMode -eq 0 ]; then
 		# Re-run bootstrap with getPromptSetConfirm=1
 		getPromptSetConfirm=1
