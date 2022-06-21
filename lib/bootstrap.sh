@@ -37,7 +37,7 @@ identifying your GitHub username.
 EOF
 	# Guess git username from UNIX username (likely to be incorrect).
 	username=$(registry $floxUserMeta 1 getPromptSet \
-		"GitHub username: " "$USER" username)
+		"GitHub username: " "" username)
 	export FLOX_USER="$username"
 
   else # Remove when design partner phase is complete. XXX
