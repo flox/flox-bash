@@ -581,8 +581,8 @@ nixsearch)
 	;;
 
 update)
-	$_nix run floxpkgs#update-versions "$PWD"
-	$_nix run floxpkgs#update-extensions "$PWD"
+	$invoke_nix run floxpkgs#update-versions "$PWD"
+	$invoke_nix run floxpkgs#update-extensions "$PWD"
 	;;
 
 config)
