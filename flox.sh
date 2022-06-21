@@ -118,7 +118,7 @@ case "$subcommand" in
 # Nix and Flox commands which take a (-p|--profile) profile argument.
 activate | history | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
-	edit | generations | git | push | pull | sync) # Flox commands
+	cat | edit | generations | git | push | pull | sync) # Flox commands
 
 	# Look for the --profile argument(s).
 	args=()
@@ -306,9 +306,13 @@ activate | history | install | list | remove | rollback | \
 		cmd=($invoke_nix -v profile "$subcommand" --profile "$profile" "${pkgArgs[@]}")
 		;;
 
-	edit)
-		[ -t 1 ] ||
-			usage | error "\"$subcommand\" requires an interactive terminal"
+	cat|edit)
+		if [ "$subcommand" = "cat" ]; then
+			editorCommand="$_cat"
+		else
+			[ -t 1 ] ||
+				usage | error "\"$subcommand\" requires an interactive terminal"
+		fi
 		metaEdit "$profile" "$NIX_CONFIG_system"
 
 		declare -a installables=($(manifestTOML "$profileMetaDir/manifest.toml" installables))

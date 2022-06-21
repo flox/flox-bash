@@ -109,6 +109,7 @@ flox profile commands:
     flox push - send profile metadata to remote registry
     flox pull - pull profile metadata from remote registry
     flox sync - synchronize profile metadata and links
+    flox cat - display declarative profile manifest
     flox edit - edit declarative profile manifest
 
 Nix profile commands:

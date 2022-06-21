@@ -75,8 +75,11 @@ to developer environments, profile management, and administration.
 **remove**
 :   Remove package(s) from profile.
 
+**cat**
+:   Display declarative profile manifest.
+
 **edit**
-:   Edit declarative manifest for profile. Note that this has these
+:   Edit declarative profile manifest. Note that this has these
     effects in the following scenarios:
 
     1. profile does not exist: creates new profile of declarative type

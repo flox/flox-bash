@@ -204,7 +204,9 @@ EOF
 	# We copy rather than move to preserve bespoke ownership and mode.
 	if $_cmp -s $tmpfile "$profileMetaDir/manifest.toml"; then
 		$_rm -f $tmpfile
-		warn "no changes detected ... exiting"
+		if [ "$editorCommand" != "$_cat" ]; then
+			warn "no changes detected ... exiting"
+		fi
 		exit 0
 	else
 		$_cp $tmpfile "$profileMetaDir/manifest.toml"
