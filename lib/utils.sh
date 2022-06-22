@@ -29,7 +29,7 @@ function hash_commands() {
 # Note that we specifically avoid modifying the PATH environment variable to
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
-hash_commands ansifilter awk basename cat cmp cp cut dasel date dirname id jq getent gh git \
+hash_commands ansifilter awk basename cat chmod cmp cp cut dasel date dirname id jq getent gh git \
 	ln mkdir mktemp mv nix nix-store pwd readlink realpath rm rmdir sed sh stat touch tr xargs zgrep
 
 # Return full path of first command available in PATH.

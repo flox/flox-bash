@@ -104,6 +104,21 @@ flake-registry = $floxFlakeRegistry
 accept-flake-config = true
 warn-dirty = false
 EOF
+
+# Ensure file is secure before appending access token(s).
+$_chmod 600 $tmpNixConf
+
+# If found, extract and append github token from gh file.
+if [ -f "$HOME/.config/gh/hosts.yml" ]; then
+	$_dasel -r yml -w json < "$HOME/.config/gh/hosts.yml" | $_jq -r '
+		"access-tokens = " + (
+			to_entries |
+			map(select(.value.oauth_token != null)) |
+			map("\(.key)=\(.value.oauth_token)") |
+			join(" ")
+		)' >> $tmpNixConf
+fi
+
 if $_cmp --quiet $tmpNixConf $nixConf; then
 	$_rm $tmpNixConf
 else
