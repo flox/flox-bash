@@ -14,10 +14,10 @@ version="$(echo "$drvAttrs" | jq .version)"
 name="$(echo "$drvAttrs" | jq .name)"
 pname="$(echo "$drvAttrs" | jq .pname)"
 outPath="$(nix eval --json .#"${attrPath}.outPath" )"
-
 # Build-time
 buildJson=$(nix build .#"$attrPath" --json)
 drvPath=$(echo "$buildJson" | jq .[0].drvPath -r)
+evalDrvData="$(nix show-derivation  $drvPath)"
 outputs=$(echo "$buildJson" | jq .[0].outputs)
 drv=${drvPath##"/nix/store/"}
 timeToBuild=$( (stat "/nix/var/log/nix/drvs/${drv:0:2}/${drv:2}.bz2" -t | awk '{print $14 - $15}' ) || echo 0)
@@ -26,7 +26,10 @@ timeToBuild=$( (stat "/nix/var/log/nix/drvs/${drv:0:2}/${drv:2}.bz2" -t | awk '{
 command nix profile install --profile ./tmp-profile ".#$attrPath"
 element=$(jq '.elements[0]' ./tmp-profile/manifest.json)
 rm tmp-profile*
-
+if [ -z "$timeToBuild" ]
+then
+  timeToBuild="null"
+fi
 cat <<EOF
 {
   "eval": {
@@ -39,7 +42,7 @@ cat <<EOF
     "pname": $pname,
     "drvPath": "$drvPath",
     "outPath": $outPath,
-    "outputs": $outputs,
+    "evalDrvData": $evalDrvData,
     "version": $version,
     "meta": $meta,
     "stability": "$stability",
