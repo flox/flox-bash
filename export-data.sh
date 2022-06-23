@@ -9,7 +9,7 @@ attrPathAsArray=$(nix eval --expr "\"$attrPath\"" --apply '(x: builtins.filter b
 
 # Eval-time
 drvAttrs="$(nix eval --json .#"${attrPath}.drvAttrs" )"
-meta="$(echo "$drvAttrs" | jq .meta)"
+meta="$(nix eval --json .#"${attrPath}.meta" )"
 version="$(echo "$drvAttrs" | jq .version)"
 name="$(echo "$drvAttrs" | jq .name)"
 pname="$(echo "$drvAttrs" | jq .pname)"
@@ -47,7 +47,7 @@ cat <<EOF
   },
   "build": {
     "drvPath": "$drvPath",
-    "hasBin": $(stat ./result/bin >/dev/null && echo true || echo false),
+    "hasBin": $(stat ./result/bin >/dev/null || stat ./result-bin/bin >/dev/null && echo true || echo false),
     "hasMan": $(stat ./result/man >/dev/null && echo true || echo false),
     "outputs": $outputs,
     "size": "$(nix path-info --json ./result | jq .[0].narsize)",
