@@ -248,6 +248,7 @@ function boolPrompt() {
 	esac
 	local defaultCaps=$(echo $default | tr a-z A-Z)
 	local defaultPrompt=$(echo "y/n" | tr "$defaultLower" "$defaultCaps")
+	local value
 	read -e -p "$prompt ($defaultPrompt) " value
 	local valueLower=$(echo $value | tr A-Z a-z)
 	case "$valueLower" in
