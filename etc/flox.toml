@@ -8,5 +8,5 @@
 
 [floxpkgs]
 
-    gitBaseURL = "git+ssh@github.com:"
+    gitBaseURL = "https://github.com/"
     organization = "flox"

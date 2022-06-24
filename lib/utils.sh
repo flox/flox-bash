@@ -29,8 +29,8 @@ function hash_commands() {
 # Note that we specifically avoid modifying the PATH environment variable to
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
-hash_commands ansifilter awk basename cat chmod cmp cp cut dasel date dirname id jq getent gh git \
-	ln mkdir mktemp mv nix nix-store pwd readlink realpath rm rmdir sed sh stat touch tr xargs zgrep
+hash_commands ansifilter awk basename cat chmod cmp cp cut dasel date dirname id jq getent gh git grep \
+	ln mkdir mktemp mv nix nix-store pwd readlink realpath rm rmdir sed sh stat tail touch tr xargs zgrep
 
 # Return full path of first command available in PATH.
 #
@@ -260,6 +260,24 @@ function boolPrompt() {
 		boolPrompt "$prompt" "$default"
 		;;
 	esac
+}
+
+# gitConfigSet($varname, $default)
+function gitConfigSet() {
+	local varname="$1"; shift
+	local prompt="$1"; shift
+	local default="$1"; shift
+	local value="$default"
+	while true
+	do
+		read -e -p "$prompt" -i "$value" value
+		if boolPrompt "OK to invoke: 'git config --global $varname \"$value\"'" "yes"; then
+			$_git config --global "$varname" "$value"
+			break
+		else
+			warn "OK, will try that again"
+		fi
+	done
 }
 
 #
@@ -603,16 +621,73 @@ function searchArgs() {
 }
 
 #
+# Rudimentary pattern-matching URL parser.
+# Surprised there's no better UNIX command for this.
+#
+# Usage:
+#	local urlTransport urlHostname urlUsername
+#	eval $(parseURL "$url")
+#
+function parseURL() {
+	local url="$1"; shift
+	local urlTransport urlHostname urlUsername
+	case "$url" in
+	git+ssh@*:) # e.g. "git+ssh@github.com:"
+		urlTransport="${url//@*/}"
+		urlHostname="${url//*@/}"
+		urlHostname="${urlHostname//:*/}"
+		urlUsername="git"
+		;;
+	https://*|http://*) # e.g. "https://github.com/"
+		urlTransport="${url//:*/}"
+		urlHostname="$(echo $url | $_cut -d/ -f3)"
+		urlUsername=""
+		;;
+	*)
+		error "parseURL(): cannot parse \"$url\""
+		;;
+	esac
+	echo urlTransport="\"$urlTransport\""
+	echo urlHostname="\"$urlHostname\""
+	echo urlUsername="\"$urlUsername\""
+}
+
+#
 # Convert gitBaseURL to URL for use in flake registry.
-# FIXME: implement real URL parser.
+#
+# Flake URLs are a pain, specifying branches in different ways,
+# e.g. these are all equivalent:
+#
+#   git+ssh://git@github.com/flox/floxpkgs?ref=master
+#   https://github.com/flox/floxpkgs/archive/master.tar.gz
+#   github:flox/floxpkgs/master
+#
+# Usage:
+#	defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
 #
 function gitBaseURLToFlakeURL() {
-	local url="$1"; shift
-	if [ "$url" = "git+ssh@github.com:" ]; then
-		echo "git+ssh://git@github.com/"
-	else
-		error "Cannot convert to flake URL: \"$url\"" < /dev/null
-	fi
+	local baseurl="$1"; shift
+	local path="$1"; shift
+	local ref="$1"; shift
+	# parseURL() emits commands to set urlTransport, urlHostname and urlUsername.
+	local urlTransport urlHostname urlUsername
+	eval $(parseURL "$baseurl") || \
+		error "cannot convert to flake URL: \"$baseurl\"" < /dev/null
+	case $urlTransport in
+	https|http)
+		case $urlHostname in
+		github.com)
+			echo "github:$path/$ref"
+			;;
+		*)
+			echo "$urlTransport://${urlUsername:+$urlUsername@}$urlHostname/$path/$ref"
+			;;
+		esac
+		;;
+	git+ssh)
+		echo "$urlTransport://${urlUsername:+$urlUsername@}$urlHostname/$path?ref=$ref"
+		;;
+	esac
 }
 
 # validateTOML(path)

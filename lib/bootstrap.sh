@@ -1,3 +1,81 @@
+# Boolean to track whether this is the initial bootstrap.
+declare -i _initial_bootstrap=0
+[ -f $floxUserMeta ] || _initial_bootstrap=1
+
+declare -i _greeted=0
+function initialGreeting {
+	[ $_initial_bootstrap -eq 1 ] || return 0
+	[ $_greeted -eq 0 ] || return 0
+	$_cat <<EOF 1>&2
+
+I see you are new to flox! We just need to set up a few things
+to get you started ...
+
+EOF
+	_greeted=1
+}
+
+function checkGhAuth {
+	local hostname="$1"; shift
+	# Repeat login attempts until we're successfully logged in.
+	while ! $_gh auth status -h $hostname >/dev/null 2>&1; do
+		initialGreeting
+		warn "Invoking 'gh auth login -h $hostname'"
+		$_gh auth login -h $hostname
+		warn ""
+	done
+}
+
+function getUsernameFromGhAuth {
+	local hostname="$1"; shift
+	# Get github username from gh data, if known.
+	[ -s "$HOME/.config/gh/hosts.yml" ]
+	$_dasel -f "$HOME/.config/gh/hosts.yml" "${hostname//./\\.}.user"
+}
+
+function checkGitConfig {
+	# Check to see if they have valid git config for user.{name,email}.
+	declare -i _found_name=0
+	declare -i _found_email=0
+	eval $(
+		$_git config --name-only --get-regexp 'user\..*' | while read i; do
+			if [ "$i" = "user.name" ]; then
+				echo _found_name=1
+			elif [ "$i" = "user.email" ]; then
+				echo _found_email=1
+			fi
+		done
+	)
+	if [ $_found_name -eq 0 -o $_found_email -eq 0 ]; then
+		initialGreeting
+		warn "It appears you have not set up your local git user configuration."
+		if boolPrompt "Would you like to set that up now?" "yes"; then
+			[ $_found_name -eq 1 ] || \
+				gitConfigSet "user.name" "Full name: " \
+					"$($_getent passwd $USER | $_cut -d: -f5)"
+			[ $_found_email -eq 1 ] || \
+				gitConfigSet "user.email" "Email address: " \
+					"${USER}@domain.name"
+			warn ""
+			warn "Great! Here are your new git config user settings:"
+			$_git config --get-regexp 'user\..*' 1>&2
+			warn ""
+			warn "You can change them at any time with the following:"
+		else
+			warn "OK, you can suppress further warnings by setting these explicitly:"
+		fi
+		$_cat <<EOF 1>&2
+
+    git config --global [user.name](http://user.name/) "Your Name"
+    git config --global user.email [you@example.com](mailto:you@example.com)
+
+EOF
+	fi
+}
+
+#
+# bootstrap main()
+#
 if [ -t 1 ]; then
 
 	# Bootstrap the personal metadata to track the user's default github
@@ -5,16 +83,9 @@ if [ -t 1 ]; then
 	# This is an MVP stream-of-consciousness thing at the moment; can
 	# definitely be improved upon.
 
-	[ -f $floxUserMeta ] || $_cat <<EOF 1>&2
-
-I see you are new to flox! We just need to ask a few questions
-to get you started ...
-
-EOF
-
+  # -------------------- >8 --------------------
   # XXX For design partners only: front-run the configuration
   #     process by defining certain fixed defaults.
-  # -------------------- >8 --------------------
   if true; then
 	gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL) || {
 		gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
@@ -25,27 +96,20 @@ EOF
 		registry $floxUserMeta 1 set organization "$organization"
 	}
 	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake) || {
-		defaultFlake="$(gitBaseURLToFlakeURL ${gitBaseURL})${organization}/floxpkgs?ref=master"
+		defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
 		validateFlakeURL $defaultFlake || \
-			error "invalid defaultFlake URL: \"$defaultFlake\"" < /dev/null
+			error "could not verify defaultFlake URL: \"$defaultFlake\"" < /dev/null
 		registry $floxUserMeta 1 set defaultFlake "$defaultFlake"
 	}
-	registry $floxUserMeta 1 get username > /dev/null || $_cat <<EOF 1>&2
-Flox works by storing metadata using git. Let's start by
-identifying your GitHub username.
 
-EOF
-	# Guess git username from UNIX username (likely to be incorrect).
-	username=$(registry $floxUserMeta 1 getPromptSet \
-		"GitHub username: " "" username)
-	export FLOX_USER="$username"
-
-  else # Remove when design partner phase is complete. XXX
+  else
   # -------------------- >8 --------------------
+
+	initialGreeting
 
 	registry $floxUserMeta 1 get gitBaseURL > /dev/null || $_cat <<EOF 1>&2
 Flox works by storing metadata using git. Let's start by
-identifying your primary git server and username.
+identifying your primary github server.
 
 EOF
 
@@ -53,11 +117,6 @@ EOF
 	gitBaseURL=$(registry $floxUserMeta 1 getPromptSet \
 		"base git URL (including auth and trailing delimiter): " \
 		"$FLOX_CONF_floxpkgs_gitBaseURL" gitBaseURL)
-
-	# Guess git username from UNIX username (likely to be incorrect).
-	username=$(registry $floxUserMeta 1 getPromptSet \
-		"git username: " "$USER" username)
-	export FLOX_USER="$username"
 
 	# Guess organization from configuration defaults.
 	registry $floxUserMeta 1 get organization > /dev/null || $_cat <<EOF 1>&2
@@ -81,19 +140,55 @@ EOF
 	# Convention: flox expression repository called "floxpkgs" by default.
 	defaultFlake=$(registry $floxUserMeta 1 getPromptSet \
 		"default floxpkgs repository: " \
-		"$(gitBaseURLToFlakeURL ${gitBaseURL})${organization}/floxpkgs?ref=master" \
+		"$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)" \
 		defaultFlake)
 
-  fi
+  fi # Remove when design partner phase is complete. XXX
+
+	# Set the user's local git config user.{name,email} attributes.
+	[ $_initial_bootstrap -eq 0 ] || checkGitConfig
+
+	# Final step: derive GitHub username (aka FLOX_USER) from all that we know.
+	username=$(registry $floxUserMeta 1 get username) || {
+		# Set github username from gh data, if known.
+		# Parse urlHostname from gitBaseURL.
+		declare urlTransport urlHostname urlUsername
+		eval $(parseURL "$gitBaseURL") || \
+			error "cannot parse \"$gitBaseURL\""
+		checkGhAuth $urlHostname
+		if username=$(getUsernameFromGhAuth $urlHostname); then
+			registry $floxUserMeta 1 set username "$username"
+		else
+			$_cat <<EOF 1>&2
+Flox works by storing metadata using git. Let's start by
+identifying your GitHub username.
+
+EOF
+			username=$(registry $floxUserMeta 1 getPromptSet \
+				"GitHub username: " "" username)
+		fi
+	}
 
 else
 
-	gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL || echo "$FLOX_CONF_floxpkgs_gitBaseURL")
-	username=$(registry $floxUserMeta 1 get username || echo "$USER")
-	export FLOX_USER="$username"
-	organization=$(registry $floxUserMeta 1 get organization || echo "$FLOX_CONF_floxpkgs_organization")
-	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake || echo "$(gitBaseURLToFlakeURL ${gitBaseURL})${organization}/floxpkgs?ref=master")
+	#
+	# Non-interactive mode. Use all defaults if not found in registry.
+	#
+	gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL || \
+		echo "$FLOX_CONF_floxpkgs_gitBaseURL")
+	organization=$(registry $floxUserMeta 1 get organization || \
+		echo "$FLOX_CONF_floxpkgs_organization")
+	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake || \
+		gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
+	# Parse urlHostname from gitBaseURL.
+	declare urlTransport urlHostname urlUsername
+	eval $(parseURL "$gitBaseURL") || \
+		error "cannot parse \"$gitBaseURL\""
+	username=$(registry $floxUserMeta 1 get username || \
+		getUsernameFromGhAuth $urlHostname || echo "$USER") # No better guess
 
 fi
+
+export FLOX_USER="$username"
 
 # vim:ts=4:noet:syntax=bash

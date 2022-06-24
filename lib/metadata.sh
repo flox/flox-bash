@@ -105,10 +105,10 @@ function metaGit() {
 	# out requested branch.
 	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
-	(
-		[ $verbose -eq 0 ] || set -x
-		$_git -C $profileMetaDir "$@"
-	)
+	# For github.com specifically, set authentication helper.
+	$invoke_git \
+		-c "credential.https://github.com.helper=!$_gh auth git-credential" \
+		-C $profileMetaDir "$@"
 }
 
 snipline="------------------------ >8 ------------------------"
@@ -396,7 +396,7 @@ $protoManifestToml
 EOF
 	fi
 	# Append empty line if it doesn't already end with one.
-	tail -1 $tmpfile | grep -q '^$' || ( echo >> $tmpfile )
+	$_tail -1 $tmpfile | $_grep -q '^$' || ( echo >> $tmpfile )
 	# Append updated packages list.
 	echo "# $snipline" >> $tmpfile
 	manifest "$profileMetaDir/manifest.json" listProfileTOML >> $tmpfile
@@ -447,7 +447,7 @@ function setGitRemote() {
 		local userName=$($_basename $($_dirname $profile))
 		# HACK: redact "+ssh" from the origin for use with gh
 		# find better way ...
-		local defaultOrigin="${FLOX_CONF_floxpkgs_gitBaseURL/+ssh/}$userName/floxmeta"
+		local defaultOrigin="${gitBaseURL/+ssh/}$userName/floxmeta"
 		origin=$(registry ${FLOX_DATA_HOME}/metadata.json 1 \
 			getPromptSet "git URL for storing profile metadata: " $defaultOrigin \
 			profiles $userName $profileName origin)
