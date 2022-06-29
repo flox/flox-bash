@@ -48,7 +48,7 @@ read_flox_conf()
 				eval $(
 					$_cat "$f" | \
 					$_dasel -p toml -w json | \
-					jq -r --arg var $i '
+					$_jq -r --arg var $i '
 						select(has($var)) | .[$var] | to_entries | map(
 							"FLOX_CONF_\(.key)=\(.value | tojson)"
 						) | join("\n")
