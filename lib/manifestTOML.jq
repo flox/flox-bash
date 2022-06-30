@@ -85,7 +85,7 @@ def installables(args): expectedArgs(0; args) |
     if .value.storePaths then .value.storePaths[] else (
       (if .value.channel then .value.channel else "nixpkgs" end) as $channel |
       (if .value.stability then .value.stability else "stable" end) as $stability |
-      "\($channel).\($stability).\(.key)"
+      "\($stability).\($channel).\(.key)"
     ) end
   ) | .[];
 

@@ -84,10 +84,10 @@ usage: $me [ (-h|--help) ] [ --version ]
        $medashes
 
 flox general commands:
-    flox packages [ --all | channel[.stability[.package]] ] [--show-libs]
+    flox packages [ --all | stability[.channel[.package]] ] [--show-libs]
         list all packages or filtered by channel[.subchannel[.package]]
         --show-libs: include library packages
-    flox builds <channel>.<stability>.<package>
+    flox builds <stability>.<channel>.<package>
         list all available builds for specified package
     flox profiles
         list available profiles owned by "$FLOX_USER"
@@ -562,7 +562,7 @@ function maxProfileGen() {
 # 1) flake references containing "#" character: return as-is.
 # 2) positional integer references containing only numbers [0-9]+.
 # 3) paths which resolve to /nix/store/*: return first 3 path components.
-# 4) floxpkgs "channel.stability.attrPath" tuple: convert to flox catalog
+# 4) floxpkgs "stability.channel.attrPath" tuple: convert to flox catalog
 #    flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
 function floxpkgArg() {
 	if [[ "$1" == *#* ]]; then
@@ -577,18 +577,18 @@ function floxpkgArg() {
 	else
 		local IFS='.'
 		declare -a attrPath 'arr=($1)'
-		local channel="${arr[0]}"
+		local channel="${arr[1]}"
 		local stability="stable"
-		case "${arr[1]}" in
+		case "${arr[0]}" in
 		stable | staging | unstable)
-			stability="${arr[1]}"
+			stability="${arr[0]}"
 			attrPath=(${arr[@]:2})
 			;;
 		*)
 			attrPath=(${arr[@]:1})
 			;;
 		esac
-		echo "${floxpkgsUri}#${catalogAttrPathPrefix}.${channel}.${stability}.${attrPath}"
+		echo "${floxpkgsUri}#${catalogAttrPathPrefix}.${stability}.${channel}.${attrPath}"
 	fi
 }
 
@@ -600,14 +600,7 @@ function searchArgs() {
 	2)	# Prepend floxpkgsUri to the first argument, and
 		# if the first arg is a stability then prepend the
 		# channel as well.
-		case "$1" in
-		stable | staging | unstable)
-			echo "${floxpkgsUri}#${catalogAttrPathPrefix}.nixpkgs.$@"
-			;;
-		*)
-			echo "${floxpkgsUri}#${catalogAttrPathPrefix}.$@"
-			;;
-		esac
+		echo "${floxpkgsUri}#${catalogAttrPathPrefix}.$@"
 		;;
 	1)	# Only one arg provided means we have to search
 		# across all known flakes. Punt on this for the MVP.

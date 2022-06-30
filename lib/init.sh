@@ -163,7 +163,7 @@ fi
 floxpkgsUri="flake:floxpkgs"
 
 # String to be prepended to flake attrPath (before channel).
-catalogAttrPathPrefix="legacyPackages.$NIX_CONFIG_system.catalog"
+catalogAttrPathPrefix="legacyPackages.$NIX_CONFIG_system"
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable

@@ -38,8 +38,8 @@ def expectedArgs(count; args):
 #
 # Functions which convert between flakeref and floxpkg tuple elements.
 #
-# floxpkg: <channel>.<stability>.<pkgname> (fully-qualified)
-# flake:floxpkgs#catalog.<system>.<channel>.<stability>.<pkgname>
+# floxpkg: <stability>.<channel>.<pkgname> (fully-qualified)
+# flake:floxpkgs#catalog.<system>.<stability>.<channel>.<pkgname>
 #
 # Sample element:
 # {
@@ -58,7 +58,6 @@ def expectedArgs(count; args):
 # Convert flake attrPath to floxpkgs <channel>.<stability>.<name> triple.
 def attrPathToFloxpkg(arg):
   arg |
-  ltrimstr("catalog.\($system).") | # XXX FIXME once the dust settles.
   ltrimstr("\($catalogAttrPathPrefix).");
 
 # Add "position" index as we define $elements.
@@ -69,8 +68,8 @@ def attrPathToFloxpkg(arg):
       if .value.attrPath then (
         attrPathToFloxpkg(.value.attrPath)
         | split(".")
-        | .[0] as $channel
-        | .[1] as $stability
+        | .[0] as $stability
+        | .[1] as $channel
         | (.[2:] | join("."))
       ) else (
         .value.storePaths[0] | .[44:]
@@ -82,8 +81,8 @@ def attrPathToFloxpkg(arg):
 
 def attrPathToTOML(arg):
   attrPathToFloxpkg(arg) | split(".") |
-  .[0] as $channel |
-  .[1] as $stability |
+  .[0] as $stability |
+  .[1] as $channel |
   (.[2:] | join(".")) as $nameAttrPath |
   "  [packages.\"\($nameAttrPath)\"]
   channel = \"\($channel)\"
