@@ -17,6 +17,7 @@ let
     jq
     lib
     makeWrapper
+    man
     nixUnstable
     pandoc
     which
@@ -67,7 +68,7 @@ in stdenv.mkDerivation rec {
   nativeBuildInputs = [ makeWrapper pandoc which ];
   buildInputs = [
     ansifilter bashInteractive coreutils dasel diffutils
-    findutils gawk getent git gh gnused gzip jq nixPatched
+    findutils gawk getent git gh gnused gzip jq man nixPatched
   ];
   postPatch = ''
     substituteInPlace Makefile \

@@ -618,6 +618,10 @@ config)
 	exit 0
 	;;
 
+help)
+	cmd=($invoke_man -l "$_share/man/man1/flox.1.gz")
+	;;
+
 *)
 	cmd=($invoke_nix "$subcommand" "$@")
 	;;
