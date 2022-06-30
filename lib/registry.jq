@@ -39,8 +39,11 @@ def expectedArgs(count; args):
 #
 # Accessor methods.
 #
+
+# XXX temporary(?) hack: don't let "get" return an empty string.
 def get(args):
-  $registry | getpath(args) // empty;
+  ($registry | getpath(args) // empty) as $retval |
+  if $retval == "" then empty else $retval end;
 
 def setNumber(args):
   $registry | setpath(args[0:-1]; (args[-1]|tonumber));
