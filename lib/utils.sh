@@ -1,9 +1,88 @@
 #
 # Utility functions.
 #
+
+# Color highlighting variables.
+ESC="\x1b["
+
+# flox color palette.
+#201e7b, nearest named: midnight blue(HTML104), dark slate blue(HTML122)*
+DARKBLUE="32;30;123"
+DARKBLUE256=17 # NavyBlue, by eye
+#58569c, nearest named: dark slate blue(HTML122), slate blue(HTML123)*
+LIGHTBLUE="88;86;156"
+LIGHTBLUE256=61 # SlateBlue3
+#ffceac, nearest named: peach puff(HTML32)*, navajo white(HTML40)
+LIGHTPEACH="255;206;172"
+LIGHTPEACH256=223 # NavajoWhite1
+#ffb990, nearest named: dark salmon(HTML11), light salmon(HTML9)*
+DARKPEACH="255;185;144"
+DARKPEACH256=216 # LightSalmon1
+# 256-color terminal escape sequences.
+floxDarkBlue="${ESC}38;5;${DARKBLUE256}m"
+floxLightBlue="${ESC}38;5;${LIGHTBLUE256}m"
+floxDarkPeach="${ESC}38;5;${DARKPEACH256}m"
+floxLightPeach="${ESC}38;5;${LIGHTPEACH256}m"
+
+# Standard 16-color escape sequences.
+colorBlack="${ESC}0;30m"
+colorDarkGray="${ESC}1;30m"
+colorRed="${ESC}0;31m"
+colorLightRed="${ESC}1;31m"
+colorGreen="${ESC}0;32m"
+colorLightGreen="${ESC}1;32m"
+colorOrange="${ESC}0;33m"
+colorYellow="${ESC}1;33m"
+colorBlue="${ESC}0;34m"
+colorLightBlue="${ESC}1;34m"
+colorPurple="${ESC}0;35m"
+colorLightPurple="${ESC}1;35m"
+colorCyan="${ESC}0;36m"
+colorLightCyan="${ESC}1;36m"
+colorLightGray="${ESC}0;37m"
+colorWhite="${ESC}1;37m"
+
+# Simple font effects.
+colorReset="${ESC}0m"
+colorBold="${ESC}1m"
+colorFaint="${ESC}2m"
+colorItalic="${ESC}3m"
+colorUnderline="${ESC}4m"
+colorSlowBlink="${ESC}5m"
+colorRapidBlink="${ESC}6m"
+colorReverseVideo="${ESC}7m"
+
+function pprint() {
+	# Step through args and encase with single-quotes those which need it.
+	local space=""
+	for i in $@; do
+		if [[ "$i" =~ " " ]]; then
+			echo -e -n "$space'$i'"
+		else
+			echo -e -n "$space$i"
+		fi
+		space=" "
+	done
+	echo ""
+}
+
+#
+# trace( <args> )
+#
+# Utility function which prints to STDERR a colorized call stack
+# along with the supplied args.
+filecolor=$colorBold
+funccolor=$colorCyan
+argscolor=$floxLightPeach
+function trace() {
+	[ $debug -gt 0 ] || return 0
+	echo -e "trace:${filecolor}${BASH_SOURCE[2]}:${BASH_LINENO[1]}${colorReset} ${funccolor}${FUNCNAME[1]}${colorReset}( ${argscolor}$(pprint $*)${colorReset} )" 1>&2
+}
+
 # Track exported environment variables for use in verbose output.
 declare -A exported_variables
 function hash_commands() {
+	trace "$@"
 	set -h # explicitly enable hashing
 	local PATH=@@FLOXPATH@@:$PATH
 	for i in $@; do
@@ -36,6 +115,7 @@ hash_commands ansifilter awk basename cat chmod cmp cp cut dasel date dirname id
 #
 # Usage: first_in_PATH foo bar baz
 function first_in_PATH() {
+	trace "$@"
 	set -h # explicitly enable hashing
 	local PATH=@@FLOXPATH@@:$PATH
 	for i in $@; do
@@ -55,10 +135,12 @@ mespaces=$(echo $me | $_tr '[a-z]' ' ')
 medashes=$(echo $me | $_tr '[a-z]' '-')
 
 function warn() {
+	trace "$@"
 	[ ${#@} -eq 0 ] || echo "$@" 1>&2
 }
 
 function error() {
+	trace "$@"
 	[ ${#@} -eq 0 ] || warn "ERROR: $@"
 	warn "" # Add space before appending output.
 	# Relay any STDIN out to STDERR.
@@ -71,6 +153,7 @@ function error() {
 }
 
 function usage() {
+	trace "$@"
 	$_cat <<EOF 1>&2
 usage: $me [ (-h|--help) ] [ --version ]
        $medashes
@@ -128,19 +211,6 @@ Developer environment commands:
 EOF
 }
 
-function pprint() {
-	# Step through args and encase with single-quotes those which need it.
-	local result="+"
-	for i in $@; do
-		if [[ "$i" =~ " " ]]; then
-			result="$result '$i'"
-		else
-			result="$result $i"
-		fi
-	done
-	echo $result
-}
-
 #
 # invoke(${cmd_and_args[@]})
 #
@@ -149,12 +219,13 @@ function pprint() {
 #
 declare -i minverbosity=1
 function invoke() {
+	trace "$@"
 	local vars=()
 	if [ $verbose -ge $minverbosity ]; then
 		for i in ${exported_variables[$1]}; do
 			vars+=($(eval "echo $i=\${$i}"))
 		done
-		pprint "${vars[@]}" "$@" 1>&2
+		pprint "+$colorBold" "${vars[@]}" "$@" "$colorReset" 1>&2
 	fi
 	"$@"
 }
@@ -166,6 +237,7 @@ function invoke() {
 # N.B. requires $manifest variable pointing to manifest.json file.
 #
 function manifest() {
+	trace "$@"
 	local manifest="$1"; shift
 	# jq args:
 	#   -n \                        # null input
@@ -204,6 +276,7 @@ function manifest() {
 # Accessor method for declarative TOML manifest library functions.
 #
 function manifestTOML() {
+	trace "$@"
 	local manifest="$1"; shift
 	# jq args:
 	#   -r \                        # raw output (i.e. don't add quotes)
@@ -235,6 +308,7 @@ function manifestTOML() {
 # Displays prompt, collects boolean "y/n" response,
 # returns 0 for yes and 1 for no.
 function boolPrompt() {
+	trace "$@"
 	local prompt="$1"; shift
 	local default="$1"; shift
 	local defaultLower=$(echo $default | tr A-Z a-z)
@@ -264,6 +338,7 @@ function boolPrompt() {
 
 # gitConfigSet($varname, $default)
 function gitConfigSet() {
+	trace "$@"
 	local varname="$1"; shift
 	local prompt="$1"; shift
 	local default="$1"; shift
@@ -299,6 +374,7 @@ function gitConfigSet() {
 # Global variable for prompting to confirm existing values.
 declare -i getPromptSetConfirm=0
 function registry() {
+	trace "$@"
 	local registry="$1"; shift
 	local version="$1"; shift
 
@@ -368,6 +444,7 @@ function registry() {
 }
 
 function flakeRegistry() {
+	trace "$@"
 	registry "$_etc/nix/registry.json" 2 "$@"
 }
 
@@ -376,6 +453,7 @@ function flakeRegistry() {
 # XXX refactor; had to duplicate above to add $profileName.  :-\
 #
 function profileRegistry() {
+	trace "$@"
 	local profile="$1"; shift
 	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
@@ -437,6 +515,7 @@ function profileRegistry() {
 }
 
 function promptTemplate {
+	trace "$@"
 	local -a _cline
 	local -a _choices
 
@@ -470,6 +549,7 @@ function promptTemplate {
 }
 
 function pastTense() {
+	trace "$@"
 	local subcommand="$1"
 	case "$subcommand" in
 	install)           echo "installed";;
@@ -482,22 +562,24 @@ function pastTense() {
 }
 
 function removePathDups {
-  for varname in "$@"; do
-    declare -A __seen
-    __rewrite=
-    for i in $(local IFS=:; echo ${!varname}); do
-      if [ -z "${__seen[$i]}" ]; then
-        __rewrite="$__rewrite${__rewrite:+:}$i"
-        __seen[$i]=1
-      fi
-    done
-    export $varname="$__rewrite"
-    unset __seen
-    unset __rewrite
-  done
+	trace "$@"
+	for varname in "$@"; do
+		declare -A __seen
+		__rewrite=
+		for i in $(local IFS=:; echo ${!varname}); do
+			if [ -z "${__seen[$i]}" ]; then
+				__rewrite="$__rewrite${__rewrite:+:}$i"
+				__seen[$i]=1
+			fi
+		done
+		export $varname="$__rewrite"
+		unset __seen
+		unset __rewrite
+	done
 }
 
 function profileArg() {
+	trace "$@"
 	# flox profiles must resolve to fully-qualified paths within
 	# $FLOX_PROFILES. Resolve paths in a variety of ways:
 	if [[ ${1:0:1} = "/" ]]; then
@@ -534,6 +616,7 @@ function profileArg() {
 
 # Parses generation from profile path.
 function profileGen() {
+	trace "$@"
 	local profile="$1"
 	local profileName=$($_basename $profile)
 	if [   -L "$profile" ]; then
@@ -546,6 +629,7 @@ function profileGen() {
 
 # Identifies max profile generation.
 function maxProfileGen() {
+	trace "$@"
 	local profile="$1"
 	declare -i max=0
 	for i in ${profile}-*-link; do
@@ -567,6 +651,7 @@ function maxProfileGen() {
 #      stable.nixpkgs.yq ->
 #        flake:floxpkgs#legacyPackages.aarch64-darwin.stable.nixpkgs.yq
 function floxpkgArg() {
+	trace "$@"
 	if [[ "$1" == *#* ]]; then
 		echo "$1"
 	elif [[ "$1" =~ ^[0-9]+$ ]]; then
@@ -608,6 +693,7 @@ function floxpkgArg() {
 # If the installable (flake reference) is an exact match
 # then the regexp is not required.
 function searchArgs() {
+	trace "$@"
 	case "${#@}" in
 	2)	# Prepend floxpkgsUri to the first argument, and
 		# if the first arg is a stability then prepend the
@@ -634,6 +720,7 @@ function searchArgs() {
 #	eval $(parseURL "$url")
 #
 function parseURL() {
+	trace "$@"
 	local url="$1"; shift
 	local urlTransport urlHostname urlUsername
 	case "$url" in
@@ -671,6 +758,7 @@ function parseURL() {
 #	defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
 #
 function gitBaseURLToFlakeURL() {
+	trace "$@"
 	local baseurl="$1"; shift
 	local path="$1"; shift
 	local ref="$1"; shift
@@ -697,6 +785,7 @@ function gitBaseURLToFlakeURL() {
 
 # validateTOML(path)
 function validateTOML() {
+	trace "$@"
 	local path="$1"; shift
 	# XXX do more here to highlight what the problem is.
 	tmpstderr=$($_mktemp)
@@ -717,6 +806,7 @@ function validateTOML() {
 #
 # Perform basic sanity check of FlakeURL to make sure it exists.
 function validateFlakeURL() {
+	trace "$@"
 	local flakeURL="$1"; shift
 	if $invoke_nix flake metadata "$flakeURL" --json >/dev/null; then
 		return 0

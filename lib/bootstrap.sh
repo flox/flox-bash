@@ -4,6 +4,7 @@ declare -i _initial_bootstrap=0
 
 declare -i _greeted=0
 function initialGreeting {
+	trace "$@"
 	[ $_initial_bootstrap -eq 1 ] || return 0
 	[ $_greeted -eq 0 ] || return 0
 	$_cat <<EOF 1>&2
@@ -16,6 +17,7 @@ EOF
 }
 
 function checkGhAuth {
+	trace "$@"
 	local hostname="$1"; shift
 	# Repeat login attempts until we're successfully logged in.
 	while ! $_gh auth status -h $hostname >/dev/null 2>&1; do
@@ -27,6 +29,7 @@ function checkGhAuth {
 }
 
 function getUsernameFromGhAuth {
+	trace "$@"
 	local hostname="$1"; shift
 	# Get github username from gh data, if known.
 	[ -s "$HOME/.config/gh/hosts.yml" ]
@@ -34,6 +37,7 @@ function getUsernameFromGhAuth {
 }
 
 function checkGitConfig {
+	trace "$@"
 	# Check to see if they have valid git config for user.{name,email}.
 	declare -i _found_name=0
 	declare -i _found_email=0

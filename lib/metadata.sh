@@ -56,6 +56,7 @@
 # gitInit($repoDir,$defaultBranch)
 #
 function gitInit() {
+	trace "$@"
 	local repoDir="$1"; shift
 	local defaultBranch="$1"; shift
 	# Set initial branch with `-c init.defaultBranch=` instead of
@@ -68,6 +69,7 @@ function gitInit() {
 # gitCheckout($repoDir,$branch)
 #
 function gitCheckout() {
+	trace "$@"
 	local repoDir="$1"; shift
 	local branch="$1"; shift
 	[ -d "$repoDir" ] || gitInit "$repoDir" "$branch"
@@ -95,6 +97,7 @@ function gitCheckout() {
 }
 
 function metaGit() {
+	trace "$@"
 	local profile="$1"; shift
 	local system="$1"; shift
 	local profileName=$($_basename $profile)
@@ -149,6 +152,7 @@ EOF
 # Edits profile declarative manifest. Is only invoked from an
 # interactive terminal.
 function metaEdit() {
+	trace "$@"
 	local profile="$1"; shift
 	local system="$1"; shift
 	local profileName=$($_basename $profile)
@@ -219,6 +223,7 @@ EOF
 # syncProfile($profile,$system)
 #
 function syncProfile() {
+	trace "$@"
 	local profile="$1"; shift
 	local system="$1"; shift
 	local profileDir=$($_dirname $profile)
@@ -247,6 +252,7 @@ function syncProfile() {
 # GCRoot for the profile directory.
 #
 function syncProfiles() {
+	trace "$@"
 	local userName="$1"
 	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
 
@@ -257,6 +263,7 @@ function syncProfiles() {
 }
 
 function commitMessage() {
+	trace "$@"
 	local profile="$1"; shift
 	local system="$1"; shift
 	local startGen="$1"; shift
@@ -329,6 +336,7 @@ EOF
 # Expects commit message from STDIN.
 #
 function syncMetadata() {
+	trace "$@"
 	local profile="$1"; shift
 	local system="$1"; shift
 	local startGen="$1"; shift
@@ -433,6 +441,7 @@ EOF
 # setGitRemote($profile)
 #
 function setGitRemote() {
+	trace "$@"
 	local profile="$1"; shift
 	local system="$1"; shift
 	local profileName=$($_basename $profile)
@@ -470,6 +479,7 @@ function setGitRemote() {
 # pushpullMetadata("(push|pull)",$profile)
 #
 function pushpullMetadata() {
+	trace "$@"
 	local action="$1"; shift
 	local profile="$1"; shift
 	local system="$1"; shift

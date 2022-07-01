@@ -55,8 +55,8 @@ while [ $# -ne 0 ]; do
 		shift
 		;;
 	--debug)
-		set -x
 		let ++debug
+		[ $debug -le 1 ] || set -x
 		let ++verbose
 		shift
 		;;
