@@ -55,10 +55,19 @@ def expectedArgs(count; args):
 #
 #
 
-# Convert flake attrPath to floxpkgs <channel>.<stability>.<name> triple.
+# Convert flake attrPath to floxpkgs <stability>.<channel>.<name> triple.
 def attrPathToFloxpkg(arg):
-  arg |
-  ltrimstr("\($catalogAttrPathPrefix).");
+  if (arg | startswith("\($catalogAttrPathPrefix).catalog.")) then
+    # <channel>.<stability>.<name> format retired 6/30/22
+    arg | ltrimstr("\($catalogAttrPathPrefix).catalog.")
+    | split(".")
+    | .[0] as $channel
+    | .[1] as $stability
+    | (.[2:] | join(".")) as $attrPath
+    | "\($stability).\($channel).\($attrPath)"
+  else
+    arg | ltrimstr("\($catalogAttrPathPrefix).")
+  end;
 
 # Add "position" index as we define $elements.
 ( $manifest[].elements | to_entries | map(

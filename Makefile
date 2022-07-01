@@ -1,7 +1,10 @@
 .DEFAULT_GOAL = all
 PKGNAME = flox
-VERSION = 0.0.1
 PREFIX ?= ./build
+
+ifeq (,$(VERSION))
+  $(error VERSION not defined - aborting build)
+endif
 
 # `nix show-config` does not work on Darwin, dies within a build:
 #

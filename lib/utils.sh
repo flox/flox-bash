@@ -558,12 +558,14 @@ function maxProfileGen() {
 	echo $max
 }
 
-# Package args can take one of 3 formats:
+# Package args can take one of the following formats:
 # 1) flake references containing "#" character: return as-is.
 # 2) positional integer references containing only numbers [0-9]+.
 # 3) paths which resolve to /nix/store/*: return first 3 path components.
-# 4) floxpkgs "stability.channel.attrPath" tuple: convert to flox catalog
-#    flake reference, e.g. nixpkgs.stable.nyancat -> nixpkgs#stable.nyancat.
+# 4) floxpkgs "[[stability.]channel.]attrPath" tuple: convert to flox catalog
+#    flake reference, e.g.
+#      stable.nixpkgs.yq ->
+#        flake:floxpkgs#legacyPackages.aarch64-darwin.stable.nixpkgs.yq
 function floxpkgArg() {
 	if [[ "$1" == *#* ]]; then
 		echo "$1"
@@ -575,20 +577,30 @@ function floxpkgArg() {
 			echo "$_rp" | $_cut -d/ -f1-4
 		fi
 	else
-		local IFS='.'
-		declare -a attrPath 'arr=($1)'
-		local channel="${arr[1]}"
-		local stability="stable"
-		case "${arr[0]}" in
-		stable | staging | unstable)
-			stability="${arr[0]}"
-			attrPath=(${arr[@]:2})
+		local flakeAttrPath=
+		case "$1" in
+		stable.*.* | staging.*.* | unstable.*.*)
+			# stability.channel.attrPath
+			# They did all the work for us.
+			flakeAttrPath="$1"
+			;;
+		stable.* | staging.* | unstable.*)
+			# stability.attrPath ... we should perhaps not support this, not sure?
+			# Inject "nixpkgs" as the default channel.
+			local IFS='.'
+			declare -a 'arr=($1)'
+			flakeAttrPath="${arr[0]}.nixpkgs.${arr[1]}"
+			;;
+		*.*) # fixme - can we detect a channel vs an attrPath containing a "."?
+			# channel.attrPath
+			flakeAttrPath="stable.$1"
 			;;
 		*)
-			attrPath=(${arr[@]:1})
+			# attrPath
+			flakeAttrPath="stable.nixpkgs.$1"
 			;;
 		esac
-		echo "${floxpkgsUri}#${catalogAttrPathPrefix}.${stability}.${channel}.${attrPath}"
+		echo "${floxpkgsUri}#${catalogAttrPathPrefix}.${flakeAttrPath}"
 	fi
 }
 

@@ -63,19 +63,16 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.1${revision}";
+  version = "0.0.2${revision}";
   src = ./.;
   nativeBuildInputs = [ makeWrapper pandoc which ];
   buildInputs = [
     ansifilter bashInteractive coreutils dasel diffutils
     findutils gawk getent git gh gnused gzip jq man nixPatched
   ];
-  postPatch = ''
-    substituteInPlace Makefile \
-      --replace "VERSION = 0.0.1" "VERSION = ${version}"
-  '';
   makeFlags = [
     "PREFIX=$(out)"
+    "VERSION=${version}"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
     "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
     "FLOX_PROFILE=${floxProfile}"
