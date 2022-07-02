@@ -173,7 +173,7 @@ flox general commands:
     flox builds <stability>.<channel>.<package>
         list all available builds for specified package
     flox profiles
-        list available profiles owned by "$FLOX_USER"
+        list available profiles owned by "$USER"
     flox activate [ (-p|--profile) <profile> ] - activate profile
       current shell: . <(flox activate)
         in subshell: flox activate
@@ -291,7 +291,7 @@ function manifestTOML() {
 	# Append various args.
 	jqargs+=("--arg" "system" "$NIX_CONFIG_system")
 	jqargs+=("--argjson" "verbose" "$verbose")
-	jqargs+=("--arg" "profileUserName" "$profileUserName")
+	jqargs+=("--arg" "profileOwner" "$profileOwner")
 	jqargs+=("--arg" "profileName" "$profileName")
 	jqargs+=("--arg" "FLOX_PATH_PREPEND" "$FLOX_PATH_PREPEND")
 
@@ -457,8 +457,8 @@ function profileRegistry() {
 	local profile="$1"; shift
 	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
-	local profileUserName=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
+	local profileOwner=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 	local registry="$profileMetaDir/metadata.json"
 	local version=1
 	# jq args:
@@ -514,29 +514,40 @@ function profileRegistry() {
 	esac
 }
 
-function promptTemplate {
+#
+# multChoice($prompt $thing)
+#
+# usage: multChoice "Your favorite swear variable" "variable" \
+#   "foo: description of foo" "bar: description of bar"
+#
+function multChoice {
 	trace "$@"
-	local -a _cline
+
+	local prompt="$1"; shift
+	local thing="$1"; shift
+	# ... choices follow in "$@"
+
 	local -a _choices
 
+	echo 1>&2
+	echo "$prompt" 1>&2
 	_choices=($(
-		local count=0
-		$invoke_nix eval --raw --apply '
-		  x: with builtins; concatStringsSep "\n" (
-			attrValues (mapAttrs (k: v: k + " " + v.description) x)
-		  ) + "\n"
-		' "floxpkgs#templates" | while read -a _cline
+		local -i count=0
+		while [ $# -gt 0 ]
 		do
-			count=$(($count+1))
-			echo "$count) ${_cline[0]}: ${_cline[@]:1}" 1>&2
-			echo "${_cline[0]}"
+			let ++count
+			# Prompt user to STDERR
+			echo "$count) $1" 1>&2
+			# Echo choice to STDOUT
+			echo "${1//:*/}"
+			shift
 		done
 	))
-	local prompt="Choose template by number: "
+
 	local choice
 	while true
 	do
-		read -e -p "$prompt" choice
+		read -e -p "Choose $thing by number: " choice
 		choice=$((choice + 0)) # make int
 		if [ $choice -gt 0 -a $choice -le ${#_choices[@]} ]; then
 			index=$(($choice - 1))
@@ -546,6 +557,15 @@ function promptTemplate {
 		warn "Incorrect choice try again"
 	done
 	# Not reached
+}
+
+function promptTemplate {
+	trace "$@"
+	$invoke_nix eval --raw --apply '
+	  x: with builtins; concatStringsSep "\n" (
+		attrValues (mapAttrs (k: v: k + " " + v.description) x)
+	  ) + "\n"
+	' "floxpkgs#templates" | $_xargs multChoice "" "template"
 }
 
 function pastTense() {
@@ -604,7 +624,7 @@ function profileArg() {
 		IFS="$old_ifs"
 		if [ ${#_parts[@]} -eq 1 ]; then
 			# Return default path for the profile directory.
-			echo "$FLOX_PROFILES/${FLOX_USER}/$1"
+			echo "$FLOX_PROFILES/$profileOwner/$1"
 		elif [ ${#_parts[@]} -eq 2 ]; then
 			# Return default path for the profile directory.
 			echo "$FLOX_PROFILES/$1"

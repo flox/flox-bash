@@ -145,8 +145,8 @@ activate | history | install | list | remove | rollback | \
 
 	profile=${profiles[0]}
 	profileName=$($_basename $profile)
-	profileUserName=$($_basename $($_dirname $profile))
-	profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
+	profileOwner=$($_basename $($_dirname $profile))
+	profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 	profileStartGen=$(profileGen "$profile")
 
 	[ $verbose -eq 0 ] || [ "$subcommand" = "activate" ] || echo Using profile: $profile >&2
@@ -302,7 +302,7 @@ activate | history | install | list | remove | rollback | \
 					error "failed to look up package name for position \"$position\" in profile $profile" </dev/null
 			done
 		fi
-		logMessage="$FLOX_USER $(pastTense $subcommand) ${pkgNames[@]}"
+		logMessage="$USER $(pastTense $subcommand) ${pkgNames[@]}"
 		cmd=($invoke_nix -v profile "$subcommand" --profile "$profile" "${pkgArgs[@]}")
 		;;
 
@@ -337,7 +337,7 @@ activate | history | install | list | remove | rollback | \
 		# First check to see if profile has actually changed.
 		oldProfilePackage=$($_realpath $profile)
 		if [ "$profilePackage" != "$oldProfilePackage" ]; then
-			logMessage="$FLOX_USER edited declarative profile"
+			logMessage="$USER edited declarative profile"
 			declare -i newgen=$(maxProfileGen $profile)
 			let ++newgen
 			$invoke_ln -s $profilePackage "${profile}-${newgen}-link"
@@ -363,7 +363,7 @@ activate | history | install | list | remove | rollback | \
 			   *) ;;
 			esac
 		done
-		logMessage="$FLOX_USER $(pastTense $subcommand) $targetGeneration"
+		logMessage="$USER $(pastTense $subcommand) $targetGeneration"
 		cmd=($invoke_nix profile "$subcommand" --profile "$profile" "${args[@]}")
 		;;
 
@@ -382,7 +382,7 @@ activate | history | install | list | remove | rollback | \
 Profile
   Name      $profileName
   System    $NIX_CONFIG_system
-  Path      $FLOX_PROFILES/$FLOX_USER/$profileName
+  Path      $FLOX_PROFILES/$profileOwner/$profileName
   Curr Gen  $profileStartGen
 
 Packages
@@ -437,7 +437,7 @@ EOF
 		;;
 
 	git)
-		metaGit "$profile" "$NIX_CONFIG_system" ${invocation_args[@]}
+		rawMetaGit "$profile" ${invocation_args[@]}
 		;;
 
 	push | pull)
@@ -459,11 +459,11 @@ EOF
 profiles)
 	branches=$(metaGit $(profileArg "default") "$NIX_CONFIG_system" branch | $_awk -F. "/$NIX_CONFIG_system/ {print \$NF}")
 	for b in $branches; do
-		g=$($_readlink $FLOX_PROFILES/$FLOX_USER/$b | $_awk -F- '{print $(NF-1)}')
+		g=$($_readlink $FLOX_PROFILES/$profileOwner/$b | $_awk -F- '{print $(NF-1)}')
 		cat <<EOF
-$FLOX_USER/$b
+$profileOwner/$b
     Name      $b
-    Path      $FLOX_PROFILES/$FLOX_USER/$b
+    Path      $FLOX_PROFILES/$profileOwner/$b
     Curr Gen  $g
 
 EOF

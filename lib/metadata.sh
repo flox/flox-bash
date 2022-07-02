@@ -72,7 +72,10 @@ function gitCheckout() {
 	trace "$@"
 	local repoDir="$1"; shift
 	local branch="$1"; shift
-	[ -d "$repoDir" ] || gitInit "$repoDir" "$branch"
+	[ -d "$repoDir" ] || {
+		gitInit "$repoDir" "$branch"
+		$_git -C "$repoDir" config pull.rebase true
+	}
 	# It's somewhat awkward to determine the current branch
 	# *before* that first commit. If there's a better git
 	# subcommand to figure this out I can't find it.
@@ -91,9 +94,21 @@ function gitCheckout() {
 			$_git -C "$repoDir" ls-files | $_xargs $_git -C "$repoDir" rm -f
 			# A commit is needed in order to make the branch visible.
 			$_git -C "$repoDir" commit --quiet --allow-empty \
-				-m "$FLOX_USER created profile"
+				-m "$USER created profile"
 		fi
 	}
+}
+
+function rawMetaGit() {
+	trace "$@"
+	local profile="$1"; shift
+	local profileOwner=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
+
+	# For github.com specifically, set authentication helper.
+	$invoke_git \
+		-c "credential.https://github.com.helper=!$_gh auth git-credential" \
+		-C $profileMetaDir "$@"
 }
 
 function metaGit() {
@@ -101,17 +116,14 @@ function metaGit() {
 	local profile="$1"; shift
 	local system="$1"; shift
 	local profileName=$($_basename $profile)
-	local userName=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
+	local profileOwner=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
 	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
-	# For github.com specifically, set authentication helper.
-	$invoke_git \
-		-c "credential.https://github.com.helper=!$_gh auth git-credential" \
-		-C $profileMetaDir "$@"
+	rawMetaGit "$profile" "$@"
 }
 
 snipline="------------------------ >8 ------------------------"
@@ -156,8 +168,8 @@ function metaEdit() {
 	local profile="$1"; shift
 	local system="$1"; shift
 	local profileName=$($_basename $profile)
-	local userName=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
+	local profileOwner=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch. This is essential because we're
@@ -228,8 +240,8 @@ function syncProfile() {
 	local system="$1"; shift
 	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
-	local profileUserName=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_PROFILEMETA/$profileUserName"
+	local profileOwner=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 
 	# Ensure metadata repo is checked out to correct branch.
 	gitCheckout "$profileMetaDir" "${system}.${profileName}"
@@ -245,7 +257,7 @@ function syncProfile() {
 }
 
 #
-# syncProfiles($userName)
+# syncProfiles($profileOwner)
 #
 # The analog of syncMetadata(), this populates profile data using
 # information found in the metadata repository and registers a
@@ -253,8 +265,8 @@ function syncProfile() {
 #
 function syncProfiles() {
 	trace "$@"
-	local userName="$1"
-	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
+	local profileOwner="$1"
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 
 	local branches=$($_git -C "$profileMetaDir" branch --format="%(refname:short)")
 	for branch in "${branches}"; do
@@ -344,8 +356,8 @@ function syncMetadata() {
 	local logMessage="$1"; shift
 	local invocation="${@}"
 	local profileName=$($_basename $profile)
-	local userName=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_PROFILEMETA/$userName"
+	local profileOwner=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
@@ -437,6 +449,97 @@ EOF
 		metaGit "$profile" "$system" commit --quiet -F -
 }
 
+function checkGhAuth {
+	trace "$@"
+	local hostname="$1"; shift
+	# Repeat login attempts until we're successfully logged in.
+	while ! $_gh auth status -h $hostname >/dev/null 2>&1; do
+		initialGreeting
+		warn "Invoking 'gh auth login -h $hostname'"
+		$_gh auth login -h $hostname
+		warn ""
+	done
+}
+
+function getUsernameFromGhAuth {
+	trace "$@"
+	local hostname="$1"; shift
+	# Get github username from gh data, if known.
+	[ -s "$HOME/.config/gh/hosts.yml" ]
+	$_dasel -f "$HOME/.config/gh/hosts.yml" "${hostname//./\\.}.user"
+}
+
+#
+# promptMetaOrigin()
+#
+# Guides user through the process of prompting for and/or creating
+# an origin for their floxmeta repository.
+#
+function promptMetaOrigin() {
+	trace "$@"
+
+	local server organization defaultOrigin origin
+
+	echo 1>&2
+	echo "flox uses git to store and exchange metadata between users and machines." 1>&2
+	server=$(
+		multChoice "Where would you like to host your 'floxmeta' repository?" \
+			"git server" "github.com" "gitlab.com" "bitbucket.org" "other"
+	)
+
+	case "$server" in
+	github.com)
+		echo "Great, let's start by getting you logged into $server." 1>&2
+		# For github.com only, use the `gh` CLI to make things easy.
+		checkGhAuth $server
+		if organization=$(getUsernameFromGhAuth $server); then
+			echo "Success! You are logged into $server as $organization." 1>&2
+		else
+			echo "Hmmm ... could not log you into $server. No problem, we can find another way." 1>&2
+		fi
+		;;
+	other)
+		read -e -p "git server for storing profile metadata: " server
+		;;
+	esac
+
+	[ -n "$organization" ] ||
+		read -e -p "organization (or username) on $server for creating the 'floxmeta' repository: " organization
+
+	local protocol=$(
+		multChoice "What is your preferred protocol for Git operations?" \
+			"protocol" "https" "ssh" "ssh+git"
+	)
+
+	case "$protocol" in
+	https)
+		defaultURL="https://$server/"
+		;;
+	ssh)
+		defaultURL="git+ssh@github.com:"
+		;;
+	ssh+git)
+		defaultURL="git+ssh://git@$server/"
+		;;
+	esac
+
+	echo "$defaultURL$organization/floxmeta"
+}
+
+#
+# rewriteURLs()
+#
+# Function to inspect the entirety of a floxmeta repository and rewrite
+# any/all URLs that reference the local disk to instead point to the new
+# git remote home.
+#
+function rewriteURLs() {
+	trace "$@"
+	# TODO once we've finalised the self-referential TOML->environment renderer.
+	# Manifests won't contain any references to the floxmeta repository until then.
+	return 0
+}
+
 #
 # setGitRemote($profile)
 #
@@ -451,16 +554,50 @@ function setGitRemote() {
 	local origin=$(metaGit "$profile" "$system" \
 		"config" "--get" "remote.origin.url" || true)
 	if [ -z "$origin" ]; then
-		# Proceed to set origin using a variety of defaults.
+		# Infer/set origin using a variety of information.
 		local profileName=$($_basename $profile)
-		local userName=$($_basename $($_dirname $profile))
-		# HACK: redact "+ssh" from the origin for use with gh
-		# find better way ...
-		local defaultOrigin="${gitBaseURL/+ssh/}$userName/floxmeta"
-		origin=$(registry ${FLOX_DATA_HOME}/metadata.json 1 \
-			getPromptSet "git URL for storing profile metadata: " $defaultOrigin \
-			profiles $userName $profileName origin)
+		local profileOwner=$($_basename $($_dirname $profile))
+		local defaultOrigin=
+		if [ "$profileOwner" == "local" ]; then
+			defaultOrigin=$(promptMetaOrigin)
+		else
+			# Strange to have a profile on disk in a named without a
+			# remote origin. Prompt user to confirm floxmeta repo on
+			# github.
+			defaultOrigin="${gitBaseURL/+ssh/}$profileOwner/floxmeta"
+		fi
+
+		echo 1>&2
+		read -e \
+			-p "confirm git URL for storing profile metadata: " \
+			-i "$defaultOrigin" origin
 		metaGit "$profile" "$system" "remote" "add" "origin" "$origin"
+
+		local newProfileOwner=$($_dirname $origin); newProfileOwner=${newProfileOwner/*[:\/]/} # XXX hack
+		if [ -d "$FLOX_PROFILEMETA/$newProfileOwner" ]; then
+			warn "moving profile metadata directory $FLOX_PROFILEMETA/$newProfileOwner out of the way"
+			$invoke_mv --verbose $FLOX_PROFILEMETA/$newProfileOwner{,.$$}
+		fi
+		if [ -d "$FLOX_PROFILES/$newProfileOwner" ]; then
+			warn "moving profile directory $FLOX_PROFILES/$newProfileOwner out of the way"
+			$invoke_mv --verbose $FLOX_PROFILES/$newProfileOwner{,.$$}
+		fi
+
+		# A few final cleanup steps.
+		if [ "$profileOwner" == "local" ]; then
+			# rename .cache/flox/profilemeta/{local -> owner} &&
+			#   replace with symlink from local -> owner
+			$invoke_mv "$FLOX_PROFILEMETA/local" "$FLOX_PROFILEMETA/$newProfileOwner"
+			$invoke_ln -s -f $newProfileOwner "$FLOX_PROFILEMETA/local"
+
+			# rename .local/share/flox/profiles/{local -> owner}
+			#   replace with symlink from local -> owner
+			$invoke_mv "$FLOX_PROFILES/local" "$FLOX_PROFILES/$newProfileOwner"
+			$invoke_ln -s -f $newProfileOwner "$FLOX_PROFILES/local"
+
+			# perform single commit rewriting all URL references to refer to new home of floxmeta repo
+			rewriteURLs "$FLOX_PROFILES/local" "$origin"
+		fi
 	fi
 
 	# If using github, ensure that user is logged into gh CLI
