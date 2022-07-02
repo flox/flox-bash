@@ -573,20 +573,16 @@ function setGitRemote() {
 			-p "confirm git URL for storing profile metadata: " \
 			-i "$defaultOrigin" origin
 
-		local newProfileOwner=$($_dirname $origin); newProfileOwner=${newProfileOwner/*[:\/]/} # XXX hack
-		if [ -d "$FLOX_PROFILEMETA/$newProfileOwner" ]; then
-			warn "moving profile metadata directory $FLOX_PROFILEMETA/$newProfileOwner out of the way"
-			$invoke_mv --verbose $FLOX_PROFILEMETA/$newProfileOwner{,.$$}
-		fi
-		if [ -d "$FLOX_PROFILES/$newProfileOwner" ]; then
-			warn "moving profile directory $FLOX_PROFILES/$newProfileOwner out of the way"
-			$invoke_mv --verbose $FLOX_PROFILES/$newProfileOwner{,.$$}
-		fi
-
 		# A few final cleanup steps.
 		if [ "$profileOwner" == "local" ]; then
+			local newProfileOwner=$($_dirname $origin); newProfileOwner=${newProfileOwner/*[:\/]/} # XXX hack
+
 			# rename .cache/flox/profilemeta/{local -> owner} &&
 			#   replace with symlink from local -> owner
+			if [ -d "$FLOX_PROFILEMETA/$newProfileOwner" ]; then
+				warn "moving profile metadata directory $FLOX_PROFILEMETA/$newProfileOwner out of the way"
+				$invoke_mv --verbose $FLOX_PROFILEMETA/$newProfileOwner{,.$$}
+			fi
 			if [ -d "$FLOX_PROFILEMETA/local" ]; then
 				$invoke_mv "$FLOX_PROFILEMETA/local" "$FLOX_PROFILEMETA/$newProfileOwner"
 			fi
@@ -594,6 +590,10 @@ function setGitRemote() {
 
 			# rename .local/share/flox/profiles/{local -> owner}
 			#   replace with symlink from local -> owner
+			if [ -d "$FLOX_PROFILES/$newProfileOwner" ]; then
+				warn "moving profile directory $FLOX_PROFILES/$newProfileOwner out of the way"
+				$invoke_mv --verbose $FLOX_PROFILES/$newProfileOwner{,.$$}
+			fi
 			if [ -d "$FLOX_PROFILES/local" ]; then
 				$invoke_mv "$FLOX_PROFILES/local" "$FLOX_PROFILES/$newProfileOwner"
 			fi
@@ -634,6 +634,9 @@ function pushpullMetadata() {
 
 	# First verify that the clone has an origin defined.
 	setGitRemote "$profile" "$system"
+
+	# Perform a fetch to get remote data into sync.
+	metaGit "$profile" "$system" fetch origin
 
 	# Then push or pull.
 	if [ "$action" = "push" ]; then
