@@ -240,14 +240,15 @@ function syncProfile() {
 	local system="$1"; shift
 	local profileDir=$($_dirname $profile)
 	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
+	local profileRealDir=$($_readlink -f $profileDir)
+	local profileOwner=$($_basename $profileRealDir)
 	local profileMetaDir="$FLOX_PROFILEMETA/$profileOwner"
 
 	# Ensure metadata repo is checked out to correct branch.
 	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
 	# Run snippet to generate links using data from metadata repo.
-	$_mkdir -v -p "$profileDir" 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
+	$_mkdir -v -p "$profileRealDir" 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
 
 	local snippet=$(profileRegistry "$profile" syncGenerations)
 	eval "$snippet" || true
@@ -587,12 +588,16 @@ function setGitRemote() {
 		if [ "$profileOwner" == "local" ]; then
 			# rename .cache/flox/profilemeta/{local -> owner} &&
 			#   replace with symlink from local -> owner
-			$invoke_mv "$FLOX_PROFILEMETA/local" "$FLOX_PROFILEMETA/$newProfileOwner"
+			if [ -d "$FLOX_PROFILEMETA/local" ]; then
+				$invoke_mv "$FLOX_PROFILEMETA/local" "$FLOX_PROFILEMETA/$newProfileOwner"
+			fi
 			$invoke_ln -s -f $newProfileOwner "$FLOX_PROFILEMETA/local"
 
 			# rename .local/share/flox/profiles/{local -> owner}
 			#   replace with symlink from local -> owner
-			$invoke_mv "$FLOX_PROFILES/local" "$FLOX_PROFILES/$newProfileOwner"
+			if [ -d "$FLOX_PROFILES/local" ]; then
+				$invoke_mv "$FLOX_PROFILES/local" "$FLOX_PROFILES/$newProfileOwner"
+			fi
 			$invoke_ln -s -f $newProfileOwner "$FLOX_PROFILES/local"
 
 			# perform single commit rewriting all URL references to refer to new home of floxmeta repo
