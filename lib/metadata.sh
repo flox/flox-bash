@@ -572,7 +572,6 @@ function setGitRemote() {
 		read -e \
 			-p "confirm git URL for storing profile metadata: " \
 			-i "$defaultOrigin" origin
-		metaGit "$profile" "$system" "remote" "add" "origin" "$origin"
 
 		local newProfileOwner=$($_dirname $origin); newProfileOwner=${newProfileOwner/*[:\/]/} # XXX hack
 		if [ -d "$FLOX_PROFILEMETA/$newProfileOwner" ]; then
@@ -603,6 +602,8 @@ function setGitRemote() {
 			# perform single commit rewriting all URL references to refer to new home of floxmeta repo
 			rewriteURLs "$FLOX_PROFILES/local" "$origin"
 		fi
+
+		metaGit "$profile" "$system" "remote" "add" "origin" "$origin"
 	fi
 
 	# If using github, ensure that user is logged into gh CLI
