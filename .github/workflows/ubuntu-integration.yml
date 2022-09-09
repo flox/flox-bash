@@ -1,0 +1,10 @@
+name: "Ubuntu Focal Integration Test"
+on: pull_request
+jobs:
+  integration-test:
+    runs-on: self-hosted
+    steps:
+    - uses: actions/checkout@v3
+    - name: run default template integration test on remote host
+      run: ./flox-ubuntu-build-integration.sh ${{ github.sha }}
+      working-directory: ${{env.working-directory}}
