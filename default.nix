@@ -66,7 +66,7 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.2${revision}";
+  version = "0.0.3${revision}";
   src = ./.;
   nativeBuildInputs = [ makeWrapper pandoc shfmt which ];
   buildInputs = [
