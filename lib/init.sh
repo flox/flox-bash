@@ -77,8 +77,42 @@ nix_show_config()
 #
 
 # NIX honors ${USER} over the euid, so make them match.
-export USER=$($_id -un)
-export HOME=$($_getent passwd ${USER} | $_cut -d: -f6)
+if _real_user=$($_id -un 2>/dev/null); then
+	if [ "$_real_user" != "$USER" ]; then
+		export USER="$_real_user"
+		if _real_home=$($_getent passwd "$USER" 2>/dev/null | $_cut -d: -f6); then
+			export HOME="$_real_home"
+		else
+			warn "cannot identify home directory for user '$USER'"
+		fi
+	fi
+else
+	# XXX Corporate LDAP environments rely on finding nss_ldap in
+	# XXX ld.so.cache *or* by configuring nscd to perform the LDAP
+	# XXX lookups instead. The Nix version of glibc has been modified
+	# XXX to disable ld.so.cache, so if nscd isn't configured to do
+	# XXX this then ldap access to the passwd map will not work.
+	# XXX Bottom line - don't abort if we cannot find a passwd
+	# XXX entry for the euid, but do warn because it's very
+	# XXX likely to cause problems at some point.
+	warn "cannot determine effective uid - continuing as user '$USER'"
+fi
+if [ -n "$HOME" ]; then
+	[ -w "$HOME" ] || \
+		error "\$HOME directory '$HOME' not writable ... aborting" < /dev/null
+fi
+if [ -n "$XDG_CACHE_HOME" ]; then
+	[ -w "$XDG_CACHE_HOME" ] || \
+		error "\$XDG_CACHE_HOME directory '$XDG_CACHE_HOME' not writable ... aborting" < /dev/null
+fi
+if [ -n "$XDG_DATA_HOME" ]; then
+	[ -w "$XDG_DATA_HOME" ] || \
+		error "\$XDG_DATA_HOME directory '$XDG_DATA_HOME' not writable ... aborting" < /dev/null
+fi
+if [ -n "$XDG_CONFIG_HOME" ]; then
+	[ -w "$XDG_CONFIG_HOME" ] || \
+		error "\$XDG_CONFIG_HOME directory '$XDG_CONFIG_HOME' not writable ... aborting" < /dev/null
+fi
 export PWD=$($_pwd)
 
 # Define and create flox metadata cache, data, and profiles directories.
