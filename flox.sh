@@ -652,62 +652,91 @@ config)
 	exit 0
 	;;
 publish)
+	declare -a binaryCaches=()
 	declare -a subs=()
 	declare -a substituters=()
-	while getopts ":f:a:s:r:" opt; do
+	while getopts ":t:f:a:s:b:r:p:" opt; do
 		case "${opt}" in
-			f) flake="$OPTARG";;
+			t) target="$OPTARG";;
+			f) remote="$OPTARG";;
 			s) subs+=("$OPTARG");;
+			b) binaryCaches+=("$OPTARG");; 
 			a) attrpath="$OPTARG";;
 			r) renderpath="$OPTARG";;
+			p) floxpkgs="$OPTARG";;
 		esac
 	done
-	warn "$defaultSubstituter"
-	warn "Publishing render to $renderpath ..."
 	shift $((OPTIND -1))
-	if [ -z "$subs" ]; then
-		substituters+=("--substituter")
-		substituters+=($defaultSubstituter)
-	else
-		for val in "${subs[@]}"; do
+	for val in "${subs[@]}"; do
 			substituters+=("--substituter")
 			substituters+=($val)
-		done
-	fi
+	done
+
 	if [ -z "$renderpath" ]; then
-		renderpath="./render"
+		renderpath="./catalog"
 		warn "No -r argument supplied, using default $renderpath"
+	fi
+	if [ -z "$remote" ]; then
+		remote="./."
+		warn "No -f argument supplied, using local directory"
+	fi
+	if [ -z "$target" ]; then
+		target="."
+		warn "No -t argument supplied, using local directory"
 	fi
 	warn "Checking build status of this package"
 	#TODO implement flox generate-signing-key command
 	signingSecretKey="$HOME/.config/flox/secret-key"
-	if [ -f "$signingSecretKey" ]; then
-		warn "$signingSecretKey exists."
-		last=${attrpath##*.}
-		$invoke_nix build ".#$last"
-		# TODO for now we work with result
-		# in the future we may need to output --json on nix build
-		# and process the "outputs" array on that data
-		if [ -d "./result" ]
-		then
-			result="./result"
-		fi
-		if [ -d "./result-bin" ]
-		then
-			result="./result-bin"
-		fi
-		#TODO in future iterations, we will clean this up so that make content addressed works
-		# this will involve populating a variable ca_out=$($invoke_nix store make-content-addressed ./result --json | jq .rewrites[])
-		$invoke_nix copy --to s3://flox-store-public $result
-	else
-		error "$signingSecretKey does not exist. please first run flox generate-signing-key"
+	# if [ -f "$signingSecretKey" ]; then
+	# warn "$signingSecretKey exists."
+	# TODO: fix when stability definition changes in capacitor
+	$invoke_nix build "$target#legacyPackages.$attrpath"
+	# TODO for now we work with result
+	# in the future we may need to output --json on nix build
+	# and process the "outputs" array on that data
+	if [ -d "./result" ]
+	then
+		result="./result"
 	fi
+	if [ -d "./result-bin" ]
+	then
+		result="./result-bin"
+	fi
+	#TODO in future iterations, we will clean this up so that make content addressed works
+	# this will involve populating a variable ca_out=$($invoke_nix store make-content-addressed ./result --json | jq .rewrites[])
+	for substituter in "${binaryCaches[@]}"
+	do
+		[[ "$substituter" == "--substituter" ]] && continue
+		$invoke_nix copy --to $substituter $result
+	done
+		 
+	# else
+	# 	error "$signingSecretKey does not exist. please first run flox generate-signing-key"
+	# fi
+
+	if [ ! -z "$floxpkgs" ]; then
+		gitdir=$(mktemp -d)
+		$invoke_gh repo clone "$floxpkgs" "$gitdir"
+	else
+		warn "no remote floxpkgs set, rendering catalog entry locally"
+		gitdir="./"
+	fi
+
 	warn "Publishing render to $renderpath ..."
-	$invoke_nix run "github:flox/catalog-ingest#analyze" "$flake" "$attrpath" --no-write-lock-file --refresh \
+	$invoke_nix run "github:flox/catalog-ingest/fix-analyze#analyze" --no-write-lock-file --refresh -- "$target" "$attrpath" "$remote"  \
 	|	$invoke_nix run "github:flox/floxpkgs#builtfilter" -- "${substituters[@]}" \
-	|	$invoke_nix run "github:flox/catalog-ingest#publish" "$renderpath" --no-write-lock-file
+	|	$invoke_nix run "github:flox/catalog-ingest#publish"  --no-write-lock-file -- "$gitdir$renderpath"
 	warn "Flox Publish completed"
 	$_rm $result
+
+	
+	if [ ! -z "$floxpkgs" ]; then
+		pushd "$gitdir"
+		git add .
+		git commit -m "Update Catalog"
+		git push
+		popd
+	fi
 	;;
 
 help)
