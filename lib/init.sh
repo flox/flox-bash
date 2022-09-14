@@ -220,7 +220,8 @@ else
 fi
 export NIX_REMOTE=${NIX_REMOTE:-daemon}
 export NIX_USER_CONF_FILES="$nixConf"
-export NIX_SSL_CERT_FILE="@@SSL_CERT_FILE@@"
+export SSL_CERT_FILE="${SSL_CERT_FILE:-@@NIXPKGS_CACERT_BUNDLE_CRT@@}"
+export NIX_SSL_CERT_FILE="${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
 
 # Similarly configure git config by way of $GIT_CONFIG_SYSTEM. Note that
 # we do it by way of this env variable because Nix doesn't provide a

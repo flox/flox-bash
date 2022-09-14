@@ -19,7 +19,7 @@ OS := $(shell uname -s | tr A-Z a-z)
 
 CFLAGS = \
 	-DFLOXSH='"$(PREFIX)/libexec/flox/flox"' \
-	-DSSL_CERT_FILE='"$(SSL_CERT_FILE)"'
+	-DNIXPKGS_CACERT_BUNDLE_CRT='"$(NIXPKGS_CACERT_BUNDLE_CRT)"'
 ifeq ($(OS),linux)
   CFLAGS += -DLOCALE_ARCHIVE='"$(LOCALE_ARCHIVE)"'
 endif
@@ -93,7 +93,7 @@ $(PREFIX)/lib/%: lib/%
 	sed \
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
-	  -e 's%@@SSL_CERT_FILE@@%$(SSL_CERT_FILE)%' \
+	  -e 's%@@NIXPKGS_CACERT_BUNDLE_CRT@@%$(NIXPKGS_CACERT_BUNDLE_CRT)%' \
 	  $< > $@
 	$(if $(filter %.sh,$@),$(SHFMT) $@ >/dev/null)
 

@@ -53,7 +53,12 @@ main(int argc, char **argv)
 	char *envVar;
 	envVar = getenv("SSL_CERT_FILE");
 	if (envVar == NULL) {
-		if (setenv("SSL_CERT_FILE", SSL_CERT_FILE, 1) != 0)
+		envVar = NIXPKGS_CACERT_BUNDLE_CRT;
+		if (setenv("SSL_CERT_FILE", envVar, 1) != 0)
+			fatal("setenv");
+	}
+	if (getenv("NIX_SSL_CERT_FILE") == NULL) {
+		if (setenv("NIX_SSL_CERT_FILE", envVar, 1) != 0)
 			fatal("setenv");
 	}
 #ifdef __APPLE__

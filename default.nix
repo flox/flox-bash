@@ -56,7 +56,8 @@ let
     # and borrows liberally from the set of default environment variables
     # set by NixOS, the principal proving ground for Nix packaging efforts.
     export PATH=$FLOX_PATH_PREPEND:$PATH
-    export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+    export SSL_CERT_FILE="''${SSL_CERT_FILE:-${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt}"
+    export NIX_SSL_CERT_FILE="''${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
   '' + lib.optionalString hostPlatform.isLinux ''
     export LOCALE_ARCHIVE="${pkgs.glibcLocales}/lib/locale/locale-archive"
   '' + lib.optionalString hostPlatform.isDarwin ''
@@ -78,7 +79,7 @@ in stdenv.mkDerivation rec {
     "PREFIX=$(out)"
     "VERSION=${version}"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
-    "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+    "NIXPKGS_CACERT_BUNDLE_CRT=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
     "FLOX_PROFILE=${floxProfile}"
   ] ++ lib.optionals hostPlatform.isLinux [
     "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"

@@ -250,6 +250,13 @@ flox install unstable.nixpkgs.hello@2.10
 `$EDITOR`, `$VISUAL`
 :   Override the default editor used for editing environment manifests and commit messages.
 
+`$SSL_CERT_FILE`, `$NIX_SSL_CERT_FILE`
+:   If set, overrides the path to the default flox-provided SSL certificate bundle.
+    Set `NIX_SSL_CERT_FILE` to only override packages built with Nix,
+    and otherwise set `SSL_CERT_FILE` to override the value for all packages.
+
+    See also: https://nixos.org/manual/nix/stable/installation/env-variables.html#nix_ssl_cert_file
+
 <!--
 # EXAMPLES
 
