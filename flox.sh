@@ -684,6 +684,7 @@ publish)
 		target="."
 		warn "No -t argument supplied, using local directory"
 	fi
+	
 	warn "Checking build status of this package"
 	#TODO implement flox generate-signing-key command
 	signingSecretKey="$HOME/.config/flox/secret-key"
@@ -715,7 +716,7 @@ publish)
 	# fi
 
 	if [ ! -z "$floxpkgs" ]; then
-		gitdir=$(mktemp -d)
+		gitdir="$(mktemp -d)/"
 		$invoke_gh repo clone "$floxpkgs" "$gitdir"
 	else
 		warn "no remote floxpkgs set, rendering catalog entry locally"
