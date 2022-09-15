@@ -871,7 +871,7 @@ function updateFloxFlakeRegistry() {
 	tmpFloxFlakeRegistry=$($_mktemp --dry-run --tmpdir=$FLOX_CONFIG_HOME)
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry floxpkgs $defaultFlake
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs github:flox/nixpkgs/${FLOX_STABILITY:-stable}
-	minverbosity=2 . <(registry $floxUserMeta 1 get channels | jq -r '
+	minverbosity=2 . <(registry $floxUserMeta 1 get channels | $_jq -r '
 	  to_entries | sort_by(.key) | map(
 	    "$invoke_nix registry add --registry $tmpFloxFlakeRegistry \(.key) \(.value)"
 	  )[]

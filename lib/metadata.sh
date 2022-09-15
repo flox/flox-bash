@@ -911,7 +911,7 @@ function unsubscribeFlake() {
 function listChannels() {
 	trace "$@"
 	printf "floxpkgs\t%s\n" $(registry $floxUserMeta 1 get defaultFlake)
-	registry $floxUserMeta 1 get channels | jq -r '
+	registry $floxUserMeta 1 get channels | $_jq -r '
 	  to_entries | sort_by(.key) | map(
 	    "\(.key)\t\(.value)"
 	  )[]
