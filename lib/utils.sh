@@ -865,4 +865,22 @@ function validateFlakeURL() {
 	fi
 }
 
+function updateFloxFlakeRegistry() {
+	# Populate user-specific flake registry.
+	# Note: avoids problems to let nix create the temporary file.
+	tmpFloxFlakeRegistry=$($_mktemp --dry-run --tmpdir=$FLOX_CONFIG_HOME)
+	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry floxpkgs $defaultFlake
+	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs github:flox/nixpkgs/${FLOX_STABILITY:-stable}
+	minverbosity=2 . <(registry $floxUserMeta 1 get channels | jq -r '
+	  to_entries | sort_by(.key) | map(
+	    "$invoke_nix registry add --registry $tmpFloxFlakeRegistry \(.key) \(.value)"
+	  )[]
+	')
+	if $_cmp --quiet $tmpFloxFlakeRegistry $floxFlakeRegistry; then
+		$_rm $tmpFloxFlakeRegistry
+	else
+		$_mv -f $tmpFloxFlakeRegistry $floxFlakeRegistry
+	fi
+}
+
 # vim:ts=4:noet:syntax=bash

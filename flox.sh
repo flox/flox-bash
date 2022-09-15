@@ -109,7 +109,7 @@ if [ "$subcommand" = "rm" ]; then
 fi
 
 # Store the original invocation arguments.
-invocation_args="$@"
+declare -a invocation_args=($@)
 
 # Flox profile path(s).
 declare -a profiles=()
@@ -653,6 +653,31 @@ config)
 		$_jq -r 'del(.version) | to_entries | map("\(.key) = \"\(.value)\"") | .[]'
 	exit 0
 	;;
+
+subscribe)
+	if [ ${#invocation_args[@]} -gt 2 ]; then
+		usage | error "extra arguments provided to \"$subcommand\""
+	fi
+	subscribeFlake ${invocation_args[@]}
+	exit 0
+	;;
+
+unsubscribe)
+	if [ ${#invocation_args[@]} -gt 1 ]; then
+		usage | error "extra arguments provided to \"$subcommand\""
+	fi
+	unsubscribeFlake ${invocation_args[@]}
+	exit 0
+	;;
+
+channels | list-channels)
+	if [ ${#invocation_args[@]} -gt 0 ]; then
+		usage | error "extra arguments provided to \"$subcommand\""
+	fi
+	listChannels
+	exit 0
+	;;
+
 publish)
 	declare -a binaryCaches=()
 	declare -a subs=()
@@ -686,7 +711,7 @@ publish)
 		target="."
 		warn "No -t argument supplied, using local directory"
 	fi
-	
+
 	warn "Checking build status of this package"
 	#TODO implement flox generate-signing-key command
 	signingSecretKey="$HOME/.config/flox/secret-key"
@@ -712,7 +737,7 @@ publish)
 		[[ "$substituter" == "--substituter" ]] && continue
 		$invoke_nix copy --to $substituter $result
 	done
-		 
+
 	# else
 	# 	error "$signingSecretKey does not exist. please first run flox generate-signing-key"
 	# fi
@@ -732,7 +757,6 @@ publish)
 	warn "Flox Publish completed"
 	$_rm $result
 
-	
 	if [ ! -z "$floxpkgs" ]; then
 		pushd "$gitdir"
 		git add .

@@ -67,8 +67,19 @@ runtime environments, developer environments, and administration.
 
 **search** `<name>` [ --refresh ]
 :   Search for available packages matching name.
-    The list of available packages is updated hourly, but if required
+    The cache of available packages is updated hourly, but if required
     you can invoke with `--refresh` to update the list before searching.
+
+**subscribe** `<name>` [ `<url>` ]
+:   Subscribe to a channel for package searches.
+    If provided, will register the name to the provided URL,
+    and will otherwise prompt with a suggested value.
+
+**unsubscribe** `<name>`
+:   Unsubscribe from the named channel.
+
+**channels**
+:   List channel subscriptions.
 
 ## Runtime environments
 

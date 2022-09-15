@@ -871,4 +871,51 @@ function destroyProfile() {
 	fi
 }
 
+function subscribeFlake() {
+	trace "$@"
+	local flakeName
+	if [ $# -gt 0 ]; then
+		flakeName="$1"; shift
+	else
+		read -e -p "Enter channel name to be added: " flakeName
+	fi
+	local flakeUrl
+	if [ $# -gt 0 ]; then
+		flakeUrl="$1"; shift
+		validateFlakeURL $flakeUrl || \
+			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
+		registry $floxUserMeta 1 set channels "$flakeName" "$flakeUrl"
+	else
+		flakeUrl=$(registry $floxUserMeta 1 getPromptSet \
+			"Enter URL for '$flakeName' channel: " \
+			$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master) \
+			channels "$flakeName")
+		validateFlakeURL $flakeUrl || {
+			registry $floxUserMeta 1 delete channels "$flakeName"
+			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
+		}
+	fi
+}
+
+function unsubscribeFlake() {
+	trace "$@"
+	local flakeName
+	if [ $# -gt 0 ]; then
+		flakeName="$1"; shift
+	else
+		read -e -p "Enter channel name to be removed: " flakeName
+	fi
+	registry $floxUserMeta 1 delete channels "$flakeName"
+}
+
+function listChannels() {
+	trace "$@"
+	printf "floxpkgs\t%s\n" $(registry $floxUserMeta 1 get defaultFlake)
+	registry $floxUserMeta 1 get channels | jq -r '
+	  to_entries | sort_by(.key) | map(
+	    "\(.key)\t\(.value)"
+	  )[]
+	'
+}
+
 # vim:ts=4:noet:syntax=bash
