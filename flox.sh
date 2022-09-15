@@ -463,7 +463,7 @@ EOF
 		profileName=$($_basename $profile)
 		profileOwner=$($_basename $($_dirname $profile))
 		profileMetaDir="$FLOX_META/$profileOwner"
-		githubHelperGit -C $profileMetaDir ${invocation_args[@]}
+		githubHelperGit -C $profileMetaDir ${args[@]}
 		;;
 
 	push | pull)
