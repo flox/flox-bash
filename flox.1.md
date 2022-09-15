@@ -169,8 +169,17 @@ runtime environments, developer environments, and administration.
 
 ## Administration
 
-**config** [ (--list|-l) ]
+**config** [ (--list|-l) (--confirm|-c) (--reset|-r) ]
 :   Configure and/or display user-specific parameters.
+
+    With the `(--list|-l)` flag will list the current values of all
+    configurable parameters.
+
+    With the `(--confirm|-c)` flag will prompt the user to confirm or update
+    configurable parameters.
+
+    With the `(--reset|-r)` flag will reset all configurable parameters
+    to their default values without further confirmation.
 
 **git** `<git-subcommand>` [ `<args>` ]
 :   Direct access to git command invoked in the `floxmeta` repository clone.

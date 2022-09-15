@@ -1,6 +1,5 @@
 # Boolean to track whether this is the initial bootstrap.
 declare -i _initial_bootstrap=0
-[ -f $floxUserMeta ] || _initial_bootstrap=1
 
 declare -i _greeted=0
 function initialGreeting {
@@ -57,54 +56,67 @@ EOF
 	fi
 }
 
-#
-# bootstrap main()
-#
-if [ -t 1 ]; then
-
-	# Bootstrap the personal metadata to track the user's default github
-	# baseURL, organization, username, "base" flake, etc.
-	# This is an MVP stream-of-consciousness thing at the moment; can
-	# definitely be improved upon.
-
-	gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL) || {
-		gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
-		registry $floxUserMeta 1 set gitBaseURL "$gitBaseURL"
-	}
-	organization=$(registry $floxUserMeta 1 get organization) || {
-		organization="$FLOX_CONF_floxpkgs_organization"
-		registry $floxUserMeta 1 set organization "$organization"
-	}
-	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake) || {
-		defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
-		validateFlakeURL $defaultFlake || \
-			error "could not verify defaultFlake URL: \"$defaultFlake\"" < /dev/null
-		registry $floxUserMeta 1 set defaultFlake "$defaultFlake"
-	}
-	defaultSubstituter=$(registry $floxUserMeta 1 get defaultSubstituter) || {
-	  defaultSubstituter="$FLOX_CONF_floxpkgs_defaultSubstituter"
-	  registry $floxUserMeta 1 set defaultSubstituter "$defaultSubstituter"
-	}
+# Bootstrap the personal metadata to track the user's default github
+# baseURL, organization, username, "base" flake, etc.
+# This is an MVP stream-of-consciousness thing at the moment; can
+# definitely be improved upon.
+function bootstrap() {
+	[ -f $floxUserMeta ] || _initial_bootstrap=1
+	if [ -t 1 ]; then
+		# Interactive mode
+		gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL) || {
+			gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
+			registry $floxUserMeta 1 set gitBaseURL "$gitBaseURL"
+		}
+		organization=$(registry $floxUserMeta 1 get organization) || {
+			organization="$FLOX_CONF_floxpkgs_organization"
+			registry $floxUserMeta 1 set organization "$organization"
+		}
+		_previous=$(registry $floxUserMeta 1 get defaultFlake || true)
+		if [ -n "$_previous" ]; then
+			defaultFlake="$_previous"
+		else
+			defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
+		fi
+		if [ $getPromptSetConfirm -gt 0 ]; then
+			defaultFlake=$(registry $floxUserMeta 1 getPromptSet \
+				"Default floxpkgs repository: " "$defaultFlake" defaultFlake)
+		else
+			registry $floxUserMeta 1 set defaultFlake "$defaultFlake"
+		fi
+		if [ "$_previous" != "$defaultFlake" ]; then
+			validateFlakeURL $defaultFlake || {
+				registry $floxUserMeta 1 delete defaultFlake
+				error "could not verify defaultFlake URL: \"$defaultFlake\"" < /dev/null
+			}
+		fi
+		defaultSubstituter=$(registry $floxUserMeta 1 get defaultSubstituter) || {
+		  defaultSubstituter="$FLOX_CONF_floxpkgs_defaultSubstituter"
+		  registry $floxUserMeta 1 set defaultSubstituter "$defaultSubstituter"
+		}
 
 if false; then # XXX
-	# Set the user's local git config user.{name,email} attributes.
-	[ $_initial_bootstrap -eq 0 ] || checkGitConfig
+		# Set the user's local git config user.{name,email} attributes.
+		[ $_initial_bootstrap -eq 0 ] || checkGitConfig
 fi # XXX
 
-else
+	else
 
-	#
-	# Non-interactive mode. Use all defaults if not found in registry.
-	#
-	gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL || \
-		echo "$FLOX_CONF_floxpkgs_gitBaseURL")
-	organization=$(registry $floxUserMeta 1 get organization || \
-		echo "$FLOX_CONF_floxpkgs_organization")
-	defaultFlake=$(registry $floxUserMeta 1 get defaultFlake || \
-		gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
-	defaultSubstituter=$(registry $floxUserMeta 1 get defaultSubstituter || \
-		echo "$FLOX_CONF_floxpkgs_defaultSubstituter")
+		#
+		# Non-interactive mode. Use all defaults if not found in registry.
+		#
+		gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL || \
+			echo "$FLOX_CONF_floxpkgs_gitBaseURL")
+		organization=$(registry $floxUserMeta 1 get organization || \
+			echo "$FLOX_CONF_floxpkgs_organization")
+		defaultFlake=$(registry $floxUserMeta 1 get defaultFlake || \
+			gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
+		defaultSubstituter=$(registry $floxUserMeta 1 get defaultSubstituter || \
+			echo "$FLOX_CONF_floxpkgs_defaultSubstituter")
 
-fi
+	fi
+}
+
+bootstrap
 
 # vim:ts=4:noet:syntax=bash

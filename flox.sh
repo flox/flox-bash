@@ -632,19 +632,21 @@ config)
 			configResetMode=1
 			shift
 			;;
+		--confirm|-c)
+			getPromptSetConfirm=1
+			shift
+			;;
 		*)
 			usage | error "unexpected argument \"$arg\" passed to \"$subcommand\""
 			;;
 		esac
 	done
-	if [ $configResetMode -eq 1 ]; then
-		# Easiest way to reset is to simply remove the $floxUserMeta file.
-		$invoke_rm -f $floxUserMeta
-	fi
 	if [ $configListMode -eq 0 ]; then
-		# Re-run bootstrap with getPromptSetConfirm=1
-		getPromptSetConfirm=1
-		. $_lib/bootstrap.sh
+		if [ $configResetMode -eq 1 ]; then
+			# Easiest way to reset is to simply remove the $floxUserMeta file.
+			$invoke_rm -f $floxUserMeta
+		fi
+		bootstrap
 	fi
 	# Finish by listing values.
 	registry $floxUserMeta 1 dump |
