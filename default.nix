@@ -21,6 +21,7 @@ let
     man
     nixUnstable
     pandoc
+    parallel
     shfmt
     util-linuxMinimal
     which
@@ -73,7 +74,7 @@ in stdenv.mkDerivation rec {
   buildInputs = [
     ansifilter bashInteractive coreutils dasel diffutils
     findutils gawk getent git gh gnugrep gnused gzip jq
-    man nixPatched util-linuxMinimal
+    man nixPatched parallel util-linuxMinimal
   ];
   makeFlags = [
     "PREFIX=$(out)"

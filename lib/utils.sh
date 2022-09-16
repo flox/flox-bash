@@ -110,8 +110,8 @@ function hash_commands() {
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands \
 	ansifilter awk basename bash cat chmod cmp column cp cut dasel date dirname \
-	id jq getent gh git grep ln man mkdir mktemp mv nix nix-store pwd readlink \
-	realpath rm rmdir sed sh sort stat tail touch tr xargs zgrep
+	id jq getent gh git grep ln man mkdir mktemp mv nix nix-store parallel pwd \
+	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr xargs zgrep
 
 # Return full path of first command available in PATH.
 #
@@ -865,8 +865,8 @@ function validateFlakeURL() {
 	fi
 }
 
+# Populate user-specific flake registry.
 function updateFloxFlakeRegistry() {
-	# Populate user-specific flake registry.
 	# Note: avoids problems to let nix create the temporary file.
 	tmpFloxFlakeRegistry=$($_mktemp --dry-run --tmpdir=$FLOX_CONFIG_HOME)
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry floxpkgs $defaultFlake
@@ -881,6 +881,40 @@ function updateFloxFlakeRegistry() {
 	else
 		$_mv -f $tmpFloxFlakeRegistry $floxFlakeRegistry
 	fi
+}
+
+#
+# searchChannels($regexp)
+#
+function searchChannels() {
+	trace "$@"
+	local regexp="$1"; shift
+	local refreshArg=$1; shift
+	local verboseArg=""
+	[ $verbose -eq 0 ] || verboseArg="--verbose"
+
+	local -a channels=("floxpkgs")
+	channels+=($(registry $floxUserMeta 1 get channels | $_jq -r 'keys[]'))
+
+	# TODO: write our own parallel runner, or better yet port the CLI to a
+	# real language.
+	local _stdout=$(mktemp)
+	local _stderr=$(mktemp)
+	$invoke_parallel --no-notice $verboseArg \
+		$_nix search --json "flake:{}#$catalogSearchAttrPathPrefix" \'"$packageregexp"\' $refreshArg \
+		::: ${channels[@]} > $_stdout 2> $_stderr &
+	local -i _pid=$!
+	local -a spin=("-" "\\" "|" "/")
+	while kill -0 $_pid 2>/dev/null; do
+		for i in "${spin[@]}"; do
+			echo -ne "\b$i" 1>&2
+			$_sleep 0.1
+		done
+	done
+	echo -ne "\r \r" 1>&2
+	$_grep -v "^evaluating 'catalog\." $_stderr 1>&2 || $_rm -f $_stderr
+	$_cat $_stdout
+	$_rm -f $_stdout $_stderr
 }
 
 # vim:ts=4:noet:syntax=bash

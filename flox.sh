@@ -533,7 +533,7 @@ init)
 packages|search)
 	packageregexp=
 	declare -i jsonOutput=0
-	searchCmd="search"
+	declare refreshArg
 	for arg in "$@"; do
 		case "$arg" in
 		--show-libs)
@@ -545,7 +545,7 @@ packages|search)
 			shift
 			;;
 		--refresh)
-			searchCmd="search --refresh"
+			refreshArg="--refresh"
 			shift
 			;;
 		--json)
@@ -580,7 +580,7 @@ packages|search)
 		export GREP_COLOR='1;32'
 	fi
 	if [ $jsonOutput -gt 0 ]; then
-		cmd=($invoke_nix $searchCmd --json "flake:floxpkgs#$catalogSearchAttrPathPrefix" "$packageregexp")
+		cmd=(searchChannels "$packageregexp" "$refreshArg")
 	else
 		# Use grep to highlight text matches, but also include all the lines
 		# around the matches by using the `-C` context flag with a big number.
@@ -588,7 +588,7 @@ packages|search)
 		# supports the `--keep-empty-lines` option is not available on Darwin,
 		# so we instead embed a line with "---" between groupings and then use
 		# `sed` below to replace it with a blank line.
-		$invoke_nix $searchCmd --json "flake:floxpkgs#$catalogSearchAttrPathPrefix" "$packageregexp" | \
+		searchChannels "$packageregexp" "$refreshArg" | \
 			$_jq -r -f "$_lib/search.jq" | $_column -t -s "|" | $_sed 's/^---$//' | \
 			$_grep -C 1000000 --ignore-case --color -E "$packageregexp"
 	fi
@@ -687,7 +687,7 @@ publish)
 			t) target="$OPTARG";;
 			f) remote="$OPTARG";;
 			s) subs+=("$OPTARG");;
-			b) binaryCaches+=("$OPTARG");; 
+			b) binaryCaches+=("$OPTARG");;
 			a) attrpath="$OPTARG";;
 			r) renderpath="$OPTARG";;
 			p) floxpkgs="$OPTARG";;
