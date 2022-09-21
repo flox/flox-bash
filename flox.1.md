@@ -52,7 +52,7 @@ More in-depth information is available by way of the [flox User's Manual](https:
 
 ## Environment options
 
-The following option is supported by all runtime environment subcommands:
+The following option is supported by all flox environment-related commands:
 
 -e `<name>`, \--environment `<name>`
 :   Selects **flox environment** to be modified or used. If not provided then
@@ -65,21 +65,27 @@ runtime environments, developer environments, and administration.
 
 ## Packages
 
-**search** `<name>` [ --refresh ]
-:   Search for available packages matching name.
-    The cache of available packages is updated hourly, but if required
-    you can invoke with `--refresh` to update the list before searching.
-
-**subscribe** `<name>` [ `<url>` ]
-:   Subscribe to a channel for package searches.
-    If provided, will register the name to the provided URL,
-    and will otherwise prompt with a suggested value.
-
-**unsubscribe** `<name>`
-:   Unsubscribe from the named channel.
-
 **channels**
 :   List channel subscriptions.
+
+**subscribe** [ `<name>` [ `<url>` ] ]
+:   Subscribe to a flox package channel.
+    If provided, will register the name to the provided URL,
+    and will otherwise prompt with suggested values.
+
+**unsubscribe** [ `<name>` ]
+:   Unsubscribe from the named channel.
+    Will prompt for the channel name if not provided.
+
+**search** `<name>` [ (-c|\--channel) `<channel>` ] [ \--refresh ]
+:   Search for available packages matching name.
+
+    All channels are searched by default, but if provided
+    the `(-c|--channel)` argument can be called multiple times
+    to specify the channel(s) to be searched.
+
+    The cache of available packages is updated hourly, but if required
+    you can invoke with `--refresh` to update the list before searching.
 
 ## Runtime environments
 
@@ -117,8 +123,8 @@ runtime environments, developer environments, and administration.
     format including only the subject line for history log entries.
 
 **activate**
-:   The "activate" subcommand adds environment `bin` directories to your
-    `$PATH` environment variable and can be invoked from an interactive
+:   Sets environment variables and aliases, runs hooks and adds environment
+    `bin` directories to your `$PATH`. Can be invoked from an interactive
     terminal to launch a sub-shell, non-interactively to produce
     a series of commands to be sourced by your current `$SHELL`,
     or with a command and arguments to be invoked directly.
@@ -133,12 +139,12 @@ runtime environments, developer environments, and administration.
 
     - activate "foo" and "default" flox environments in a new subshell
     ```
-    flox activate -p foo
+    flox activate -e foo
     ```
 
     - invoke command using "foo" and "default" flox environments
     ```
-    flox activate -p foo -- cmd --cmdflag cmdflagarg cmdarg
+    flox activate -e foo -- cmd --cmdflag cmdflagarg cmdarg
     ```
 
 **push** / **pull** [ \--force ]
@@ -163,20 +169,26 @@ runtime environments, developer environments, and administration.
 :   Launch subshell configured for development environment using the
     `flox.toml` or Nix expression file as found in the current directory.
 
-**publish** [ (-f|-s|-a|-r) ]
-:   The `flox publish` command will perform a build, copy to cache substituter,
-    and render of flox catalog data to the local repository for future use by
-    flox. Command flags `-f` resolves to the flake url, multiple `-s` arguments
-    may be submitted for substituters, `-a` denotes the attribute path, and `-r`
-    specifies the directory to write the render to.
 
-    - invoking command example
-    ```
-    flox publish -f github:flox/floxpkgs \
-    -a x86_64-linux.stable.curl \
-    -s https://flox-store-public.s3.us-east-1.amazonaws.com?trusted=1 \
-    -r ./render
-    ```
+**publish** [ \--publish-to `<dest>` ] [ \--copy-to `<store-uri>` ] [ \--copy-from `<store-uri>` ] [ \--render-path `<dir>` ] [ \--key-file `<file>` ]
+:   Perform a build, (optionally) copy to cache substituter,
+    and render package metadata for inclusion in the flox catalog.
+
+    With the `--publish-to` argument, commits and writes metadata to
+    the URL or path of a git repository, or with the "-" argument
+    will write the publish metadata to stdout.
+
+    With the `--copy-to` argument, copies the package closure to the
+    provided URL. Conversely, the `--copy-from` argument embeds within
+    the package metadata the URL intended for use as a binary substituter
+    on the client side.
+
+    `--render-path` sets the directory name for rendering the catalog
+    data within the catalog repository and `--key-file` is used for
+    identifying the path to the private key to be used in signing
+    packages before analysis and upload.
+
+    When invoked with no arguments, will prompt the user for the desired values.
 
 ## Administration
 

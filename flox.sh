@@ -109,7 +109,7 @@ if [ "$subcommand" = "rm" ]; then
 fi
 
 # Store the original invocation arguments.
-declare -a invocation_args=($@)
+declare -a invocation_args=("$@")
 
 # Flox profile path(s).
 declare -a profiles=()
@@ -272,7 +272,7 @@ activate | history | install | list | remove | rollback | \
 			# Infer floxpkg name(s) from floxpkgs flakerefs.
 			for pkgArg in ${pkgArgs[@]}; do
 				case "$pkgArg" in
-				${floxpkgsUri}*)
+				flake:*\#)
 					# Look up floxpkg name from flox flake prefix.
 					pkgNames+=($(manifest $profile/manifest.json flakerefToFloxpkg "$pkgArg")) ||
 						error "failed to look up floxpkg reference for flake \"$pkgArg\"" </dev/null
@@ -485,6 +485,25 @@ EOF
 	esac
 	;;
 
+# Flox commands which derive an attribute path from the current directory.
+build | develop | publish | shell)
+	case "$subcommand" in
+	build)
+		floxBuild "$@"
+		;;
+	develop)
+		floxDevelop "$@"
+		;;
+	publish)
+		floxPublish "$@"
+		;;
+	shell)
+		floxShell "$@"
+		;;
+	esac
+	exit 0 # XXX remove with refactor
+	;;
+
 # The profiles subcommand takes no arguments.
 envs | environments | profiles)
 	listProfiles "$NIX_CONFIG_system"
@@ -508,34 +527,27 @@ diff-closures)
 	cmd=($invoke_nix "$subcommand" "${opts[@]}" "${args[@]}")
 	;;
 
-build)
-	cmd=($invoke_nix "$subcommand" "$@" --impure)
-	;;
-
-develop)
-    #TODO eventually we will only add --impure when using fake derivation.
-	cmd=($invoke_nix "$subcommand" "$@" --impure)
-	;;
-
 gh)
 	cmd=($invoke_gh "$@")
 	;;
 
 init)
-	if [ -z "$FLOXDEMO" ]; then
-		choice=$(promptTemplate)
-	else
-		choice="python-black"
-	fi
-	cmd=($invoke_nix flake init --template "floxpkgs#templates.$choice" "$@")
+	floxInit "$@"
+	exit 0 # XXX remove with refactor
 	;;
 
 packages|search)
 	packageregexp=
 	declare -i jsonOutput=0
 	declare refreshArg
-	for arg in "$@"; do
-		case "$arg" in
+	declare -a channels=()
+	while test $# -gt 0; do
+		case "$1" in
+		-c | --channel)
+			shift
+			channels+=("$1")
+			shift
+			;;
 		--show-libs)
 			# Not yet supported; will implement when catalog has hasBin|hasMan.
 			shift
@@ -555,10 +567,10 @@ packages|search)
 		*)
 			if [ "$subcommand" = "packages" ]; then
 				# Expecting a channel name (and optionally a jobset).
-				packageregexp="^$arg\."
+				packageregexp="^$1\."
 			elif [ -z "$packageregexp" ]; then
 				# Expecting a package name (or part of a package name)
-				packageregexp="$arg"
+				packageregexp="$1"
 				# In the event that someone has passed a space or "|"-separated
 				# search term (thank you Eelco :-\), turn that into an equivalent
 				# regexp.
@@ -580,7 +592,7 @@ packages|search)
 		export GREP_COLOR='1;32'
 	fi
 	if [ $jsonOutput -gt 0 ]; then
-		cmd=(searchChannels "$packageregexp" "$refreshArg")
+		cmd=(searchChannels "$packageregexp" ${channels[@]} $refreshArg)
 	else
 		# Use grep to highlight text matches, but also include all the lines
 		# around the matches by using the `-C` context flag with a big number.
@@ -588,7 +600,7 @@ packages|search)
 		# supports the `--keep-empty-lines` option is not available on Darwin,
 		# so we instead embed a line with "---" between groupings and then use
 		# `sed` below to replace it with a blank line.
-		searchChannels "$packageregexp" "$refreshArg" | \
+		searchChannels "$packageregexp" ${channels[@]} $refreshArg | \
 			$_jq -r -f "$_lib/search.jq" | $_column -t -s "|" | $_sed 's/^---$//' | \
 			$_grep -C 1000000 --ignore-case --color -E "$packageregexp"
 	fi
@@ -602,11 +614,9 @@ nixpackages)
 	;;
 
 builds)
-		$_nix eval "$floxpkgsUri#cachedPackages.${NIX_CONFIG_system}.$1"  --json --impure --apply 'builtins.mapAttrs (_k: v: v.meta )'  | $_jq -r '["Build Date","Name/Version","Description","Package Ref"], ["-----------","------------","-----------","-------"], ([.[]] | sort_by(.revision_epoch) |.[] |  [(.revision_epoch|(strftime("%Y-%m-%d"))), .name, .description, .flakeref]) | @tsv' | $_column -ts "$(printf '\t')"
-	;;
-
-shell)
-	cmd=($invoke_nix "$subcommand" "$@")
+		# XXX FIXME adapt to new separate flake per channel
+		error "not implemented" </dev/null
+		$_nix eval "flake:$floxpkgsUrl#cachedPackages.${NIX_CONFIG_system}.$1"  --json --impure --apply 'builtins.mapAttrs (_k: v: v.meta )'  | $_jq -r '["Build Date","Name/Version","Description","Package Ref"], ["-----------","------------","-----------","-------"], ([.[]] | sort_by(.revision_epoch) |.[] |  [(.revision_epoch|(strftime("%Y-%m-%d"))), .name, .description, .flakeref]) | @tsv' | $_column -ts "$(printf '\t')"
 	;;
 
 # Special "cut-thru" mode to invoke Nix directly.
@@ -676,94 +686,6 @@ channels | list-channels)
 	fi
 	listChannels
 	exit 0
-	;;
-
-publish)
-	declare -a binaryCaches=()
-	declare -a subs=()
-	declare -a substituters=()
-	while getopts ":t:f:a:s:b:r:p:" opt; do
-		case "${opt}" in
-			t) target="$OPTARG";;
-			f) remote="$OPTARG";;
-			s) subs+=("$OPTARG");;
-			b) binaryCaches+=("$OPTARG");;
-			a) attrpath="$OPTARG";;
-			r) renderpath="$OPTARG";;
-			p) floxpkgs="$OPTARG";;
-		esac
-	done
-	shift $((OPTIND -1))
-	for val in "${subs[@]}"; do
-			substituters+=("--substituter")
-			substituters+=($val)
-	done
-
-	if [ -z "$renderpath" ]; then
-		renderpath="./catalog"
-		warn "No -r argument supplied, using default $renderpath"
-	fi
-	if [ -z "$remote" ]; then
-		remote="./."
-		warn "No -f argument supplied, using local directory"
-	fi
-	if [ -z "$target" ]; then
-		target="."
-		warn "No -t argument supplied, using local directory"
-	fi
-
-	warn "Checking build status of this package"
-	#TODO implement flox generate-signing-key command
-	signingSecretKey="$HOME/.config/flox/secret-key"
-	# if [ -f "$signingSecretKey" ]; then
-	# warn "$signingSecretKey exists."
-	# TODO: fix when stability definition changes in capacitor
-	$invoke_nix build "$target#legacyPackages.$attrpath"
-	# TODO for now we work with result
-	# in the future we may need to output --json on nix build
-	# and process the "outputs" array on that data
-	if [ -d "./result" ]
-	then
-		result="./result"
-	fi
-	if [ -d "./result-bin" ]
-	then
-		result="./result-bin"
-	fi
-	#TODO in future iterations, we will clean this up so that make content addressed works
-	# this will involve populating a variable ca_out=$($invoke_nix store make-content-addressed ./result --json | jq .rewrites[])
-	for substituter in "${binaryCaches[@]}"
-	do
-		[[ "$substituter" == "--substituter" ]] && continue
-		$invoke_nix copy --to $substituter $result
-	done
-
-	# else
-	# 	error "$signingSecretKey does not exist. please first run flox generate-signing-key"
-	# fi
-
-	if [ ! -z "$floxpkgs" ]; then
-		gitdir="$(mktemp -d)/"
-		$invoke_gh repo clone "$floxpkgs" "$gitdir"
-	else
-		warn "no remote floxpkgs set, rendering catalog entry locally"
-		gitdir="./"
-	fi
-
-	warn "Publishing render to $renderpath ..."
-	$invoke_nix run "github:flox/catalog-ingest/fix-analyze#analyze" --no-write-lock-file --refresh -- "$target" "$attrpath" "$remote"  \
-	|	$invoke_nix run "github:flox/floxpkgs#builtfilter" -- "${substituters[@]}" \
-	|	$invoke_nix run "github:flox/catalog-ingest#publish"  --no-write-lock-file -- "$gitdir$renderpath"
-	warn "Flox Publish completed"
-	$_rm $result
-
-	if [ ! -z "$floxpkgs" ]; then
-		pushd "$gitdir"
-		git add .
-		git commit -m "Update Catalog"
-		git push
-		popd
-	fi
 	;;
 
 help)

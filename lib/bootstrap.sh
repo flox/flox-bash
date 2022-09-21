@@ -76,7 +76,8 @@ function bootstrap() {
 		if [ -n "$_previous" ]; then
 			defaultFlake="$_previous"
 		else
-			defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
+			# Temporary: squash commit tng branch to main for open beta
+			defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs tng)
 		fi
 		if [ $getPromptSetConfirm -gt 0 ]; then
 			defaultFlake=$(registry $floxUserMeta 1 getPromptSet \

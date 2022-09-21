@@ -13,6 +13,7 @@ let
     gh
     gnugrep
     gnused
+    gum
     gzip
     hostPlatform
     jq
@@ -68,12 +69,12 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.3${revision}";
+  version = "0.0.4${revision}";
   src = ./.;
   nativeBuildInputs = [ makeWrapper pandoc shfmt which ];
   buildInputs = [
     ansifilter bashInteractive coreutils dasel diffutils
-    findutils gawk getent git gh gnugrep gnused gzip jq
+    findutils gawk getent git gh gnugrep gnused gum gzip jq
     man nixPatched parallel util-linuxMinimal
   ];
   makeFlags = [

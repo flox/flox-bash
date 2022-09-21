@@ -8,10 +8,6 @@
 #
 
 # Start by defining some constants.
-
-# String to be prepended to flox flake uri.
-"flake:floxpkgs" as $floxpkgsUri # making explicit for debugging
-|
 $ARGS.positional[0] as $function
 |
 $ARGS.positional[1:] as $funcargs
@@ -39,61 +35,88 @@ def expectedArgs(count; args):
 # Functions which convert between flakeref and floxpkg tuple elements.
 #
 # floxpkg: <stability>.<channel>.<pkgname> (fully-qualified)
-# flake:floxpkgs#evalCatalog.<system>.<stability>.<channel>.<pkgname>
+# flake:<channel>#evalCatalog.<system>.<stability>.<pkgname>
 #
 # Sample element:
 # {
 #   "active": true,
-#   "attrPath": "$catalogEvalAttrPathPrefix.nixpkgs.stable.vim",
-#   "originalUrl": "flake:floxpkgs",
+#   "attrPath": "$catalogEvalAttrPathPrefix.stable.vim",
+#   "originalUrl": "flake:nixpkgs",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
 #   ],
-#   "url": "github:flox-examples/companypkgs/ef23087ad88d59f0c0bc0f05de65577009c0c676",
+#   "url": "github:flox/nixpkgs-flox/ef23087ad88d59f0c0bc0f05de65577009c0c676",
 #   "position": 3
 # }
 #
 #
 
-# Convert flake attrPath to floxpkgs <stability>.<channel>.<name> triple.
-def attrPathToFloxpkg(arg):
-  if (arg | startswith("legacyPackages.\($system).catalog.")) then
-    # legacyPackages.<system>.<channel>.<stability>.<name> format retired 6/30/22
-    arg | ltrimstr("legacyPackages.\($system).catalog.")
-    | split(".")
-    | .[0] as $channel
-    | .[1] as $stability
-    | (.[2:] | join(".")) as $attrPath
-    | "\($stability).\($channel).\($attrPath)"
-  elif (arg | startswith("legacyPackages.\($system).")) then
-    # legacyPackages.<system>.<stability>.<channel>.<name> format retired 8/30/22
-    arg | ltrimstr("legacyPackages.\($system).")
+def floxpkgToFlakeref(args): expectedArgs(1; args) |
+  args[0] as $floxpkg |
+  ( $floxpkg | split(".") ) as $floxpkgArray |
+  $floxpkgArray[0] as $stability |
+  $floxpkgArray[1] as $channel |
+  ( $floxpkgArray[2:] | join(".") ) as $attrPath |
+  "flake:\($channel)#\($catalogEvalAttrPathPrefix).\($stability).\($attrPath)";
+
+def flakerefToFloxpkg(args): expectedArgs(1; args) |
+  args[0] as $flakeref |
+  ( $flakeref | split("#") | .[0] ) as $flakeOriginalUrl |
+  ( $flakeref | split("#") | .[1] ) as $flakeAttrPath |
+  ( $flakeAttrPath | split(".") ) as $flakeAttrPathArray |
+  ( $flakeOriginalUrl | ltrimstr("flake:") ) as $channel |
+  if ($channel == "floxpkgs") then
+    # legacy "one flake" access to catalog retired 9/17/22.
+    if ($flakeAttrPath | startswith("legacyPackages.\($system).catalog.")) then (
+      # legacyPackages.<system>.catalog.<channel>.<stability>.<name> format retired 6/30/22
+      $flakeAttrPathArray[3] as $channel |
+      $flakeAttrPathArray[4] as $stability |
+      ( $flakeAttrPathArray[5:] | join(".") ) as $attrPath |
+      "\($stability).\($channel).\($attrPath)"
+    ) elif ($flakeAttrPath | startswith("legacyPackages.\($system).")) then (
+      # legacyPackages.<system>.<stability>.<channel>.<name> format retired 8/30/22
+      $flakeAttrPathArray[2] as $stability |
+      $flakeAttrPathArray[3] as $channel |
+      ( $flakeAttrPathArray[4:] | join(".") ) as $attrPath |
+      "\($stability).\($channel).\($attrPath)"
+    ) elif ($flakeAttrPath | startswith("evalCatalog.\($system).")) then (
+      # evalCatalog.<system>.<stability>.<channel>.<name> format retired 9/17/22
+      $flakeAttrPathArray[2] as $stability |
+      $flakeAttrPathArray[3] as $channel |
+      ( $flakeAttrPathArray[4:] | join(".") ) as $attrPath |
+      "\($stability).\($channel).\($attrPath)"
+    ) else
+      "UNKNOWN"
+    end
   else
-    # current format: evalCatalog.<system>.<stability>.<channel>.<name>
-    arg | ltrimstr("\($catalogEvalAttrPathPrefix).")
+    # Current format starting 9/17/22: flake:<channel>#evalCatalog.<system>.<stability>.<name>
+    $flakeAttrPathArray[2] as $stability |
+    ( $flakeAttrPathArray[3:] | join(".") ) as $attrPath |
+    "\($stability).\($channel).\($attrPath)"
   end;
+
+# Pull pname attribute from flakeref (for sorting).
+def flakerefToPname(args): expectedArgs(1; args) |
+  flakerefToFloxpkg(args) |
+  split(".") | .[2:] | join(".");
 
 # Add "position" index as we define $elements.
 ( $manifest[].elements | to_entries | map(
   .value * {
     position:.key,
     packageName: (
-      if .value.attrPath then (
-        attrPathToFloxpkg(.value.attrPath)
-        | split(".")
-        | .[0] as $stability
-        | .[1] as $channel
-        | (.[2:] | join("."))
-      ) else (
+      if .value.attrPath then
+        flakerefToPname(["\(.value.originalUrl)#\(.value.attrPath)"])
+      else
         .value.storePaths[0] | .[44:]
-      ) end
+      end
     )
   }
 ) ) as $elements
 |
 
-def attrPathToTOML(arg):
-  attrPathToFloxpkg(arg) | split(".") |
+def flakerefToTOML(arg):
+  flakerefToFloxpkg([arg]) | split(".") |
   .[0] as $stability |
   .[1] as $channel |
   (.[2:] | join(".")) as $nameAttrPath |
@@ -114,33 +137,18 @@ def storePathsToTOML(storePaths):
 def floxpkgToAttrPath(args): expectedArgs(1; args) |
   ["evalCatalog", $system, args[0]] | join(".");
 
-def flakerefToAttrPath(args): expectedArgs(1; args) |
-  args[0] | split("#") | .[1];
-
-def floxpkgToFlakeref(args): expectedArgs(1; args) |
-  floxpkgToAttrPath(args) as $attrPath |
-  "\($floxpkgsUri)#\(.attrPath)";
-
-def flakerefToFloxpkg(args): expectedArgs(1; args) |
-  flakerefToAttrPath(args) as $attrPath |
-  attrPathToFloxpkg($attrPath);
-
 def floxpkgFromElementV1:
   if .attrPath then
-    if ( .originalUri == $floxpkgsUri ) then
-      attrPathToFloxpkg(.attrPath)
-    else
-      "\(.originalUri)#\(.attrPath)"
-    end
-  else .storePaths[] end;
+    flakerefToFloxpkg(["\(.originalUri)#\(.attrPath)"])
+  else
+    .storePaths[]
+  end;
 def floxpkgFromElementV2:
   if .attrPath then
-    if ( .originalUrl == $floxpkgsUri ) then
-      attrPathToFloxpkg(.attrPath)
-    else
-      "\(.originalUrl)#\(.attrPath)"
-    end
-  else .storePaths[] end;
+    flakerefToFloxpkg(["\(.originalUrl)#\(.attrPath)"])
+  else
+    .storePaths[]
+  end;
 def floxpkgFromElement:
   if $manifest[].version == 2 then
     floxpkgFromElementV2
@@ -150,12 +158,12 @@ def floxpkgFromElement:
 
 def floxpkgFromElementWithRunPath:
   if .attrPath then
-    attrPathToFloxpkg(.attrPath) + "\t" + (.storePaths | join(","))
+    flakerefToFloxpkg(["\(.originalUrl)#\(.attrPath)"]) + "\t" + (.storePaths | join(","))
   else .storePaths[] end;
 
 def TOMLFromElement:
   if .attrPath then
-    attrPathToTOML(.attrPath)
+    flakerefToTOML("\(.originalUrl)#\(.attrPath)")
   else
     storePathsToTOML(.storePaths)
   end;
@@ -185,49 +193,31 @@ def lockedFlakerefFromElement:
 #
 # Functions to look up element and return data in requested format.
 #
-
-def floxpkgToElementV1(args): expectedArgs(1; args) |
+def flakerefToElementV1(args): expectedArgs(2; args) |
   $elements | map(select(
-    (.attrPath == floxpkgToAttrPath(args)) and
-    (.originalUri == $floxpkgsUri)
+    (.originalUri == args[0]) and (.attrPath == args[1])
   )) | .[0];
-def floxpkgToElementV2(args): expectedArgs(1; args) |
+def flakerefToElementV2(args): expectedArgs(2; args) |
   $elements | map(select(
-    (.attrPath == floxpkgToAttrPath(args)) and
-    (.originalUrl == $floxpkgsUri)
+    (.originalUrl == args[0]) and (.attrPath == args[1])
   )) | .[0];
-def floxpkgToElement(args):
+def flakerefToElement(args): expectedArgs(1; args) |
+  ( args[0] | split("#") ) as $_args |
   if $manifest[].version == 2 then
-    floxpkgToElementV2(args)
+    flakerefToElementV2($_args)
   else
-    floxpkgToElementV1(args)
+    flakerefToElementV1($_args)
   end;
-
-def flakerefToElementV1(args): expectedArgs(1; args) |
-  $elements | map(select(
-    (.attrPath == flakerefToAttrPath(args)) and
-    (.originalUri == $floxpkgsUri)
-  )) | .[0];
-def flakerefToElementV2(args): expectedArgs(1; args) |
-  $elements | map(select(
-    (.attrPath == flakerefToAttrPath(args)) and
-    (.originalUrl == $floxpkgsUri)
-  )) | .[0];
-def flakerefToElement(args):
-  if $manifest[].version == 2 then
-    flakerefToElementV2(args)
-  else
-    flakerefToElementV1(args)
-  end;
-
-def storepathToElement(args): expectedArgs(1; args) |
-  $elements | map(select(.storePaths | contains([args[0]]))) | .[0];
-
-def floxpkgToPosition(args): expectedArgs(1; args) |
-  floxpkgToElement(args) | .position;
 
 def flakerefToPosition(args): expectedArgs(1; args) |
   flakerefToElement(args) | .position;
+
+def floxpkgToPosition(args): expectedArgs(1; args) |
+  floxpkgToFlakeref([ args[0] ]) as $flakeref |
+  flakerefToPosition([ $flakeref ]);
+
+def storepathToElement(args): expectedArgs(1; args) |
+  $elements | map(select(.storePaths | contains([args[0]]))) | .[0];
 
 def storepathToPosition(args): expectedArgs(1; args) |
   storepathToElement(args) | .position;

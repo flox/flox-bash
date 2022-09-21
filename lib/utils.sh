@@ -56,7 +56,16 @@ function pprint() {
 	# Step through args and encase with single-quotes those which need it.
 	local space=""
 	for i in "$@"; do
-		if [[ "$i" =~ ([ !()]) ]]; then
+		if [ -z "$i" ]; then
+			# empty arg
+			echo -e -n "$space''"
+		elif [[ "$i" =~ ^\'.*\'$ ]]; then
+			# already quoted
+			echo -e -n "$space$i"
+		elif [[ "$i" =~ ^\".*\"$ ]]; then
+			# already quoted(?)
+			echo -e -n "$space$i"
+		elif [[ "$i" =~ ([ !()|]) ]]; then
 			echo -e -n "$space'$i'"
 		else
 			echo -e -n "$space$i"
@@ -76,7 +85,7 @@ funccolor=$colorCyan
 argscolor=$floxLightPeach
 function trace() {
 	[ $debug -gt 0 ] || return 0
-	echo -e "trace:${filecolor}${BASH_SOURCE[2]}:${BASH_LINENO[1]}${colorReset} ${funccolor}${FUNCNAME[1]}${colorReset}( ${argscolor}$(pprint $*)${colorReset} )" 1>&2
+	echo -e "trace:${filecolor}${BASH_SOURCE[2]}:${BASH_LINENO[1]}${colorReset} ${funccolor}${FUNCNAME[1]}${colorReset}( ${argscolor}"$(pprint "$@")"${colorReset} )" 1>&2
 }
 
 # Track exported environment variables for use in verbose output.
@@ -110,7 +119,7 @@ function hash_commands() {
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands \
 	ansifilter awk basename bash cat chmod cmp column cp cut dasel date dirname \
-	id jq getent gh git grep ln man mkdir mktemp mv nix nix-store parallel pwd \
+	id jq getent gh git gum grep ln man mkdir mktemp mv nix nix-store parallel pwd \
 	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr xargs zgrep
 
 # Return full path of first command available in PATH.
@@ -164,6 +173,11 @@ function error() {
 	esac
 }
 
+declare -A _usage
+declare -A _usage_options
+declare -a _development_commands
+declare -a _environment_commands
+declare -a _general_commands
 function usage() {
 	trace "$@"
 	$_cat <<EOF 1>&2
@@ -193,37 +207,30 @@ flox general commands:
     flox config - configure user parameters
     flox gh - access to the gh CLI
     flox git - access to the git CLI
-    flox publish -f <flakeurl> -c <cacheurl> -a <attrpath> -r <renderpath>
-        publish a flox render to the repository you are in.
 
-flox development commands:
-    flox develop - launch development shell for current project
-    flox build - build package from current project
-    flox shell - launch build shell for current project
-
-flox profile commands:
-    flox generations - list profile generations with contents
-    flox push - send profile metadata to remote registry
-    flox pull - pull profile metadata from remote registry
-    flox destroy - remove all data pertaining to a profile
-    flox sync - synchronize profile metadata and links
-    flox cat - display declarative profile manifest
-    flox edit - edit declarative profile manifest
-
-Nix profile commands:
-    flox diff-closures - show the closure difference between each version of a profile
-    flox history - show all versions of a profile
-    flox install - install a package into a profile
-    flox list [ --out-path ] - list installed packages
-    flox (rm|remove) - remove packages from a profile
-    flox rollback - roll back to the previous generation of a profile
-    flox switch-generation - switch to a specific generation of a profile
-    flox upgrade - upgrade packages using their most recent flake
-    flox wipe-history - delete non-current versions of a profile
-
-Developer environment commands:
-    flox develop
 EOF
+
+	echo "flox development commands:" 1>&2
+	for _command in "${_development_commands[@]}"; do
+		if [ ${_usage_options["$_command"]+_} ]; then
+			echo "    flox $_command ${_usage_options[$_command]}"
+			echo "         - ${_usage[$_command]}"
+		else
+			echo "    flox $_command - ${_usage[$_command]}"
+		fi
+	done 1>&2
+	echo "" 1>&2
+
+	echo "flox environment commands:" 1>&2
+	for _command in "${_environment_commands[@]}"; do
+		if [ ${_usage_options["$_command"]+_} ]; then
+			echo "    flox $_command ${_usage_options[$_command]}"
+			echo "         - ${_usage[$_command]}"
+		else
+			echo "    flox $_command - ${_usage[$_command]}"
+		fi
+	done 1>&2
+	echo "" 1>&2
 }
 
 #
@@ -585,11 +592,11 @@ function multChoice {
 function promptTemplate {
 	trace "$@"
 	local IFS=$'\n'
-	local -a args=( $( $_nix eval --raw --apply '
+	local -a args=( $( $_nix eval --no-write-lock-file --raw --apply '
 	  x: with builtins; concatStringsSep "\n" (
 		attrValues (mapAttrs (k: v: k + ": " + v.description) x)
 	  )
-	' "floxpkgs#templates" ) )
+	' "flox#templates" ) )
 	multChoice "" "template" "${args[@]}"
 }
 
@@ -694,7 +701,7 @@ function maxProfileGen() {
 # 4) floxpkgs "[[stability.]channel.]attrPath" tuple: convert to flox catalog
 #    flake reference, e.g.
 #      stable.nixpkgs.yq ->
-#        flake:floxpkgs#catalog.aarch64-darwin.stable.nixpkgs.yq
+#        flake:nixpkgs#catalog.aarch64-darwin.stable.yq
 function floxpkgArg() {
 	trace "$@"
 	if [[ "$1" == *#* ]]; then
@@ -707,58 +714,50 @@ function floxpkgArg() {
 			echo "$_rp" | $_cut -d/ -f1-4
 		fi
 	else
-		local flakeAttrPath=
-		case "$1" in
-		stable.*.* | staging.*.* | unstable.*.*)
-			# stability.channel.attrPath
-			# They did all the work for us.
-			flakeAttrPath="$1"
-			;;
-		stable.* | staging.* | unstable.*)
-			# stability.attrPath ... we should perhaps not support this, not sure?
-			# Inject "nixpkgs" as the default channel.
-			local IFS='.'
-			declare -a 'arr=($1)'
-			flakeAttrPath="${arr[0]}.nixpkgs.${arr[1]}"
-			;;
-		*.*) # fixme - can we detect a channel vs an attrPath containing a "."?
-			# channel.attrPath
-			flakeAttrPath="stable.$1"
+		# Derive fully-qualified floxTuple.
+		local IFS='.'
+		local -a input=($1)
+		local floxTuple=
+		case "${input[0]}" in
+		stable | staging | unstable)
+			if [ ${validChannels["${input[1]}"]+_} ]; then
+				# stability.channel.attrPath
+				# They did all the work for us.
+				floxTuple="$1"
+			else
+				# stability.attrPath .. perhaps we shouldn't support this?
+				# Inject "nixpkgs" as the default channel.
+				floxTuple="${input[0]}.nixpkgs.${input[@]:1}"
+			fi
 			;;
 		*)
-			# attrPath
-			flakeAttrPath="stable.nixpkgs.$1"
+			if [ ${validChannels["${input[0]}"]+_} ]; then
+				# channel.attrPath
+				floxTuple="stable.$1"
+			else
+				# attrPath
+				floxTuple="stable.nixpkgs.$1"
+			fi
 			;;
 		esac
+
 		# Convert "attrPath@x.y.z" to "attrPath.x_y_z" because that
 		# is how it appears in the flox catalog.
-		if [[ "$flakeAttrPath" =~ ^(.*)@(.*)$ ]]; then
-			flakeAttrPath="${BASH_REMATCH[1]}.${BASH_REMATCH[2]//[\.]/_}"
+		if [[ "$floxTuple" =~ ^(.*)@(.*)$ ]]; then
+			floxTuple="${BASH_REMATCH[1]}.${BASH_REMATCH[2]//[\.]/_}"
 		fi
-		echo "${floxpkgsUri}#${catalogEvalAttrPathPrefix}.${flakeAttrPath}"
-	fi
-}
 
-# Usage: nix search <installable> [<regexp>]
-# If the installable (flake reference) is an exact match
-# then the regexp is not required.
-function searchArgs() {
-	trace "$@"
-	case "${#@}" in
-	2)	# Prepend floxpkgsUri to the first argument, and
-		# if the first arg is a stability then prepend the
-		# channel as well.
-		echo "${floxpkgsUri}#${catalogEvalAttrPathPrefix}.$@"
-		;;
-	1)	# Only one arg provided means we have to search
-		# across all known flakes. Punt on this for the MVP.
-		echo "${floxpkgsUri}#${catalogEvalAttrPathPrefix} $@"
-		;;
-	0)	error "too few arguments to search command" < /dev/null
-		;;
-	*)	error "too many arguments to search command" < /dev/null
-		;;
-	esac
+		# Convert fully-qualified floxTuple:
+		#   "<stability>.<channel>.<attrPath>"
+		# to flakeref:
+		#   "flake:<channel>#${catalogEvalAttrPathPrefix}.<stability>.<attrPath>".
+		local flakeref=
+		local -a _floxTuple=($floxTuple)
+		flakeref="flake:${_floxTuple[1]}#${catalogEvalAttrPathPrefix}.${_floxTuple[0]}.${_floxTuple[@]:2}"
+
+		# Return flakeref.
+		echo "$flakeref"
+	fi
 }
 
 #
@@ -786,7 +785,7 @@ function parseURL() {
 		urlUsername=""
 		;;
 	*)
-		error "parseURL(): cannot parse \"$url\""
+		error "parseURL(): cannot parse \"$url\"" < /dev/null
 		;;
 	esac
 	echo urlTransport="\"$urlTransport\""
@@ -858,7 +857,7 @@ function validateTOML() {
 function validateFlakeURL() {
 	trace "$@"
 	local flakeURL="$1"; shift
-	if $invoke_nix flake metadata "$flakeURL" --json >/dev/null; then
+	if $invoke_nix flake metadata "$flakeURL" --no-write-lock-file --json >/dev/null; then
 		return 0
 	else
 		return 1
@@ -867,15 +866,24 @@ function validateFlakeURL() {
 
 # Populate user-specific flake registry.
 function updateFloxFlakeRegistry() {
+	# Set default catalog flake entries.
+	registry $floxUserMeta 1 set channels flox github:flox/floxpkgs/tng
+	registry $floxUserMeta 1 set channels nixpkgs github:flox/nixpkgs-flox/master
+
+	# Render Nix flake registry file using user-provided flake entries.
 	# Note: avoids problems to let nix create the temporary file.
 	tmpFloxFlakeRegistry=$($_mktemp --dry-run --tmpdir=$FLOX_CONFIG_HOME)
-	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry floxpkgs $defaultFlake
-	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs github:flox/nixpkgs/${FLOX_STABILITY:-stable}
-	minverbosity=2 . <(registry $floxUserMeta 1 get channels | $_jq -r '
+	. <(registry $floxUserMeta 1 get channels | $_jq -r '
 	  to_entries | sort_by(.key) | map(
-	    "$invoke_nix registry add --registry $tmpFloxFlakeRegistry \(.key) \(.value)"
+	    "minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry \(.key) \(.value) && validChannels[\(.key)]=1"
 	  )[]
 	')
+
+	# Add courtesy Nix flake entries for accessing nixpkgs of different stabilities.
+	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-stable github:flox/nixpkgs/stable
+	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-staging github:flox/nixpkgs/staging
+	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-unstable github:flox/nixpkgs/unstable
+
 	if $_cmp --quiet $tmpFloxFlakeRegistry $floxFlakeRegistry; then
 		$_rm $tmpFloxFlakeRegistry
 	else
@@ -889,32 +897,119 @@ function updateFloxFlakeRegistry() {
 function searchChannels() {
 	trace "$@"
 	local regexp="$1"; shift
-	local refreshArg=$1; shift
-	local verboseArg=""
-	[ $verbose -eq 0 ] || verboseArg="--verbose"
+	# XXX Passing optional arguments with bash is .. problematic.
+	# XXX Walk through the remaining arguments looking for options
+	# XXX and valid channel references.
+	local refreshArg
+	local -a channels=()
+	while test $# -gt 0; do
+		case "$1" in
+		--refresh)
+			refreshArg="--refresh"
+			;;
+		*)
+			if [ ${validChannels["$1"]+_} ]; then
+				channels+=("$1")
+			else
+				error "invalid channel: $1" < /dev/null
+			fi
+			;;
+		esac
+		shift
+	done
 
-	local -a channels=("floxpkgs")
-	channels+=($(registry $floxUserMeta 1 get channels | $_jq -r 'keys[]'))
+	# If no channels were passed then search them all.
+	if [ ${#channels[@]} -eq 0 ]; then
+		channels=($(registry $floxUserMeta 1 get channels | $_jq -r 'keys | sort[]' || true))
+	fi
+
+	# Nicely print out commands for debugging. We cannot do this with the
+	# usual $invoke_* trick because we're burying the invocation in two
+	# layers of `gum` and `parallel`.
+	local vars=()
+	if [ $verbose -ge $minverbosity ]; then
+		for i in ${exported_variables[$_nix]}; do
+			vars+=($(eval "echo $i=\${$i}"))
+		done
+		for _i in ${channels[@]}; do
+		  for _j in stable staging unstable; do
+			pprint "+$colorBold" "${vars[@]}" \
+				$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
+				"flake:${_i}#$catalogSearchAttrPathPrefix.${_j}" \'"$packageregexp"\' \
+				"$colorReset" 1>&2
+		  done
+		done
+	fi
 
 	# TODO: write our own parallel runner, or better yet port the CLI to a
 	# real language.
-	local _stdout=$(mktemp)
-	local _stderr=$(mktemp)
-	$invoke_parallel --no-notice $verboseArg \
-		$_nix search --json "flake:{}#$catalogSearchAttrPathPrefix" \'"$packageregexp"\' $refreshArg \
-		::: ${channels[@]} > $_stdout 2> $_stderr &
-	local -i _pid=$!
-	local -a spin=("-" "\\" "|" "/")
-	while kill -0 $_pid 2>/dev/null; do
-		for i in "${spin[@]}"; do
-			echo -ne "\b$i" 1>&2
-			$_sleep 0.1
-		done
-	done
-	echo -ne "\r \r" 1>&2
-	$_grep -v "^evaluating 'catalog\." $_stderr 1>&2 || $_rm -f $_stderr
-	$_cat $_stdout
-	$_rm -f $_stdout $_stderr
+	local _tmpdir=$(mktemp -d)
+	local -a _resultDirs=($(for i in ${channels[@]}; do echo \
+		$_tmpdir/1/$i/2/{stable,staging,unstable} $_tmpdir/1/$i/2 $_tmpdir/1/$i; \
+		done))
+	local -a _seqFiles=($(for i in ${channels[@]}; do echo $_tmpdir/1/$i/2/{stable,staging,unstable}/seq; done))
+	local -a _stdoutFiles=($(for i in ${channels[@]}; do echo $_tmpdir/1/$i/2/{stable,staging,unstable}/stdout; done))
+	local -a _stderrFiles=($(for i in ${channels[@]}; do echo $_tmpdir/1/$i/2/{stable,staging,unstable}/stderr; done))
+	# TODO: use log-format internal-json for conveying status
+	# gum BUG: writes the spinner to stdout (dumb) - redirect that to stderr
+	# gum BUG: doesn't preserve cmdline quoting properly so add extra quoting
+	#     that may bite us someday when they fix their bug upstream
+	minverbosity=2 $invoke_gum spin --title="Searching channels: ${channels[*]}" 1>&2 -- \
+		$_parallel --no-notice --results $_tmpdir -- \
+			$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
+			"flake:{1}#${catalogSearchAttrPathPrefix}.{2}" \'"$packageregexp"\' \
+			::: ${channels[@]} ::: stable staging unstable
+
+	# The results directory is composed of files of the form:
+	#     <seq>/<channel>/{seq,stdout,stderr}
+	# Use jq to compile a single json stream from results.
+	$_grep --no-filename -v \
+	  -e "^evaluating 'catalog\." \
+	  -e "not writing modified lock file of flake" \
+	  -e " Added input " \
+	  -e " follows " \
+	  -e "\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)" \
+	  ${_stderrFiles[@]} 1>&2 || true
+	$invoke_jq -r -f "$_lib/merge-search-results.jq" ${_stdoutFiles[@]} | \
+		$_jq -r -s add && $_rm -f ${_stdoutFiles[@]}
+	$_rm -f ${_seqFiles[@]}
+	$_rm -f ${_stderrFiles[@]}
+	$_rmdir ${_resultDirs[@]} $_tmpdir/1 $_tmpdir
+}
+
+#
+# Prompts the user for attrPath to be built/published/etc.
+#
+function lookupAttrPaths() {
+	trace "$@"
+	minverbosity=2 $invoke_nix eval ".#packages.$NIX_CONFIG_system" --json | $_jq -r 'keys | sort[]'
+}
+
+function selectAttrPath() {
+	trace "$@"
+	local subcommand="$1"; shift
+	local -a attrPaths=($(lookupAttrPaths))
+	local attrPath
+	if [ ${#attrPaths[@]} -eq 0 ]; then
+		error "cannot find attribute path - have you run 'flox init'?" < /dev/null
+	elif [ ${#attrPaths[@]} -eq 1 ]; then
+		echo "${attrPaths[0]}"
+	else
+		warn "Select package for flox $subcommand"
+		attrPath=$($_gum choose ${attrPaths[*]})
+		warn ""
+		warn "HINT: avoid selecting a package next time with:"
+		echo '{{ Color "'$LIGHTPEACH256'" "'$DARKBLUE256'" "$ flox '$subcommand' -A '$attrPath'" }}' \
+		    | $_gum format -t template 1>&2
+		echo "$attrPath"
+	fi
+}
+
+function lookupPublishOrigin() {
+	local origin
+	if origin=$($_nix eval --raw ".#__reflect.finalFlake.config.publish.origin" 2>/dev/null); then
+		echo "$origin"
+	fi
 }
 
 # vim:ts=4:noet:syntax=bash

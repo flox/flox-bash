@@ -13,6 +13,9 @@ shopt -s extglob
 # Import library functions.
 . $_lib/metadata.sh
 
+# Import command functions.
+. $_lib/commands.sh
+
 #
 # Parse flox configuration files in TOML format. Order of processing:
 #
@@ -116,6 +119,7 @@ fi
 export PWD=$($_pwd)
 
 # Define and create flox metadata cache, data, and profiles directories.
+export FLOX_STABILITY="${FLOX_STABILITY:-stable}"
 export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"
 export FLOX_META="$FLOX_CACHE_HOME/profilemeta"
 export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
@@ -169,6 +173,7 @@ netrc-file = $HOME/.netrc
 flake-registry = $floxFlakeRegistry
 accept-flake-config = true
 warn-dirty = false
+extra-substituters = https://cache.floxdev.com?trusted=1
 EOF
 
 # Ensure file is secure before appending access token(s).
@@ -327,10 +332,8 @@ eval $(read_flox_conf npfs floxpkgs)
 . $_lib/bootstrap.sh
 
 # Populate user-specific flake registry.
+declare -A validChannels=()
 updateFloxFlakeRegistry
-
-# String to be prepended to flox flake uri.
-floxpkgsUri="flake:floxpkgs"
 
 # String to be prepended to flake attrPath (before channel).
 catalogSearchAttrPathPrefix="catalog.$NIX_CONFIG_system"

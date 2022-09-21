@@ -905,17 +905,21 @@ function unsubscribeFlake() {
 	else
 		read -e -p "Enter channel name to be removed: " flakeName
 	fi
-	registry $floxUserMeta 1 delete channels "$flakeName"
+	if [ ${validChannels["$flakeName"]+_} ]; then
+		registry $floxUserMeta 1 delete channels "$flakeName"
+	else
+		error "invalid channel: $flakeName" < /dev/null
+	fi
 }
 
 function listChannels() {
 	trace "$@"
-	printf "floxpkgs\t%s\n" $(registry $floxUserMeta 1 get defaultFlake)
-	registry $floxUserMeta 1 get channels | $_jq -r '
+	local -a rows=($(registry $floxUserMeta 1 get channels | $_jq -r '
 	  to_entries | sort_by(.key) | map(
-	    "\(.key)\t\(.value)"
+	    "|\(.key)|\(.value)|"
 	  )[]
-	'
+	'))
+	$invoke_gum format --type="markdown" -- "|Channel|URL|" "|---|---|" ${rows[@]}
 }
 
 # vim:ts=4:noet:syntax=bash

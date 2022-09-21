@@ -43,9 +43,11 @@ ETC = \
 	etc/flox.zdotdir/.zshrc
 LIB = \
 	lib/bootstrap.sh \
+	lib/commands.sh \
 	lib/init.sh \
 	lib/manifest.jq \
 	lib/manifestTOML.jq \
+	lib/merge-search-results.jq \
 	lib/metadata.sh \
 	lib/profileRegistry.jq \
 	lib/registry.jq \
