@@ -867,7 +867,7 @@ function validateFlakeURL() {
 # Populate user-specific flake registry.
 function updateFloxFlakeRegistry() {
 	# Set default catalog flake entries.
-	registry $floxUserMeta 1 set channels flox github:flox/floxpkgs/tng
+	registry $floxUserMeta 1 set channels flox github:flox/floxpkgs/master
 	registry $floxUserMeta 1 set channels nixpkgs github:flox/nixpkgs-flox/master
 
 	# Render Nix flake registry file using user-provided flake entries.
