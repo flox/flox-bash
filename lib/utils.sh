@@ -52,6 +52,21 @@ colorSlowBlink="${ESC}5m"
 colorRapidBlink="${ESC}6m"
 colorReverseVideo="${ESC}7m"
 
+# Set gum color palette.
+# GUM_SPIN_* buggy in v0.4.0
+export GUM_SPIN_FOREGROUND=$DARKPEACH256
+export GUM_CHOOSE_CURSOR_FOREGROUND="$DARKPEACH256"
+export GUM_CHOOSE_PROMPT_FOREGROUND="$LIGHTBLUE256"
+export GUM_CHOOSE_SELECTED_CURSOR_FOREGROUND="$DARKPEACH256"
+export GUM_CHOOSE_SELECTED_PROMPT_FOREGROUND="$LIGHTBLUE256"
+
+export GUM_FILTER_INDICATOR_FOREGROUND="$LIGHTBLUE256"
+export GUM_FILTER_MATCH_FOREGROUND="$DARKPEACH256"
+export GUM_FILTER_PROMPT_FOREGROUND="$DARKBLUE256"
+
+export GUM_INPUT_CURSOR_FOREGROUND="$DARKPEACH256"
+export GUM_INPUT_PROMPT_FOREGROUND="$DARKPEACH256"
+
 function pprint() {
 	# Step through args and encase with single-quotes those which need it.
 	local space=""
@@ -954,7 +969,10 @@ function searchChannels() {
 	# gum BUG: writes the spinner to stdout (dumb) - redirect that to stderr
 	# gum BUG: doesn't preserve cmdline quoting properly so add extra quoting
 	#     that may bite us someday when they fix their bug upstream
-	minverbosity=2 $invoke_gum spin --title="Searching channels: ${channels[*]}" 1>&2 -- \
+	# gum BUG: version 0.4.0 doesn't honor GUM_SPIN_FOREGROUND env variable
+	minverbosity=2 $invoke_gum spin \
+		--spinner.foreground="$GUM_SPIN_FOREGROUND" \
+		--title="Searching channels: ${channels[*]}" 1>&2 -- \
 		$_parallel --no-notice --results $_tmpdir -- \
 			$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
 			"flake:{1}#${catalogSearchAttrPathPrefix}.{2}" \'"$packageregexp"\' \

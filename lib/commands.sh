@@ -221,13 +221,14 @@ function floxInit() {
 	  x: with builtins; concatStringsSep "\n" (
 		attrValues (mapAttrs (k: v: k + ": " + v.description) (removeAttrs x ["_init"]))
 	  )
-	' "flox#templates" | $_gum choose | $_cut -d: -f1)
+	' "flox#templates" | $_gum filter | $_cut -d: -f1)
 	[ -n "$choice" ] || exit 1
 
 	# Identify pname.
 	local origin=$($_git remote get-url origin)
 	local bn=${origin//*\//}
 	local pname=$($_gum input --value "${bn//.git/}" --prompt "Enter package name: ")
+	[ -n "$pname" ] || exit 1
 
 	# Extract flox _init template if it hasn't already.
 	[ -f flox.nix ] || {
