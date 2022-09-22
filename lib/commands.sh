@@ -15,6 +15,95 @@
 # * cargo cult: use tabs, comments, formatting, etc. to match existing examples
 #
 
+# This first function sorts the provided options and arguments into
+# those supported by the top level `nix` command as opposed to its
+# various subcommands, as parsed in each of the functions below this
+# one. It employs global variables because it's not easy to return
+# two output streams with bash.
+declare -a _nixArgs
+declare -a _cmdArgs
+function parseNixArgs() {
+	_nixArgs=()
+	_cmdArgs=()
+	while test $# -gt 0; do
+		case "$1" in
+		# Options taking two args.
+		--option)
+			_nixArgs+=("$1"); shift
+			_nixArgs+=("$1"); shift
+			_nixArgs+=("$1"); shift
+			;;
+		# Options taking one arg.
+		--access-tokens | --allowed-impure-host-deps | --allowed-uris | \
+		--allowed-users | --bash-prompt | --bash-prompt-prefix | \
+		--bash-prompt-suffix | --build-hook | --build-poll-interval | \
+		--build-users-group | --builders | --commit-lockfile-summary | \
+		--connect-timeout | --cores | --diff-hook | \
+		--download-attempts | --experimental-features | --extra-access-tokens | \
+		--extra-allowed-impure-host-deps | --extra-allowed-uris | --extra-allowed-users | \
+		--extra-experimental-features | --extra-extra-platforms | --extra-hashed-mirrors | \
+		--extra-ignored-acls | --extra-nix-path | --extra-platforms | \
+		--extra-plugin-files | --extra-sandbox-paths | --extra-secret-key-files | \
+		--extra-substituters | --extra-system-features | --extra-trusted-public-keys | \
+		--extra-trusted-substituters | --extra-trusted-users | --flake-registry | \
+		--gc-reserved-space | --hashed-mirrors | --http-connections | \
+		--ignored-acls | --log-format |--log-lines | \
+		--max-build-log-size | --max-free | --max-jobs | \
+		--max-silent-time | --min-free | --min-free-check-interval | \
+		--nar-buffer-size | --narinfo-cache-negative-ttl | --narinfo-cache-positive-ttl | \
+		--netrc-file | --nix-path | --plugin-files | \
+		--post-build-hook | --pre-build-hook | --repeat | \
+		--sandbox-build-dir | --sandbox-dev-shm-size | --sandbox-paths | \
+		--secret-key-files | --stalled-download-timeout | --store | \
+		--substituters | --system | --system-features | \
+		--tarball-ttl | --timeout | --trusted-public-keys | \
+		--trusted-substituters | --trusted-users | --user-agent-suffix)
+			_nixArgs+=("$1"); shift
+			_nixArgs+=("$1"); shift
+			;;
+		# Options taking zero args.
+		--help | --offline | --refresh | --version | --debug | \
+		--print-build-logs | -L | --quiet | --verbose | -v | \
+		--accept-flake-config | --allow-dirty | --allow-import-from-derivation | \
+		--allow-new-privileges | --allow-symlinked-store | \
+		--allow-unsafe-native-code-during-evaluation | --auto-optimise-store | \
+		--builders-use-substitutes | --compress-build-log | \
+		--enforce-determinism | --eval-cache | --fallback | --filter-syscalls | \
+		--fsync-metadata | --http2 | --ignore-try | --impersonate-linux-26 | \
+		--keep-build-log | --keep-derivations | --keep-env-derivations | \
+		--keep-failed | --keep-going | --keep-outputs | \
+		--no-accept-flake-config | --no-allow-dirty | \
+		--no-allow-import-from-derivation | --no-allow-new-privileges | \
+		--no-allow-symlinked-store | \
+		--no-allow-unsafe-native-code-during-evaluation | \
+		--no-auto-optimise-store | --no-builders-use-substitutes | \
+		--no-compress-build-log | --no-enforce-determinism | --no-eval-cache | \
+		--no-fallback | --no-filter-syscalls | --no-fsync-metadata | \
+		--no-http2 | --no-ignore-try | --no-impersonate-linux-26 | \
+		--no-keep-build-log | --no-keep-derivations | --no-keep-env-derivations | \
+		--no-keep-failed | --no-keep-going | --no-keep-outputs | \
+		--no-preallocate-contents | --no-print-missing | --no-pure-eval | \
+		--no-require-sigs | --no-restrict-eval | --no-run-diff-hook | \
+		--no-sandbox | --no-sandbox-fallback | --no-show-trace | \
+		--no-substitute | --no-sync-before-registering | \
+		--no-trace-function-calls | --no-trace-verbose | --no-use-case-hack | \
+		--no-use-registries | --no-use-sqlite-wal | --no-warn-dirty | \
+		--preallocate-contents | --print-missing | --pure-eval | \
+		--relaxed-sandbox | --require-sigs | --restrict-eval | --run-diff-hook | \
+		--sandbox | --sandbox-fallback | --show-trace | --substitute | \
+		--sync-before-registering | --trace-function-calls | --trace-verbose | \
+		--use-case-hack | --use-registries | --use-sqlite-wal | --warn-dirty)
+			_nixArgs+=("$1"); shift
+			;;
+		# All else are command args.
+		*)
+			_cmdArgs+=("$1"); shift
+			;;
+		esac
+	done
+}
+
+
 ## Development commands
 
 # flox build
@@ -22,18 +111,16 @@ _development_commands+=("build")
 _usage["build"]="build package from current project"
 function floxBuild() {
 	trace "$@"
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
+
 	local -a buildArgs=()
 	local -a installables=()
 	while test $# -gt 0; do
 		case "$1" in
-		--substituters) # takes one arg
-			buildArgs+=("$1"); shift
-			buildArgs+=("$1"); shift
-			;;
 		-A | --attr) # takes one arg
 			# legacy nix-build option; convert to flakeref
 			shift
-			installables+=(".#packages.$NIX_CONFIG_system.$1"); shift
+			installables+=(".#$1"); shift
 			;;
 
 		# All remaining options are `nix build` args.
@@ -64,11 +151,11 @@ function floxBuild() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="packages.$NIX_CONFIG_system.$(selectAttrPath build)"
+		local attrPath="$(selectAttrPath build)"
 		installables+=(".#$attrPath")
 	fi
 
-	$invoke_nix build "${installables[@]}" "${buildArgs[@]}" --impure
+	$invoke_nix "${_nixArgs[@]}" build "${installables[@]}" "${buildArgs[@]}" --impure
 }
 
 # flox develop
@@ -76,7 +163,51 @@ _development_commands+=("develop")
 _usage["develop"]="launch development shell for current project"
 function floxDevelop() {
 	trace "$@"
-	$invoke_nix develop "$@" --impure
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
+
+	local -a developArgs=()
+	local -a installables=()
+	while test $# -gt 0; do
+		case "$1" in
+		-A | --attr) # takes one arg
+			# legacy nix-build option; convert to flakeref
+			shift
+			installables+=(".#$1"); shift
+			;;
+
+		# All remaining options are `nix build` args.
+
+		# Options taking two args.
+		--command|-c|--redirect|--arg|--argstr|--override-flake|--override-input)
+			developArgs+=("$1"); shift
+			developArgs+=("$1"); shift
+			developArgs+=("$1"); shift
+			;;
+		# Options taking one arg.
+		--keep|-k|--phase|--profile|--unset|-u|--eval-store|--include|-I|--inputs-from|--update-input|--expr|--file|-f)
+			developArgs+=("$1"); shift
+			developArgs+=("$1"); shift
+			;;
+		# Options taking zero args.
+		-*)
+			developArgs+=("$1"); shift
+			;;
+		# Assume all other options are installables.
+		*)
+			installables+=("$1"); shift
+			;;
+		esac
+
+	done
+
+	# If no installables specified then try identifying attrPath from
+	# capacitated flake.
+	if [ ${#installables[@]} -eq 0 ]; then
+		local attrPath="$(selectAttrPath develop)"
+		installables+=(".#$attrPath")
+	fi
+
+	$invoke_nix "${_nixArgs[@]}" develop "${installables[@]}" "${developArgs[@]}" --impure
 }
 
 # flox init
@@ -124,6 +255,7 @@ _usage_options["publish"]="[ --publish-to <gitURL> ] \\
                  [ --render-path <dir> ] [ --key-file <file> ]"
 function floxPublish() {
 	trace "$@"
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	# Publish takes the same args as build, plus a few more.
 	# Split out the publish args from the build args.
@@ -163,7 +295,7 @@ function floxPublish() {
 		-A | --attr) # takes one arg
 			# legacy nix-build option; convert to flakeref
 			shift
-			installables+=(".#packages.$NIX_CONFIG_system.$1"); shift
+			installables+=(".#$1"); shift
 			;;
 
 		# All remaining options are `nix build` args.
@@ -194,7 +326,7 @@ function floxPublish() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		attrPath="packages.$NIX_CONFIG_system.$(selectAttrPath publish)"
+		attrPath="$(selectAttrPath publish)"
 		installables+=(".#$attrPath")
 		flakeRef="."
 	else
@@ -202,6 +334,11 @@ function floxPublish() {
 		attrPath=${installables[0]//*#/}
 		flakeRef=${installables[0]//#*/}
 	fi
+
+	# If the user has provided the fully-qualified attrPath then remove
+	# the "packages.$NIX_CONFIG_system." part as we'll add it back for
+	# those places below where we need it.
+	attrPath="${attrPath//packages.$NIX_CONFIG_system./}"
 
 	# The --copy-to argument specifies the binary cache to which to
 	# upload the package, but we also publish the URL that people use
@@ -268,7 +405,7 @@ function floxPublish() {
 	# Nix eval command is noisy so filter out the expected output.
 	local tmpstderr=$(mktemp)
 	evalAndBuild=$($invoke_nix eval --json --override-input target "$flakeRef" \
-		"$analyzer#analysis.eval.$attrPath" 2>$tmpstderr) || {
+		"$analyzer#analysis.eval.packages.$NIX_CONFIG_system.$attrPath" 2>$tmpstderr) || {
 		$_grep --no-filename -v \
 		  -e "^evaluating 'catalog\." \
 		  -e "not writing modified lock file of flake" \
@@ -345,12 +482,112 @@ function floxPublish() {
 	$_rm -rf "$tmpdir"
 }
 
+# flox run
+_development_commands+=("run")
+_usage["run"]="run app from current project"
+function floxRun() {
+	trace "$@"
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
+
+	local -a runArgs=()
+	local -a installables=()
+	while test $# -gt 0; do
+		case "$1" in
+		-A | --attr) # takes one arg
+			# legacy nix-run option; convert to flakeref
+			shift
+			installables+=(".#$1"); shift
+			;;
+
+		# All remaining options are `nix run` args.
+
+		# Options taking two args.
+		--arg|--argstr|--override-flake|--override-input)
+			runArgs+=("$1"); shift
+			runArgs+=("$1"); shift
+			runArgs+=("$1"); shift
+			;;
+		# Options taking one arg.
+		--eval-store|--include|-I|--inputs-from|--update-input|--expr|--file|-f)
+			runArgs+=("$1"); shift
+			runArgs+=("$1"); shift
+			;;
+		# Options taking zero args.
+		-*)
+			runArgs+=("$1"); shift
+			;;
+		# Assume all other options are installables.
+		*)
+			installables+=("$1"); shift
+			;;
+		esac
+
+	done
+
+	# If no installables specified then try identifying attrPath from
+	# capacitated flake.
+	if [ ${#installables[@]} -eq 0 ]; then
+		local attrPath="$(selectAttrPath run)"
+		installables+=(".#$attrPath")
+	elif [ ${#installables[@]} -gt 1 ]; then
+		usage | error "more than one package argument provided"
+	fi
+
+	$invoke_nix "${_nixArgs[@]}" run "${installables[0]}" "${runArgs[@]}" --impure
+}
+
 # flox shell
 _development_commands+=("shell")
 _usage["shell"]="launch build shell for current project"
 function floxShell() {
 	trace "$@"
-	$invoke_nix shell "$@" --impure
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
+
+	local -a shellArgs=()
+	local -a installables=()
+	while test $# -gt 0; do
+		case "$1" in
+		-A | --attr) # takes one arg
+			# legacy nix-run option; convert to flakeref
+			shift
+			installables+=(".#$1"); shift
+			;;
+
+		# All remaining options are `nix run` args.
+
+		# Options taking two args.
+		--command|-c|--arg|--argstr|--override-flake|--override-input)
+			shellArgs+=("$1"); shift
+			shellArgs+=("$1"); shift
+			shellArgs+=("$1"); shift
+			;;
+		# Options taking one arg.
+		--keep|-k|--unset|-u|--eval-store|--include|-I|--inputs-from|--update-input|--expr|--file|-f)
+			shellArgs+=("$1"); shift
+			shellArgs+=("$1"); shift
+			;;
+		# Options taking zero args.
+		-*)
+			shellArgs+=("$1"); shift
+			;;
+		# Assume all other options are installables.
+		*)
+			installables+=("$1"); shift
+			;;
+		esac
+
+	done
+
+	# If no installables specified then try identifying attrPath from
+	# capacitated flake.
+	if [ ${#installables[@]} -eq 0 ]; then
+		local attrPath="$(selectAttrPath shell)"
+		installables+=(".#$attrPath")
+	elif [ ${#installables[@]} -gt 1 ]; then
+		usage | error "more than one package argument provided"
+	fi
+
+	$invoke_nix "${_nixArgs[@]}" shell "${installables[@]}" "${shellArgs[@]}" --impure
 }
 
 ## Environment commands

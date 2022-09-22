@@ -37,6 +37,15 @@ More in-depth information is available by way of the [flox User's Manual](https:
 
 ## General options
 
+Many flox commands wrap Nix commands of the same name,
+and will correspondingly pass on options and arguments
+directly to the underlying `nix` invocation.
+For more information on the options supported by specific Nix commands
+please invoke `flox nix <command> help`.
+
+The following options are used specifically by `flox`
+and must be specified _before_ the `<command>` argument.
+
 -v, \--verbose
 :   Verbose mode. Invoke multiple times for increasing detail.
 
@@ -50,15 +59,7 @@ More in-depth information is available by way of the [flox User's Manual](https:
 :   Print `flox` installation prefix / Nix store path.
     (Flox internal use only.)
 
-## Environment options
-
-The following option is supported by all flox environment-related commands:
-
--e `<name>`, \--environment `<name>`
-:   Selects **flox environment** to be modified or used. If not provided then
-    `flox` will fall back to using the `default` environment.
-
-# SUBCOMMANDS
+# COMMANDS
 
 Flox commands are grouped into categories pertaining to
 runtime environments, developer environments, and administration.
@@ -88,6 +89,14 @@ runtime environments, developer environments, and administration.
     you can invoke with `--refresh` to update the list before searching.
 
 ## Runtime environments
+
+The following option is supported by the commands below.
+
+`(-e|--environment) <name>`
+:   Selects **flox environment** to be modified or used. If not provided then
+    `flox` will fall back to using the `default` environment.
+
+*Commands*
 
 **install** `<package>` [ `<package>` ... ]
 :   Install package(s) to environment.
@@ -165,30 +174,49 @@ runtime environments, developer environments, and administration.
 
 ## Development
 
+The following option is supported by the commands below.
+
+`(-A|--attr) <package>`
+:   Selects package (aka "attrPath") to be used. If not provided `flox`
+    will prompt for you to select from the list of known packages.
+
+*Commands*
+
+**build**
+:   Build the requested package (or "installable"). If not provided `flox`
+    will prompt for you to select from the list of known packages.
+
 **develop**
 :   Launch subshell configured for development environment using the
     `flox.toml` or Nix expression file as found in the current directory.
 
 
-**publish** [ \--publish-to `<dest>` ] [ \--copy-to `<store-uri>` ] [ \--copy-from `<store-uri>` ] [ \--render-path `<dir>` ] [ \--key-file `<file>` ]
+**publish**
 :   Perform a build, (optionally) copy to cache substituter,
     and render package metadata for inclusion in the flox catalog.
 
-    With the `--publish-to` argument, commits and writes metadata to
-    the URL or path of a git repository, or with the "-" argument
-    will write the publish metadata to stdout.
+    `[ --publish-to <dest> ]`
+    :   With the `--publish-to` argument, commits and writes metadata to
+        the URL or path of a git repository, or with the "-" argument
+        will write the publish metadata to stdout.
 
-    With the `--copy-to` argument, copies the package closure to the
-    provided URL. Conversely, the `--copy-from` argument embeds within
-    the package metadata the URL intended for use as a binary substituter
-    on the client side.
+    `[ --copy-to <store-uri> ] [ --copy-from <store-uri> ]`
+    :   With the `--copy-to` argument, copies the package closure to the
+        provided URL. Conversely, the `--copy-from` argument embeds within
+        the package metadata the URL intended for use as a binary substituter
+        on the client side.
 
-    `--render-path` sets the directory name for rendering the catalog
-    data within the catalog repository and `--key-file` is used for
-    identifying the path to the private key to be used in signing
-    packages before analysis and upload.
+    `[ --render-path <dir> ] [ --key-file <file> ]`
+    :   `--render-path` sets the directory name for rendering the catalog
+        data within the catalog repository and `--key-file` is used for
+        identifying the path to the private key to be used in signing
+        packages before analysis and upload.
 
     When invoked with no arguments, will prompt the user for the desired values.
+
+**run**
+:   Run flake application from the requested package (or "installable").
+    If not provided `flox` will prompt for you to select from the list of known packages.
 
 ## Administration
 

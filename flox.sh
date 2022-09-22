@@ -486,7 +486,7 @@ EOF
 	;;
 
 # Flox commands which derive an attribute path from the current directory.
-build | develop | publish | shell)
+build | develop | publish | run | shell)
 	case "$subcommand" in
 	build)
 		floxBuild "$@"
@@ -496,6 +496,9 @@ build | develop | publish | shell)
 		;;
 	publish)
 		floxPublish "$@"
+		;;
+	run)
+		floxRun "$@"
 		;;
 	shell)
 		floxShell "$@"
