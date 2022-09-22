@@ -984,6 +984,7 @@ function searchChannels() {
 	$_grep --no-filename -v \
 	  -e "^evaluating 'catalog\." \
 	  -e "not writing modified lock file of flake" \
+	  -e ".sqlite' is busy" \
 	  -e " Added input " \
 	  -e " follows " \
 	  -e "\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)" \
