@@ -879,6 +879,8 @@ function subscribeFlake() {
 	else
 		read -e -p "Enter channel name to be added: " flakeName
 	fi
+	[[ "$flakeName" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] ||
+		error "invalid channel name '$flakeName', valid regexp: ^[a-zA-Z][a-zA-Z0-9_-]*$" < /dev/null
 	local flakeUrl
 	if [ $# -gt 0 ]; then
 		flakeUrl="$1"; shift
