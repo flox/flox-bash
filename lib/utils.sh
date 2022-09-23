@@ -1031,4 +1031,22 @@ function lookupPublishOrigin() {
 	fi
 }
 
+function ensureGHRepoExists() {
+	local origin="$1"
+	local visibility="$2"
+	local template="$3"
+	# If using github, ensure that user is logged into gh CLI
+	# and confirm that repository exists.
+	if [[ "${origin,,}" =~ github ]]; then
+		( $_gh auth status >/dev/null 2>&1 ) ||
+			$_gh auth login
+		( $_gh repo view "$origin" >/dev/null 2>&1 ) || (
+			set -x
+			$_gh repo create \
+				--"$visibility" "$origin" \
+				--template "$template"
+		)
+	fi
+}
+
 # vim:ts=4:noet:syntax=bash

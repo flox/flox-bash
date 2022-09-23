@@ -363,6 +363,7 @@ function floxPublish() {
 		gitClone="."
 	else
 		gitClone=$tmpdir
+		ensureGHRepoExists "$publishTo" public "https://github.com/flox/floxpkgs-template.git"
 		warn "Cloning $publishTo ..."
 		$invoke_gh repo clone "$publishTo" "$gitClone"
 	fi

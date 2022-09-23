@@ -615,18 +615,7 @@ function getSetOrigin() {
 		$invoke_git -C "$profileMetaDir" "remote" "add" "origin" "$origin"
 	fi
 
-	# If using github, ensure that user is logged into gh CLI
-	# and confirm that repository exists.
-	if [[ "${origin,,}" =~ github ]]; then
-		( $_gh auth status >/dev/null 2>&1 ) ||
-			$_gh auth login
-		( $_gh repo view "$origin" >/dev/null 2>&1 ) || (
-			set -x
-			$_gh repo create \
-				--private "$origin" \
-				--template "https://github.com/flox/floxmeta-template.git"
-		)
-	fi
+	ensureGHRepoExists "$origin" private "https://github.com/flox/floxmeta-template.git"
 	echo "$origin"
 }
 
