@@ -1040,15 +1040,19 @@ function ensureGHRepoExists() {
 	local template="$3"
 	# If using github, ensure that user is logged into gh CLI
 	# and confirm that repository exists.
-	if [[ "${origin,,}" =~ github ]]; then
-		( $_gh auth status >/dev/null 2>&1 ) ||
-			$_gh auth login
-		( $_gh repo view "$origin" >/dev/null 2>&1 ) || (
-			set -x
-			$_gh repo create \
-				--"$visibility" "$origin" \
-				--template "$template"
-		)
+	if ! $_git ls-remote "$origin" >/dev/null 2>&1; then
+		if [[ "${origin,,}" =~ github ]]; then
+			( $_gh auth status >/dev/null 2>&1 ) ||
+				$_gh auth login
+			( $_gh repo view "$origin" >/dev/null 2>&1 ) || (
+				set -x
+				$_gh repo create \
+					--"$visibility" "$origin" \
+					--template "$template"
+			)
+		else
+			false
+		fi
 	fi
 }
 
