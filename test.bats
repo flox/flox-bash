@@ -14,7 +14,7 @@ setup() {
 
 @test "flox --stability stable install hello" {
 
-  eval "${FLOXPATH}/result/bin/flox --stability stable install stable.nixpkgs.hello"
+  eval "${FLOXPATH}/result/bin/flox --stability stable install stable.nixpkgs-flox.hello"
 
 
   [[ "$status" -eq 0 ]]
@@ -23,13 +23,13 @@ setup() {
 @test "flox --stability stable list after install should contain hello" {
 
   run result/bin/flox --stability stable list
-  [[ "$output" =~ "stable.nixpkgs.hello" ]]
+  [[ "$output" =~ "stable.nixpkgs-flox.hello" ]]
 
 }
 
 @test "flox --stability stable remove hello" {
 
-  eval "${FLOXPATH}/result/bin/flox remove stable.nixpkgs.hello"
+  eval "${FLOXPATH}/result/bin/flox remove stable.nixpkgs-flox.hello"
 
   [[ "$status" -eq 0 ]]
 }
@@ -37,15 +37,15 @@ setup() {
 @test "flox list after remove should not contain hello --stability stable" {
 
   run  "${FLOXPATH}"/result/bin/flox --stability stable list
-  [[ ! "$output" =~ "stable.nixpkgs.hello" ]]
+  [[ ! "$output" =~ "stable.nixpkgs-flox.hello" ]]
 
 }
 
-@test "flox history should contain the install and removal of stable.nixpkgs.hello --stability stable" {
+@test "flox history should contain the install and removal of stable.nixpkgs-flox.hello --stability stable" {
 
   run "${FLOXPATH}"/result/bin/flox --stability stable history
-  [[ "$output" =~ "flox install stable.nixpkgs.hello" ]]
-  [[ "$output" =~ "flox remove stable.nixpkgs.hello" ]]
+  [[ "$output" =~ "flox install stable.nixpkgs-flox.hello" ]]
+  [[ "$output" =~ "flox remove stable.nixpkgs-flox.hello" ]]
 
 }
 
@@ -84,5 +84,5 @@ setup() {
 
 @test "flox search should return expected results" {
   run "${FLOXPATH}"/result/bin/flox --stability stable search "hello"
-  [[ "$output" =~ "stable.nixpkgs.hello" ]]
+  [[ "$output" =~ "stable.nixpkgs-flox.hello" ]]
 }

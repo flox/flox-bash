@@ -16,7 +16,7 @@ with_entries(
   .value.floxref = "\(.value.channel).\(.value.attrPath)" |
   .value.alias = (
     if .value.stability == "stable" then (
-      if .value.channel == "nixpkgs" then [] else [.value.channel] end
+      if .value.channel == "nixpkgs-flox" then [] else [.value.channel] end
     ) else
       [.value.stability,.value.channel]
     end + $key[4:] | join(".") | rtrimstr(".\($key[-1])")

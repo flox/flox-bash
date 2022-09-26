@@ -715,8 +715,8 @@ function maxProfileGen() {
 # 3) paths which resolve to /nix/store/*: return first 3 path components.
 # 4) floxpkgs "[[stability.]channel.]attrPath" tuple: convert to flox catalog
 #    flake reference, e.g.
-#      stable.nixpkgs.yq ->
-#        flake:nixpkgs#catalog.aarch64-darwin.stable.yq
+#      stable.nixpkgs-flox.yq ->
+#        flake:nixpkgs-flox#catalog.aarch64-darwin.stable.yq
 function floxpkgArg() {
 	trace "$@"
 	if [[ "$1" == *#* ]]; then
@@ -741,8 +741,8 @@ function floxpkgArg() {
 				floxTuple="$1"
 			else
 				# stability.attrPath .. perhaps we shouldn't support this?
-				# Inject "nixpkgs" as the default channel.
-				floxTuple="${input[0]}.nixpkgs.${input[@]:1}"
+				# Inject "nixpkgs-flox" as the default channel.
+				floxTuple="${input[0]}.nixpkgs-flox.${input[@]:1}"
 			fi
 			;;
 		*)
@@ -751,7 +751,7 @@ function floxpkgArg() {
 				floxTuple="stable.$1"
 			else
 				# attrPath
-				floxTuple="stable.nixpkgs.$1"
+				floxTuple="stable.nixpkgs-flox.$1"
 			fi
 			;;
 		esac
@@ -883,7 +883,8 @@ function validateFlakeURL() {
 function updateFloxFlakeRegistry() {
 	# Set default catalog flake entries.
 	registry $floxUserMeta 1 set channels flox github:flox/floxpkgs/master
-	registry $floxUserMeta 1 set channels nixpkgs github:flox/nixpkgs-flox/master
+	registry $floxUserMeta 1 set channels nixpkgs github:flox/nixpkgs/${FLOX_STABILITY}
+	registry $floxUserMeta 1 set channels nixpkgs-flox github:flox/nixpkgs-flox/master
 
 	# Render Nix flake registry file using user-provided flake entries.
 	# Note: avoids problems to let nix create the temporary file.
@@ -895,6 +896,8 @@ function updateFloxFlakeRegistry() {
 	')
 
 	# Add courtesy Nix flake entries for accessing nixpkgs of different stabilities.
+	# We provide these as a backup to the use of "nixpkgs/{stable,staging,unstable}"
+	# in the event that the user overrides the "nixpkgs" entry in their user registry.
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-stable github:flox/nixpkgs/stable
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-staging github:flox/nixpkgs/staging
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-unstable github:flox/nixpkgs/unstable

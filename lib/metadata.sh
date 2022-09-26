@@ -160,7 +160,7 @@ protoManifestToml=$(cat <<EOF
 #
 # Example package with optional constraints:
 #   [packages."curl"]
-#     channel = "nixpkgs"
+#     channel = "nixpkgs-flox"
 #     stability = "staging"
 #     version = "7.79"
 

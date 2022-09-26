@@ -41,7 +41,7 @@ def expectedArgs(count; args):
 # {
 #   "active": true,
 #   "attrPath": "$catalogEvalAttrPathPrefix.stable.vim",
-#   "originalUrl": "flake:nixpkgs",
+#   "originalUrl": "flake:nixpkgs-flox",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
 #   ],
