@@ -121,7 +121,7 @@ case "$subcommand" in
 
 # Flox commands which take an (-e|--environment) environment argument.
 # Also accept (-p|--profile) as the legacy form of this argument.
-activate | history | install | list | remove | rollback | \
+activate | history | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
 	cat | edit | generations | git | push | pull | destroy | sync)
 
@@ -248,7 +248,7 @@ activate | history | install | list | remove | rollback | \
 		;;
 
 	# Imperative commands which accept a flox package reference.
-	install | remove | upgrade)
+	remove | upgrade)
 		pkgArgs=()
 		pkgNames=()
 		impureArg=
@@ -486,7 +486,7 @@ EOF
 	;;
 
 # Flox commands which derive an attribute path from the current directory.
-build | develop | publish | run | shell)
+build | develop | publish | run | shell | install)
 	case "$subcommand" in
 	build)
 		floxBuild "$@"
@@ -502,6 +502,9 @@ build | develop | publish | run | shell)
 		;;
 	shell)
 		floxShell "$@"
+		;;
+	install)
+		floxInstall "$@"
 		;;
 	esac
 	exit 0 # XXX remove with refactor
