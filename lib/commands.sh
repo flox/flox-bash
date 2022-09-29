@@ -267,6 +267,7 @@ function floxPublish() {
 	local publishTo
 	local copyTo
 	local copyFrom
+	local remoteUrl
 	local renderPath="catalog"
 	local tmpdir=$(mktemp -d)
 	local gitClone # separate from tmpdir out of abundance of caution
@@ -284,6 +285,10 @@ function floxPublish() {
 		--copy-from) # takes one arg
 			shift
 			copyFrom="$1"; shift
+			;;
+		--remote-url)
+			shift
+			remoteUrl="$1"; shift
 			;;
 		--render-path | -r) # takes one arg
 			shift
@@ -351,6 +356,14 @@ function floxPublish() {
 		fi
 	fi
 
+	# The --remote-url argument specifies the upstream url of the flake.
+	# By default this is the flakeRef from which is being published.
+	if [ -z "$remoteUrl" ]; then
+		# TODO: improve user visibility, validate url with proper error
+		# messages
+		remoteUrl=$($_gum input --value "$flakeRef" --prompt "Enter remote URL of for source backed builds: (enter '.' to effectively disable source builds on remote machines): ")
+	fi
+
 	# Start by making sure we can clone the thing we want to publish to.
 	if [ -z "$publishTo" ]; then
 		local origin=$($_git remote get-url origin)
@@ -399,7 +412,7 @@ function floxPublish() {
 
 	# Gather remote package outpath metadata ... why?
 	# XXX need to clean up $publishTo to be a nix-friendly URL .. punt for now
-	local remoteMetadata=$metadata # $($invoke_nix flake metadata $publishTo --json)
+	local remoteMetadata=$($invoke_nix flake metadata "$remoteUrl" --json)
 
 	# Analyze package.
 	# TODO: bundle lib/analysis.nix with flox CLI to avoid dependency on remote flake
@@ -424,6 +437,17 @@ function floxPublish() {
 	sourceInfo=$(echo "$metadata" | $_jq '{locked:.locked, original:.original}')
 	remoteInfo=$(echo "$remoteMetadata" | $_jq '{remote:.original}')
 
+	local gitRevisionLocal="$(echo "$metadata" | $_jq '.revision' )"
+	local gitRevisionRemote="$(echo "$remoteMetadata" | $_jq '.revision' )"
+
+	# Fail if 
+	# a) different revisions local & remote
+	# b) local repo dirty
+	if [[ "$gitRevisionRemote" != "$gitRevisionLocal" || -z "$gitRevisionLocal" ]]; then
+		error "The flake '$flakeRef' is dirty or not a git repository at the same commit as the specified upstream '$remoteUrl'" < /dev/null
+	fi
+
+
 	# Copy to binary cache (optional).
 	if [ -n "$copyTo" ]; then
 		local builtfilter="flake:flox#builtfilter"
@@ -438,8 +462,11 @@ function floxPublish() {
 		--argjson evalAndBuild "$evalAndBuild" \
 		--argjson sourceInfo "$sourceInfo" \
 		--argjson remoteInfo "$remoteInfo" \
+		--argjson remoteMetadata "$remoteMetadata" \
+		--argjson gitRevisionRemote "$gitRevisionRemote" \
 		--arg stability "$FLOX_STABILITY" '
 		$evalAndBuild * {
+			"element": {"url": "\($remoteMetadata.resolvedUrl)?rev=\($gitRevisionRemote)"},
 			"source": ($sourceInfo*$remoteInfo),
 			"eval": {
 				"stability": $stability
