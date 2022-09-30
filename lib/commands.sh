@@ -519,7 +519,7 @@ function floxRun() {
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	local -a runArgs=()
-	local -a installables=()
+	local -a remainingArgs=()
 	while test $# -gt 0; do
 		case "$1" in
 		-A | --attr) # takes one arg
@@ -545,9 +545,12 @@ function floxRun() {
 		-*)
 			runArgs+=("$1"); shift
 			;;
-		# Assume all other options are installables.
+		# nix will potentially still grab args after the installable, but we have no need to parse them
+		# we aren't grabbing any flox specific args though, so flox run .#installable --arg-for-flox won't
+		# work
 		*)
-			installables+=("$1"); shift
+			remainingArgs=("$@")
+			break
 			;;
 		esac
 
@@ -555,14 +558,12 @@ function floxRun() {
 
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
-	if [ ${#installables[@]} -eq 0 ]; then
+	if [ ${#remainingArgs[@]} -eq 0 ]; then
 		local attrPath="$(selectAttrPath run)"
-		installables+=(".#$attrPath")
-	elif [ ${#installables[@]} -gt 1 ]; then
-		usage | error "more than one package argument provided"
+		remainingArgs+=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" run "${installables[0]}" "${runArgs[@]}" --impure
+	$invoke_nix "${_nixArgs[@]}" run "${runArgs[@]}" --impure "${remainingArgs[@]}"
 }
 
 # flox shell
