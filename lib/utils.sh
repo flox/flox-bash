@@ -53,8 +53,7 @@ colorRapidBlink="${ESC}6m"
 colorReverseVideo="${ESC}7m"
 
 # Set gum color palette.
-# GUM_SPIN_* buggy in v0.4.0
-export GUM_SPIN_FOREGROUND=$DARKPEACH256
+export GUM_SPIN_SPINNER_FOREGROUND=$DARKPEACH256
 export GUM_CHOOSE_CURSOR_FOREGROUND="$DARKPEACH256"
 export GUM_CHOOSE_PROMPT_FOREGROUND="$LIGHTBLUE256"
 export GUM_CHOOSE_SELECTED_CURSOR_FOREGROUND="$DARKPEACH256"
@@ -941,6 +940,12 @@ function searchChannels() {
 		channels=($(registry $floxUserMeta 1 get channels | $_jq -r 'keys | sort[]' || true))
 	fi
 
+	# always refresh all channels except nixpkgs
+	for channel in ${channels[@]}; do
+		[ $channel == "nixpkgs" ] && continue
+		$invoke_nix flake metadata "flake:${channel}" --refresh ${_nixArgs[@]}  > /dev/null
+	done
+
 	# Nicely print out commands for debugging. We cannot do this with the
 	# usual $invoke_* trick because we're burying the invocation in two
 	# layers of `gum` and `parallel`.
@@ -972,9 +977,7 @@ function searchChannels() {
 	# gum BUG: writes the spinner to stdout (dumb) - redirect that to stderr
 	# gum BUG: doesn't preserve cmdline quoting properly so add extra quoting
 	#     that may bite us someday when they fix their bug upstream
-	# gum BUG: version 0.4.0 doesn't honor GUM_SPIN_FOREGROUND env variable
 	minverbosity=2 $invoke_gum spin \
-		--spinner.foreground="$GUM_SPIN_FOREGROUND" \
 		--title="Searching channels: ${channels[*]}" 1>&2 -- \
 		$_parallel --no-notice --results $_tmpdir -- \
 			$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
