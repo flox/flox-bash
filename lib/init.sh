@@ -212,7 +212,7 @@ fi
 
 # Add static "floxbeta" developer token for closed beta. (expires 10/31/22)
 # XXX Remove after closed beta.
-betaToken="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"
+betaToken="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"
 # XXX a temporary fix for pre-alpha demonstration to force access to
 # semi-private repositories.
 echo "access-tokens = github.com=${betaToken}" >> $tmpNixConf
