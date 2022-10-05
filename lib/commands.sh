@@ -95,6 +95,11 @@ function parseNixArgs() {
 		--use-case-hack | --use-registries | --use-sqlite-wal | --warn-dirty)
 			_nixArgs+=("$1"); shift
 			;;
+		# Consume remaining args
+		--command|-c|--)
+			_cmdArgs+=("$@")
+			break
+			;;
 		# All else are command args.
 		*)
 			_cmdArgs+=("$1"); shift
@@ -152,10 +157,10 @@ function floxBuild() {
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
 		local attrPath="$(selectAttrPath build)"
-		installables+=(".#$attrPath")
+		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" build "${installables[@]}" "${buildArgs[@]}" --impure
+	$invoke_nix "${_nixArgs[@]}" build --impure "${buildArgs[@]}" "${installables[@]}"
 }
 
 # flox develop
@@ -167,6 +172,7 @@ function floxDevelop() {
 
 	local -a developArgs=()
 	local -a installables=()
+	local -a remainingArgs=()
 	while test $# -gt 0; do
 		case "$1" in
 		-A | --attr) # takes one arg
@@ -178,7 +184,7 @@ function floxDevelop() {
 		# All remaining options are `nix build` args.
 
 		# Options taking two args.
-		--command|-c|--redirect|--arg|--argstr|--override-flake|--override-input)
+		--redirect|--arg|--argstr|--override-flake|--override-input)
 			developArgs+=("$1"); shift
 			developArgs+=("$1"); shift
 			developArgs+=("$1"); shift
@@ -188,13 +194,22 @@ function floxDevelop() {
 			developArgs+=("$1"); shift
 			developArgs+=("$1"); shift
 			;;
+		# Options that consume remaining arguments
+		--command|-c)
+			remainingArgs+=("$@")
+			break
+			;;
 		# Options taking zero args.
 		-*)
 			developArgs+=("$1"); shift
 			;;
-		# Assume all other options are installables.
+		# Assume first unknown option is an installable and the rest are for commands.
 		*)
-			installables+=("$1"); shift
+			if [ ${#installables[@]} -eq 0 ]; then
+				installables=("$1"); shift
+			else
+				remainingArgs+=("$1"); shift
+			fi
 			;;
 		esac
 
@@ -204,10 +219,10 @@ function floxDevelop() {
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
 		local attrPath="$(selectAttrPath develop)"
-		installables+=(".#$attrPath")
+		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" develop "${installables[@]}" "${developArgs[@]}" --impure
+	$invoke_nix "${_nixArgs[@]}" develop --impure "${developArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
 }
 
 # flox init
@@ -519,6 +534,7 @@ function floxRun() {
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	local -a runArgs=()
+	local -a installables=()
 	local -a remainingArgs=()
 	while test $# -gt 0; do
 		case "$1" in
@@ -541,6 +557,11 @@ function floxRun() {
 			runArgs+=("$1"); shift
 			runArgs+=("$1"); shift
 			;;
+		# Options that consume remaining arguments
+		--)
+			remainingArgs+=("$@")
+			break
+			;;
 		# Options taking zero args.
 		-*)
 			runArgs+=("$1"); shift
@@ -549,8 +570,11 @@ function floxRun() {
 		# we aren't grabbing any flox specific args though, so flox run .#installable --arg-for-flox won't
 		# work
 		*)
-			remainingArgs=("$@")
-			break
+			if [ ${#installables[@]} -eq 0 ]; then
+				installables=("$1"); shift
+			else
+				remainingArgs+=("$1"); shift
+			fi
 			;;
 		esac
 
@@ -558,12 +582,12 @@ function floxRun() {
 
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
-	if [ ${#remainingArgs[@]} -eq 0 ]; then
+	if [ ${#installables[@]} -eq 0 ]; then
 		local attrPath="$(selectAttrPath run)"
-		remainingArgs+=(".#$attrPath")
+		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" run "${runArgs[@]}" --impure "${remainingArgs[@]}"
+	$invoke_nix "${_nixArgs[@]}" run --impure "${runArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
 }
 
 # flox shell
@@ -575,6 +599,7 @@ function floxShell() {
 
 	local -a shellArgs=()
 	local -a installables=()
+	local -a remainingArgs=()
 	while test $# -gt 0; do
 		case "$1" in
 		-A | --attr) # takes one arg
@@ -586,7 +611,7 @@ function floxShell() {
 		# All remaining options are `nix run` args.
 
 		# Options taking two args.
-		--command|-c|--arg|--argstr|--override-flake|--override-input)
+		--arg|--argstr|--override-flake|--override-input)
 			shellArgs+=("$1"); shift
 			shellArgs+=("$1"); shift
 			shellArgs+=("$1"); shift
@@ -595,6 +620,11 @@ function floxShell() {
 		--keep|-k|--unset|-u|--eval-store|--include|-I|--inputs-from|--update-input|--expr|--file|-f)
 			shellArgs+=("$1"); shift
 			shellArgs+=("$1"); shift
+			;;
+		# Options that consume remaining arguments
+		--command|-c)
+			remainingArgs+=("$@")
+			break
 			;;
 		# Options taking zero args.
 		-*)
@@ -612,12 +642,10 @@ function floxShell() {
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
 		local attrPath="$(selectAttrPath shell)"
-		installables+=(".#$attrPath")
-	elif [ ${#installables[@]} -gt 1 ]; then
-		usage | error "more than one package argument provided"
+		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" shell "${installables[@]}" "${shellArgs[@]}" --impure
+	$invoke_nix "${_nixArgs[@]}" shell --impure "${shellArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
 }
 
 ## Environment commands
