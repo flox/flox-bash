@@ -230,20 +230,47 @@ _development_commands+=("init")
 _usage["init"]="initialize flox expressions for current project"
 function floxInit() {
 	trace "$@"
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
+
+	local template
+	local pname
+	while test $# -gt 0; do
+		case "$1" in
+		-t | --template) # takes one arg
+			shift
+			template="$1"
+			shift
+			;;
+		-n | --name) # takes one arg
+			shift
+			pname="$1"
+			shift
+			;;
+		*)
+			usage | error "invalid argument: $1"
+			shift
+			;;
+		esac
+
+	done
 
 	# Select template.
-	local choice=$($_nix eval --no-write-lock-file --raw --apply '
-	  x: with builtins; concatStringsSep "\n" (
-		attrValues (mapAttrs (k: v: k + ": " + v.description) (removeAttrs x ["_init"]))
-	  )
-	' "flox#templates" | $_gum filter | $_cut -d: -f1)
-	[ -n "$choice" ] || exit 1
+	if [[ -z "$template" ]]; then
+		template=$($_nix eval --no-write-lock-file --raw --apply '
+		  x: with builtins; concatStringsSep "\n" (
+			attrValues (mapAttrs (k: v: k + ": " + v.description) (removeAttrs x ["_init"]))
+		  )
+		' "flox#templates" | $_gum filter | $_cut -d: -f1)
+		[ -n "$template" ] || exit 1
+	fi
 
 	# Identify pname.
-	local origin=$($_git remote get-url origin)
-	local bn=${origin//*\//}
-	local pname=$($_gum input --value "${bn//.git/}" --prompt "Enter package name: ")
-	[ -n "$pname" ] || exit 1
+	if [[ -z "$pname" ]]; then
+		local origin=$($_git remote get-url origin)
+		local bn=${origin//*\//}
+		local pname=$($_gum input --value "${bn//.git/}" --prompt "Enter package name: ")
+		[ -n "$pname" ] || exit 1
+	fi
 
 	# Extract flox _init template if it hasn't already.
 	[ -f flox.nix ] || {
@@ -252,7 +279,7 @@ function floxInit() {
 	}
 
 	# Extract requested template.
-	$invoke_nix flake init --template "flox#templates.$choice" "$@"
+	$invoke_nix "${_nixArgs[@]}" flake init --template "flox#templates.$template" "$@"
 	if [ -f pkgs/default.nix ]; then
 		$invoke_mkdir -p "pkgs/$pname"
 		$invoke_git mv pkgs/default.nix "pkgs/$pname/default.nix"
