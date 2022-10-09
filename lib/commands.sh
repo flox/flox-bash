@@ -534,7 +534,6 @@ function floxPublish() {
 			)
 		}
 	')
-	echo "$elementPath"
 
 	if [ "$publishTo" != "-" ]; then
 		local epAttrPath=$($_jq -r .attrPath <<< "$elementPath")
