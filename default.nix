@@ -18,6 +18,7 @@ let
     hostPlatform
     jq
     lib
+    libossp_uuid
     makeWrapper
     man
     nixUnstable
@@ -75,7 +76,7 @@ in stdenv.mkDerivation rec {
   buildInputs = [
     ansifilter bashInteractive coreutils dasel diffutils
     findutils gawk getent git gh gnugrep gnused gum gzip jq
-    man nixPatched parallel util-linuxMinimal
+    libossp_uuid man nixPatched parallel util-linuxMinimal
   ];
   makeFlags = [
     "PREFIX=$(out)"

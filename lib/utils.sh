@@ -134,7 +134,7 @@ function hash_commands() {
 hash_commands \
 	ansifilter awk basename bash cat chmod cmp column cp cut dasel date dirname \
 	id jq getent gh git gum grep ln man mkdir mktemp mv nix nix-store parallel pwd \
-	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr xargs zgrep
+	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr uuid xargs zgrep
 
 # Return full path of first command available in PATH.
 #
