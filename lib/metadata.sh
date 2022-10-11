@@ -587,6 +587,7 @@ function getSetOrigin() {
 
 			# rename .cache/flox/profilemeta/{local -> owner} &&
 			#   replace with symlink from local -> owner
+			# use .cache/flox/profilemeta/owner as profileMetaDir going forward (only for this function though!)
 			if [ -d "$FLOX_META/$newProfileOwner" ]; then
 				warn "moving profile metadata directory $FLOX_META/$newProfileOwner out of the way"
 				$invoke_mv --verbose $FLOX_META/$newProfileOwner{,.$$}
@@ -595,6 +596,7 @@ function getSetOrigin() {
 				$invoke_mv "$FLOX_META/local" "$FLOX_META/$newProfileOwner"
 			fi
 			$invoke_ln -s -f $newProfileOwner "$FLOX_META/local"
+			profileMetaDir="$FLOX_META/$newProfileOwner"
 
 			# rename .local/share/flox/environments/{local -> owner}
 			#   replace with symlink from local -> owner
@@ -673,10 +675,11 @@ function pushpullMetadata() {
 		$invoke_git -C "$tmpDir" checkout --track upstream/"$branch"
 	else
 		$invoke_git -C "$tmpDir" checkout --orphan "$branch"
-		$invoke_git -C "$tmpDir" ls-files | $_xargs --no-run-if-empty $_git -C "$repoDir" rm --quiet -f
+		$invoke_git -C "$tmpDir" ls-files | $_xargs --no-run-if-empty $_git -C "$tmpDir" rm --quiet -f
 		# A commit is needed in order to make the branch visible.
 		$invoke_git -C "$tmpDir" commit --quiet --allow-empty \
 			-m "$USER created profile"
+		$invoke_git -C "$tmpDir" push --quiet --set-upstream origin "$branch"
 	fi
 
 	# Then push or pull.

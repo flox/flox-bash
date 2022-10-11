@@ -121,7 +121,7 @@ case "$subcommand" in
 
 # Flox commands which take an (-e|--environment) environment argument.
 # Also accept (-p|--profile) as the legacy form of this argument.
-activate | history | list | remove | rollback | \
+activate | history | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
 	cat | edit | generations | git | push | pull | destroy | sync)
 
@@ -248,7 +248,8 @@ activate | history | list | remove | rollback | \
 		;;
 
 	# Imperative commands which accept a flox package reference.
-	remove | upgrade)
+	# TODO Refactor sync{Metadata,Profile} calls at bottom so we can move this to lib/commands.sh.
+	install | remove | upgrade)
 		pkgArgs=()
 		pkgNames=()
 		impureArg=
@@ -282,15 +283,43 @@ activate | history | list | remove | rollback | \
 					;;
 				esac
 			done
+			# Perform a test build of provided pkgArgs before installing.
+			# Do it in a single command because running sequential builds is SLOW.
+			if ! $invoke_nix build --no-link --impure "${pkgArgs[@]}" >/dev/null 2>&1; then
+				# If that failed then repeat the build of each pkgArg individually
+				# to report which one(s) failed.
+				declare -a failedPkgArgs=()
+				declare _stderr=$($_mktemp)
+				for pkgArg in ${pkgArgs[@]}; do
+					if ! $invoke_nix build --no-link --impure "$pkgArg" >$_stderr 2>&1; then
+						failedPkgArgs+=("$pkgArg")
+						declare pkgName
+						case "$pkgArg" in
+						flake:*\#)
+							pkgName=($(manifest $profile/manifest.json flakerefToFloxpkg "$pkgArg"))
+							;;
+						*)
+							pkgName="$pkgArg"
+							;;
+						esac
+						if $_grep -q -e "error: path '/nix/store/.\+' does not exist and cannot be created" "$_stderr"; then
+							warn "failed to find a binary download for '$pkgName'"
+							warn "try building from source by installing as '$pkgName.fromSource':\n"
+							warn "\t\$ flox install $pkgName.fromSource\n"
+							warn "failed to find a binary download for '$pkgName'" < /dev/null
+						else
+							$_cat $_stderr 1>&2
+						fi
+					fi
+				done
+				$_rm -f $_stderr
+				error "failed to install packages: ${failedPkgArgs[@]}" < /dev/null
+			fi
 		else
 			# The remove and upgrade commands operate on flake references and
 			# require the package to be present in the manifest. Take this
-			# opportunity to look up the flake reference from the manifest.
-			#
-			# NIX BUG: the remove and upgrade commands are supposed to
-			# accept flake references but those don't work at present.  :(
-			# Take this opportunity to look up flake references in the
-			# manifest and then remove or upgrade them by position only.
+			# opportunity to look up the flake reference from the manifest
+			# and then remove or upgrade them by position only.
 			for pkg in ${args[@]}; do
 				case "$pkg" in
 				-*) # Don't try to interpret option as floxpkgArg.
@@ -433,10 +462,10 @@ EOF
 					logFormat="format:%cd %C(cyan)%B%Creset"
 					;;
 				-*)
-					error "unknown option \"$opt\"" </dev/null
+					error "unknown option \"$arg\"" </dev/null
 					;;
 				*)
-					error "extra argument \"$opt\"" </dev/null
+					error "extra argument \"$arg\"" </dev/null
 					;;
 				esac
 			done
@@ -486,7 +515,7 @@ EOF
 	;;
 
 # Flox commands which derive an attribute path from the current directory.
-build | develop | publish | run | shell | install)
+build | develop | publish | run | shell)
 	case "$subcommand" in
 	build)
 		floxBuild "$@"
@@ -502,9 +531,6 @@ build | develop | publish | run | shell | install)
 		;;
 	shell)
 		floxShell "$@"
-		;;
-	install)
-		floxInstall "$@"
 		;;
 	esac
 	exit 0 # XXX remove with refactor

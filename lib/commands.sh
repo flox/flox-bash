@@ -696,92 +696,6 @@ _usage["history"]="show all versions of an environment"
 
 _environment_commands+=("install")
 _usage["install"]="install a package into an environment"
-function floxInstall() {
-	trace "$@"
-	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
-	
-	local -a installables=()
-
-	while test $# -gt 0; do
-		case "$1" in
-		-e | --environment | -p | --profile)
-			profiles+=($(profileArg $2))
-			shift 2
-			;;
-		*)
-			installables+=("$1"); shift
-			;;
-		esac
-	done
-
-	if [ ${#profiles[@]} -eq 0 ]; then
-		profiles+=($(profileArg "default"))
-	fi
-	profile=${profiles[0]}
-
-	# Nix will create a profile directory, but not its parent.
-	[ -d $($_dirname $profile) ] ||
-		$_mkdir -v -p $($_dirname $profile) 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
-
-	pkgArgs=()
-	pkgNames=()
-
-	for pkg in ${installables[@]}; do
-		pkgArgs+=($(floxpkgArg "$pkg"))
-	done
-
-
-	# Infer floxpkg name(s) from floxpkgs flakerefs.
-	for pkgArg in ${pkgArgs[@]}; do
-		pkgName=
-		case "$pkgArg" in
-		flake:*\#*)
-
-			# Look up floxpkg name from flox flake prefix.
-			pkgName=($(manifest $profile/manifest.json flakerefToFloxpkg "$pkgArg")) ||
-				error "failed to look up floxpkg reference for flake \"$pkgArg\"" </dev/null
-
-			stderr=$($_mktemp)
-
-			set +e
-			$invoke_nix build "${_nixArgs[@]}" --impure "$pkgArg" 2> "$stderr"
-			result="$?"
-
-			if [ $result != 0 ]; then
-
-				cat "$stderr" | $_grep -e "error: path '/nix/store/.\+' does not exist and cannot be created"
-				missingStorePath=$?
-
-				if [ "$missingStorePath" == 0 ] ; then 
-					error $(cat <<EOF
-failed to find a binary download for '$pkgName'\n.
-try building from source by installing as '$pkgName.fromSource':\n
-\n
-\t\$ flox install $pkgName.fromSource
-EOF
-) </dev/null
-				else 
-					error  \
-					"failed to install $pkgName:\n" \
-					"$(cat "$stderr")" \
-					</dev/null
-				fi
-			fi
-			set -e
-			;;
-		*)
-			pkgName=("$pkgArg")
-			;;
-		esac
-		pkgNames+=("$pkgName")
-
-	done
-
-	logMessage="$USER $(pastTense $subcommand) ${pkgNames[@]}"
-	$invoke_nix -v profile install "${_nixArgs[@]}" --profile "$profile" --impure "${pkgArgs[@]}"
-	
-	echo "$logMessage"
-}
 
 _environment_commands+=("list")
 _usage["list"]="list installed packages"
@@ -877,10 +791,7 @@ function floxSearch() {
 			$_jq -r -f "$_lib/search.jq" | $_column -t -s "|" | $_sed 's/^---$//' | \
 			$_grep -C 1000000 --ignore-case --color -E "$packageregexp"
 	fi
-	
 }
-
-
 
 _environment_commands+=("switch-generation")
 _usage["switch-generation"]="switch to a specific generation of an environment"
