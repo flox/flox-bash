@@ -237,6 +237,9 @@ tmpGitConfig=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
 $_chmod 600 $tmpGitConfig
 $_cat > $tmpGitConfig <<EOF
 # Automatically generated - do not edit.
+[user]
+	name = Flox User
+	email = floxuser@example.invalid
 
 # For access to the closed beta.
 [url "https://floxbeta:$betaToken@github.com/flox/capacitor"]
