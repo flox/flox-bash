@@ -1007,7 +1007,7 @@ function searchChannels() {
 #
 function lookupAttrPaths() {
 	trace "$@"
-	minverbosity=2 $invoke_nix eval ".#packages.$NIX_CONFIG_system" --json | $_jq -r 'keys | sort[]'
+	minverbosity=2 $invoke_nix eval ".#packages.$NIX_CONFIG_system" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
 }
 
 function selectAttrPath() {
