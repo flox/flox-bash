@@ -146,8 +146,7 @@ protoManifestToml=$(cat <<EOF
 #   LC_ALL = "\$LANG"
 #
 # [aliases]
-#   foo = "bar"
-#   baz = "bing"
+#   gg = "git grep"
 #
 # [hooks]
 #   sayhi = """
@@ -157,12 +156,6 @@ protoManifestToml=$(cat <<EOF
 # Edit below the "--- >8 ---" delimiter to define the list of packages to
 # be installed, but note that comments and the ordering of packages will
 # *not* be preserved with updates.
-#
-# Example package with optional constraints:
-#   [packages."curl"]
-#     channel = "nixpkgs-flox"
-#     stability = "staging"
-#     version = "7.79"
 
 # $snipline
 EOF
