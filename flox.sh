@@ -11,6 +11,9 @@ set -o pipefail
 declare -i verbose=0
 declare -i debug=0
 
+# Declare global variables
+declare -i floxMetricsConsent=0
+
 # set -x if debugging, can never remember which way this goes so do both.
 # Note need to do this here in addition to "-d" flag to be able to debug
 # initial argument parsing.
@@ -116,6 +119,9 @@ declare -a profiles=()
 
 # Build log message as we go.
 logMessage=
+
+# Add metric for this invocation in the background.
+submitMetric "$subcommand" &
 
 case "$subcommand" in
 

@@ -5,6 +5,7 @@ let
     ansifilter
     bashInteractive
     coreutils
+    curl
     dasel
     diffutils
     fetchpatch
@@ -70,11 +71,11 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.5${revision}";
+  version = "0.0.6${revision}";
   src = ./.;
   nativeBuildInputs = [ makeWrapper pandoc shfmt which ];
   buildInputs = [
-    ansifilter bashInteractive coreutils dasel diffutils
+    ansifilter bashInteractive coreutils curl dasel diffutils
     findutils gawk getent git gh gnugrep gnused gum gzip jq
     libossp_uuid man nixPatched parallel util-linuxMinimal
   ];

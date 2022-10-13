@@ -132,7 +132,7 @@ function hash_commands() {
 # avoid leaking Nix paths into the commands we invoke.
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands \
-	ansifilter awk basename bash cat chmod cmp column cp cut dasel date dirname \
+	ansifilter awk basename bash cat chmod cmp column cp curl cut dasel date dirname \
 	id jq getent gh git gum grep ln man mkdir mktemp mv nix nix-store parallel pwd \
 	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr uuid xargs zgrep
 
@@ -1057,6 +1057,85 @@ function ensureGHRepoExists() {
 			false
 		fi
 	fi
+}
+
+# Appends new JSON metric to the $FLOX_METRICS file, then submits
+# them all in a batch if the first entry in the file is older than
+# an hour. Does not return.
+function submitMetric() {
+	trace "$@"
+	local subcommand="$1"; shift
+	[ $floxMetricsConsent -eq 1 ] || exit 0;
+	[ -z "$FLOX_DISABLE_METRICS" ] || exit 0;
+
+	# Blow away the file if it is faulty json.
+	$_jq '.' "$FLOX_METRICS" >/dev/null 2>&1 || $_rm -f "$FLOX_METRICS"
+
+	# Record the timestamp of the (non-empty) file before we change it.
+	local file_timestamp=$now
+	if [ -s "$FLOX_METRICS" ]; then
+		file_timestamp=$($_stat -c %Y "$FLOX_METRICS")
+	elif [ ! -f "$FLOX_METRICS" ]; then
+		# Force sending of initial data when first creating file.
+		local file_timestamp=0
+	fi
+
+	# Add new metric event for this invocation.
+	# Note that jq's "--arg" flag performs safe quoting of strings.
+	$_jq -n -r -c \
+		--arg subcommand "$subcommand" \
+		--arg floxClientUUID "$floxClientUUID" \
+		--arg uuid "$($_uuid)" \
+		--argjson now "$now" '
+		{
+			"event": "cli-invocation",
+			"timestamp": $now,
+			"uuid": "\($uuid)",
+			"properties": {
+				"distinct_id": "flox-cli:\($floxClientUUID)",
+				"$device_id": "flox-cli:\($floxClientUUID)",
+				"$lib": "flox-cli",
+				"subcommand": "\($subcommand)",
+				"$set": {
+					"flox-cli-uuid": "\($floxClientUUID)"
+				}
+			}
+		}
+	' >> "$FLOX_METRICS"
+
+	# We don't want to send metrics too frequently, network noise sucks
+	# so we don't ever send the batch out more than once an hour.
+	# Set FLOX_SEND_METRICS=1 to force sending it anyway.
+	if [ -z "$FLOX_SEND_METRICS" ]; then
+		# If the file hasn't been modified for over an hour then always send.
+		local -i time_since_file_modification=$(($now - $file_timestamp))
+		if [ $time_since_file_modification -lt 3600 ]; then
+			local -i first_timestamp_in_file=$($_jq -r 'if input_line_number == 1 then .timestamp else halt end' "$FLOX_METRICS")
+			local -i time_since_first_event=$(($now - $first_timestamp_in_file))
+			[ $time_since_first_event -ge 3600 ] || exit 0
+		fi
+	fi
+
+	# Create full JSON body to send to endpoint.
+	minverbosity=2
+	if $invoke_jq -n -r -c --slurpfile events "$FLOX_METRICS" '
+		{
+			"api_key": "phc_z4dOADAPvpU9VNzCjDD3pIJuSuGTyagKdFWfjak838Y",
+			"batch": [
+				$events[] | with_entries(
+					if .key == "timestamp" then (
+						.value |= ( . | strftime("%Y-%m-%dT%H:%M:%S%z") )
+					) else . end
+				)
+			]
+		}
+	' | $_curl --silent -L --json @- "https://events.floxdev.com/capture" > /dev/null; then
+		# Reset the batch file
+		$_rm -f "$FLOX_METRICS"
+		$_touch "$FLOX_METRICS"
+	fi
+
+	exit 0
 }
 
 # vim:ts=4:noet:syntax=bash

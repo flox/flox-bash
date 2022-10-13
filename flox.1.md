@@ -307,6 +307,16 @@ flox install unstable.nixpkgs-flox.hello@2.10
     parsing and that it can be convenient to set this in the environment for
     the purposes of development.
 
+`$FLOX_METRICS`
+:   Location for the flox metrics accumulator file.
+    Defaults to `$XDG_DATA_HOME/.cache/metrics-events` or `$HOME/.cache/metrics-events`
+    if `$XDG_DATA_HOME` is not defined.
+
+`$FLOX_DISABLE_METRICS`
+:   Variable for disabling the collection/sending of metrics data.
+    If not empty, prevents flox from submitting basic metrics information
+    including the subcommand issued along with a unique token.
+
 `$EDITOR`, `$VISUAL`
 :   Override the default editor used for editing environment manifests and commit messages.
 
