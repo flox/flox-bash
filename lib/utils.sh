@@ -935,9 +935,10 @@ function searchChannels() {
 		shift
 	done
 
-	# If no channels were passed then search them all.
+	# If no channels were passed then search all but "nixpkgs"
+	# (which isn't a capacitated flake).
 	if [ ${#channels[@]} -eq 0 ]; then
-		channels=($(registry $floxUserMeta 1 get channels | $_jq -r 'keys | sort[]' || true))
+		channels=($(registry $floxUserMeta 1 get channels | $_jq -r 'keys | map(select(. != "nixpkgs")) | sort[]' || true))
 	fi
 
 	# always refresh all channels except nixpkgs
