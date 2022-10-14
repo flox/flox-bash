@@ -679,6 +679,8 @@ function pushpullMetadata() {
 	if [ "$action" = "push" ]; then
 		githubHelperGit -C $tmpDir push $forceArg upstream origin/"$branch":refs/heads/"$branch" ||
 			error "repeat command with '--force' to overwrite" < /dev/null
+		# Push succeeded, ensure that $profileMetaDir has remote ref for this branch.
+		$invoke_git -C "$profileMetaDir" fetch --quiet origin
 	elif [ "$action" = "pull" ]; then
 		# Slightly different here; we first attempt to rebase and do
 		# a hard reset if invoked with --force.
@@ -830,26 +832,35 @@ function destroyProfile() {
 
 	warn "WARNING: you are about to delete the following:"
 	warn " - $profileDir/$profileName{,-*-link}"
-	warn " - the $branch branch in $profileMetaDir"
-	local origin
-	[ -z "$originArg" ] || {
-		# XXX: BUG no idea why, but this is reporting origin twice
-		#      when first creating the repository; hack with sort.
-		origin=$(getSetOrigin "$profile" "$system" | $_sort -u)
-		warn " - the $branch branch in $origin"
-	}
+	local localBranch=
+	local origin=
+	if $invoke_git -C "$profileMetaDir" show-ref -q refs/heads/"$branch" >/dev/null; then
+		warn " - the $branch branch in $profileMetaDir"
+		localBranch="$branch"
+	fi
+	if [ -n "$originArg" ]; then
+		if $invoke_git -C "$profileMetaDir" show-ref -q refs/remotes/origin/"$branch" >/dev/null; then
+			# XXX: BUG no idea why, but this is reporting origin twice
+			#      when first creating the repository; hack with sort.
+			origin=$(getSetOrigin "$profile" "$system" | $_sort -u)
+			warn " - the $branch branch in $origin"
+		fi
+	fi
 	if boolPrompt "Are you sure?" "no"; then
 		# Start by changing to the (default) floxmain branch to ensure
 		# we're not attempting to delete the current branch.
-		if $invoke_git -C "$profileMetaDir" checkout --quiet "$defaultBranch" 2>/dev/null; then
-			# Ensure following commands always succeed so that subsequent
-			# invocations can reach the --origin remote removal below.
-			$invoke_git -C "$profileMetaDir" branch -D "$branch" || true
+		if [ -n "$localBranch" ]; then
+			if $invoke_git -C "$profileMetaDir" checkout --quiet "$defaultBranch" 2>/dev/null; then
+				# Ensure following commands always succeed so that subsequent
+				# invocations can reach the --origin remote removal below.
+				$invoke_git -C "$profileMetaDir" branch -D "$branch" || true
+			fi
+		fi
+		if [ -n "$origin" ]; then
 			$invoke_git -C "$profileMetaDir" branch -rd origin/"$branch" || true
+			githubHelperGit -C "$profileMetaDir" push origin --delete "$branch" || true
 		fi
 		$invoke_rm --verbose -f $profileDir/$profileName{,-*-link} || true
-		[ -z "$originArg" ] || \
-			githubHelperGit -C "$profileMetaDir" push origin --delete "$branch"
 	else
 		warn "aborted"
 		exit 1
