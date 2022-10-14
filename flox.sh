@@ -279,7 +279,7 @@ activate | history | install | list | remove | rollback | \
 			# Infer floxpkg name(s) from floxpkgs flakerefs.
 			for pkgArg in ${pkgArgs[@]}; do
 				case "$pkgArg" in
-				flake:*\#)
+				flake:*)
 					# Look up floxpkg name from flox flake prefix.
 					pkgNames+=($(manifest $profile/manifest.json flakerefToFloxpkg "$pkgArg")) ||
 						error "failed to look up floxpkg reference for flake \"$pkgArg\"" </dev/null
