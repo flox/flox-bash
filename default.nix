@@ -39,7 +39,11 @@ let
   git = pkgs.gitMinimal;
 
   nixPatched = nixUnstable.overrideAttrs (oldAttrs: {
-    patches = (oldAttrs.patches or []) ++ [ ./nix-patches/CmdProfileBuild.patch ./nix-patches/CmdSearchAttributes.patch ];
+    patches = (oldAttrs.patches or []) ++ [
+      ./nix-patches/CmdProfileBuild.patch
+      ./nix-patches/CmdSearchAttributes.patch
+      ./nix-patches/update-profile-list-warning.patch
+    ];
   });
 
   # TODO: create floxProfile for other shell dialects (e.g. csh).

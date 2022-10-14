@@ -104,29 +104,22 @@ if [ -n "$HOME" ]; then
 	[ -w "$HOME" ] || \
 		error "\$HOME directory '$HOME' not writable ... aborting" < /dev/null
 fi
-if [ -n "$XDG_CACHE_HOME" ]; then
-	[ -w "$XDG_CACHE_HOME" ] || \
-		error "\$XDG_CACHE_HOME directory '$XDG_CACHE_HOME' not writable ... aborting" < /dev/null
-fi
-if [ -n "$XDG_DATA_HOME" ]; then
-	[ -w "$XDG_DATA_HOME" ] || \
-		error "\$XDG_DATA_HOME directory '$XDG_DATA_HOME' not writable ... aborting" < /dev/null
-fi
-if [ -n "$XDG_CONFIG_HOME" ]; then
-	[ -w "$XDG_CONFIG_HOME" ] || \
-		error "\$XDG_CONFIG_HOME directory '$XDG_CONFIG_HOME' not writable ... aborting" < /dev/null
-fi
 export PWD=$($_pwd)
 
 # Define and create flox metadata cache, data, and profiles directories.
 export FLOX_STABILITY="${FLOX_STABILITY:-stable}"
-export FLOX_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/flox"
-export FLOX_META="$FLOX_CACHE_HOME/profilemeta"
+export FLOX_CACHE_HOME="${FLOX_CACHE_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/flox}"
+export FLOX_META="${FLOX_META:-$FLOX_CACHE_HOME/profilemeta}"
 export FLOX_METRICS="${FLOX_METRICS:-$FLOX_CACHE_HOME/metrics-events.json}"
-export FLOX_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/flox"
-export FLOX_ENVIRONMENTS="$FLOX_DATA_HOME/environments"
-export FLOX_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/flox"
+export FLOX_DATA_HOME="${FLOX_DATA_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/flox}"
+export FLOX_ENVIRONMENTS="${FLOX_ENVIRONMENTS:-$FLOX_DATA_HOME/environments}"
+export FLOX_CONFIG_HOME="${FLOX_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/flox}"
 $_mkdir -p "$FLOX_CACHE_HOME" "$FLOX_META" "$FLOX_DATA_HOME" "$FLOX_ENVIRONMENTS" "$FLOX_CONFIG_HOME"
+for i in "$FLOX_CACHE_HOME" "$FLOX_META" "$FLOX_DATA_HOME" "$FLOX_ENVIRONMENTS" "$FLOX_CONFIG_HOME"; do
+	# if $i is writable, do nothing, else try to create $i
+	[ -w "$i" ] || $_mkdir -p "$i" || \
+		error "directory '$i' not writable ... aborting" < /dev/null
+done
 
 # XXX Temporary: following the rename of profile -> environment:
 # * rename $FLOX_DATA_HOME/profiles -> $FLOX_DATA_HOME/environments

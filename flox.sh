@@ -432,8 +432,10 @@ activate | history | install | list | remove | rollback | \
 		fi
 		_profilePath="$FLOX_ENVIRONMENTS/$profileOwner/$profileName"
 		_profileAlias="$profileOwner/$profileName"
-		if [ -e "$_profilePath" -a "$($_realpath $_profilePath)" = "$($_realpath $FLOX_ENVIRONMENTS/local/$profileName)" ]; then
-			_profileAlias="$profileName"
+		if [ -e "$_profilePath" ]; then
+			if [ "$($_realpath $_profilePath)" = "$($_realpath $FLOX_ENVIRONMENTS/local/$profileName)" ]; then
+				_profileAlias="$profileName"
+			fi
 		fi
 		$_cat <<EOF
 $profileOwner/$profileName
