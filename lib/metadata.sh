@@ -830,22 +830,46 @@ function destroyProfile() {
 		fi
 	done
 
-	warn "WARNING: you are about to delete the following:"
-	warn " - $profileDir/$profileName{,-*-link}"
+	# Accumulate warning lines as we go.
+	local -a warnings=("WARNING: you are about to delete the following:")
+
+	# Look for symlinks to delete.
+	local -a links=()
+	for i in $profileDir/$profileName{,-*-link}; do
+		if [ -L "$i" ]; then
+			links+=("$i")
+			warnings+=(" - $i")
+		fi
+	done
+
+	# Look for a local branch.
 	local localBranch=
-	local origin=
 	if $invoke_git -C "$profileMetaDir" show-ref -q refs/heads/"$branch" >/dev/null; then
-		warn " - the $branch branch in $profileMetaDir"
 		localBranch="$branch"
+		warnings+=(" - the $branch branch in $profileMetaDir")
 	fi
+
+	# Look for an origin branch.
+	local origin=
 	if [ -n "$originArg" ]; then
 		if $invoke_git -C "$profileMetaDir" show-ref -q refs/remotes/origin/"$branch" >/dev/null; then
 			# XXX: BUG no idea why, but this is reporting origin twice
 			#      when first creating the repository; hack with sort.
 			origin=$(getSetOrigin "$profile" "$system" | $_sort -u)
-			warn " - the $branch branch in $origin"
+			warnings+=(" - the $branch branch in $origin")
 		fi
 	fi
+
+	# If no warnings (other than the header warning) then nothing to destroy.
+	if [ ${#warnings[@]} -le 1 ]; then
+		warn "Nothing to delete for the '$profileName' environment"
+		return
+	fi
+
+	# Issue all the warnings and prompt for confirmation
+	for i in "${warnings[@]}"; do
+		warn "$i"
+	done
 	if boolPrompt "Are you sure?" "no"; then
 		# Start by changing to the (default) floxmain branch to ensure
 		# we're not attempting to delete the current branch.
@@ -860,7 +884,7 @@ function destroyProfile() {
 			$invoke_git -C "$profileMetaDir" branch -rd origin/"$branch" || true
 			githubHelperGit -C "$profileMetaDir" push origin --delete "$branch" || true
 		fi
-		$invoke_rm --verbose -f $profileDir/$profileName{,-*-link} || true
+		$invoke_rm --verbose -f ${links[@]}
 	else
 		warn "aborted"
 		exit 1
