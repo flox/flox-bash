@@ -195,6 +195,12 @@ The following option is supported by the commands below.
 :   Perform a build, (optionally) copy to cache substituter,
     and render package metadata for inclusion in the flox catalog.
 
+    `[ --upstream-url <gitUrl> ]`
+    :   The `--upstream-url` determines the upstream repository containing
+        the source of the published package.
+        It is used to reproducibly build the pacakge from source if it can
+        not be fetched from a binary store.
+
     `[ --publish-to <dest> ]`
     :   With the `--publish-to` argument, commits and writes metadata to
         the URL or path of a git repository, or with the "-" argument

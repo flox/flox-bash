@@ -293,7 +293,7 @@ function floxInit() {
 # flox publish
 _development_commands+=("publish")
 _usage["publish"]="build and publish project to flox channel"
-_usage_options["publish"]="[ --publish-to <gitURL> ] \\
+_usage_options["publish"]="[ --publish-to <gitURL> ] [--upstream-url <gitURL>] \\
                  [ --copy-to <nixURI> ] [ --copy-from <nixURI> ] \\
                  [ --render-path <dir> ] [ --key-file <file> ]"
 function floxPublish() {
@@ -309,7 +309,7 @@ function floxPublish() {
 	local publishTo
 	local copyTo
 	local copyFrom
-	local remoteUrl
+	local upstreamUrl
 	local renderPath="catalog"
 	local tmpdir=$(mktemp -d)
 	local gitClone # separate from tmpdir out of abundance of caution
@@ -328,9 +328,9 @@ function floxPublish() {
 			shift
 			copyFrom="$1"; shift
 			;;
-		--remote-url)
+		--upstream-url)
 			shift
-			remoteUrl="$1"; shift
+			upstreamUrl="$1"; shift
 			;;
 		--render-path | -r) # takes one arg
 			shift
@@ -398,12 +398,28 @@ function floxPublish() {
 		fi
 	fi
 
-	# The --remote-url argument specifies the upstream url of the flake.
-	# By default this is the flakeRef from which is being published.
-	if [ -z "$remoteUrl" ]; then
+	# The --upstream-url argument specifies the upstream url of the flake.
+	# By default this is the origin of the repo being published.
+	if [ -z "$upstreamUrl" ]; then
 		# TODO: improve user visibility, validate url with proper error
 		# messages
-		remoteUrl=$($_gum input --value "$flakeRef" --prompt "Enter remote URL of for source backed builds: (enter '.' to effectively disable source builds on remote machines): ")
+		local origin=$($_git remote get-url origin)
+		
+		# put this after querying the url from the user?
+		local nixGitRef=
+		case "$origin" in
+			git@* )
+				nixGitRef="git+ssh://${origin/[:]//}"
+				;;
+			ssh://* | http://* | https://* )
+				nixGitRef="git+$origin"
+				;;
+			*) 
+				nixGitRef="$origin"
+				;;
+		esac
+
+		upstreamUrl=$($_gum input --value "$nixGitRef" --prompt "Enter upstream URL for source backed builds: (enter '.' to effectively disable source builds on remote machines): ")
 	fi
 
 	# Start by making sure we can clone the thing we want to publish to.
@@ -414,8 +430,8 @@ function floxPublish() {
 	fi
 	if [ "$publishTo" = "-" ]; then
 		gitClone="-"
-	elif [ "$publishTo" = "." ]; then
-		gitClone="."
+	elif [ -d "$publishTo" ]; then
+		gitClone="$publishTo"
 	else
 		gitClone=$tmpdir
 		ensureGHRepoExists "$publishTo" public "https://github.com/flox/floxpkgs-template.git"
@@ -452,9 +468,20 @@ function floxPublish() {
 	# Gather local package outpath metadata.
 	local metadata=$($invoke_nix flake metadata "$flakeRef" --json)
 
+	local gitRevisionLocal="$(echo "$metadata" | $_jq -r '.revision' )"
+
+	# Fail if local repo dirty
+	if [[ -z "$gitRevisionLocal" ]]; then
+		error "The flake '$flakeRef' is dirty or not a git repository" < /dev/null
+	fi
+
+
 	# Gather remote package outpath metadata ... why?
 	# XXX need to clean up $publishTo to be a nix-friendly URL .. punt for now
-	local remoteMetadata=$($invoke_nix flake metadata "$remoteUrl" --json)
+	local remoteMetadata
+	if ! remoteMetadata=$($invoke_nix flake metadata "$upstreamUrl?rev=$gitRevisionLocal" --json); then
+		error "The local commit '$gitRevisionLocal'  was not found in upstream repository '$upstreamUrl'" < /dev/null
+	fi
 
 	# Analyze package.
 	# TODO: bundle lib/analysis.nix with flox CLI to avoid dependency on remote flake
@@ -479,16 +506,6 @@ function floxPublish() {
 	sourceInfo=$(echo "$metadata" | $_jq '{locked:.locked, original:.original}')
 	remoteInfo=$(echo "$remoteMetadata" | $_jq '{remote:.original}')
 
-	local gitRevisionLocal="$(echo "$metadata" | $_jq '.revision' )"
-	local gitRevisionRemote="$(echo "$remoteMetadata" | $_jq '.revision' )"
-
-	# Fail if 
-	# a) different revisions local & remote
-	# b) local repo dirty
-	if [[ "$gitRevisionRemote" != "$gitRevisionLocal" || -z "$gitRevisionLocal" ]]; then
-		error "The flake '$flakeRef' is dirty or not a git repository at the same commit as the specified upstream '$remoteUrl'" < /dev/null
-	fi
-
 
 	# Copy to binary cache (optional).
 	if [ -n "$copyTo" ]; then
@@ -505,10 +522,9 @@ function floxPublish() {
 		--argjson sourceInfo "$sourceInfo" \
 		--argjson remoteInfo "$remoteInfo" \
 		--argjson remoteMetadata "$remoteMetadata" \
-		--argjson gitRevisionRemote "$gitRevisionRemote" \
 		--arg stability "$FLOX_STABILITY" '
 		$evalAndBuild * {
-			"element": {"url": "\($remoteMetadata.resolvedUrl)?rev=\($gitRevisionRemote)"},
+			"element": {"url": "\($remoteMetadata.resolvedUrl)"},
 			"source": ($sourceInfo*$remoteInfo),
 			"eval": {
 				"stability": $stability
@@ -543,7 +559,7 @@ function floxPublish() {
 		$_git -C "$gitClone" add $renderPath
 	fi
 
-	if [ "$publishTo" != "." -a "$publishTo" != "-" ]; then
+	if [ ! -d "$publishTo" -a "$publishTo" != "-" ]; then
 		$_git -C "$gitClone" commit -m "$USER published ${installables[@]}"
 		$_git -C "$gitClone" push
 	fi
