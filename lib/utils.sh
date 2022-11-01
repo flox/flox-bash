@@ -189,62 +189,65 @@ function error() {
 
 declare -A _usage
 declare -A _usage_options
+declare -a _general_commands
 declare -a _development_commands
 declare -a _environment_commands
-declare -a _general_commands
+
+# Pattered after output of `git -h`.
 function usage() {
 	trace "$@"
 	$_cat <<EOF 1>&2
-usage: $me [ (-h|--help) ] [ --version ] [ --prefix ]
-       $medashes
-       $me [ (-v|--verbose) ] [ --debug ] <command> [ <args> ]
-       $medashes
-       $me <development-command> \\
-       $mespaces[ --stability (stable|staging|unstable) ] \\
-       $mespaces[ (-d|--date) <date_string> ] [ <args> ]
-       $me <profile-command> \\
-       $mespaces[ (-p|--profile) <profile> ] [ <args> ]
-       $medashes
+usage:
+    $me [(-h|--help)] [--version] [--prefix]
 
-flox general commands:
-    flox packages [ --all | stability[.channel[.package]] ] [--show-libs]
-        list all packages or filtered by channel[.subchannel[.package]]
-        --show-libs: include library packages
-    flox builds <stability>.<channel>.<package>
-        list all available builds for specified package
-    flox environments
-        list all available environments
-    flox activate [ (-e|--environment) <environment> ]
-        in current shell: . <(flox activate)
-        in subshell: flox activate
-        for command: flox activate -- <command> <args>
-    flox config - configure user parameters
-    flox gh - access to the gh CLI
-    flox git - access to the git CLI
-
+general commands:
+    $me [(-v|--verbose)] [--debug] <command> [<args>]
+    $medashes
 EOF
 
-	echo "flox development commands:" 1>&2
-	for _command in "${_development_commands[@]}"; do
+	for _command in "${_general_commands[@]}"; do
 		if [ ${_usage_options["$_command"]+_} ]; then
-			echo "    flox $_command ${_usage_options[$_command]}"
+			echo "    $me $_command ${_usage_options[$_command]}"
 			echo "         - ${_usage[$_command]}"
 		else
-			echo "    flox $_command - ${_usage[$_command]}"
+			echo "    $me $_command - ${_usage[$_command]}"
 		fi
 	done 1>&2
 	echo "" 1>&2
 
-	echo "flox environment commands:" 1>&2
+	$_cat <<EOF 1>&2
+environment commands:
+    $me <command> [(-e|--environment) <env>] [<args>]
+    $medashes
+EOF
+
 	for _command in "${_environment_commands[@]}"; do
 		if [ ${_usage_options["$_command"]+_} ]; then
-			echo "    flox $_command ${_usage_options[$_command]}"
+			echo "    $me $_command ${_usage_options[$_command]}"
 			echo "         - ${_usage[$_command]}"
 		else
-			echo "    flox $_command - ${_usage[$_command]}"
+			echo "    $me $_command - ${_usage[$_command]}"
 		fi
 	done 1>&2
 	echo "" 1>&2
+
+	$_cat <<EOF 1>&2
+development commands:
+    $me [--stability (stable|staging|unstable)] \\
+    $mespaces [(-d|--date) <date_string>] <command> [<args>]
+    $medashes
+EOF
+
+	for _command in "${_development_commands[@]}"; do
+		if [ ${_usage_options["$_command"]+_} ]; then
+			echo "    $me $_command ${_usage_options[$_command]}"
+			echo "         - ${_usage[$_command]}"
+		else
+			echo "    $me $_command - ${_usage[$_command]}"
+		fi
+	done 1>&2
+	echo "" 1>&2
+
 }
 
 #

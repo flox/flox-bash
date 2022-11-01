@@ -108,8 +108,227 @@ function parseNixArgs() {
 	done
 }
 
+## General commands
+
+_general_commands+=("channels")
+_usage["channels"]="list channel subscriptions"
+
+_general_commands+=("subscribe")
+_usage["subscribe"]="subscribe to channel URL"
+_usage_options["subscribe"]="[<name> [<url>]]"
+
+_general_commands+=("unsubscribe")
+_usage["unsubscribe"]="unsubscribe from channel"
+_usage_options["unsubscribe"]="[<name>]"
+
+_general_commands+=("search")
+_usage["search"]="search packages in subscribed channels"
+_usage_options["search"]="[(-c|--channel) <channel>] [--json] <args>"
+function floxSearch() {
+	packageregexp=
+	declare -i jsonOutput=0
+	declare refreshArg
+	declare -a channels=()
+	while test $# -gt 0; do
+		case "$1" in
+		-c | --channel)
+			shift
+			channels+=("$1")
+			shift
+			;;
+		--show-libs)
+			# Not yet supported; will implement when catalog has hasBin|hasMan.
+			shift
+			;;
+		--all)
+			packageregexp="."
+			shift
+			;;
+		--refresh)
+			refreshArg="--refresh"
+			shift
+			;;
+		--json)
+			jsonOutput=1
+			shift
+			;;
+		*)
+			if [ "$subcommand" = "packages" ]; then
+				# Expecting a channel name (and optionally a jobset).
+				packageregexp="^$1\."
+			elif [ -z "$packageregexp" ]; then
+				# Expecting a package name (or part of a package name)
+				packageregexp="$1"
+				# In the event that someone has passed a space or "|"-separated
+				# search term (thank you Eelco :-\), turn that into an equivalent
+				# regexp.
+				if [[ "$packageregexp" =~ [:space:] ]]; then
+					packageregexp="(${packageregexp// /|})"
+				fi
+			else
+				usage | error "multiple search terms provided"
+			fi
+			shift
+			;;
+		esac
+	done
+	[ -n "$packageregexp" ] ||
+		usage | error "missing channel argument"
+	[ -z "$@" ] ||
+		usage | error "extra arguments \"$@\""
+	if [ -z "$GREP_COLOR" ]; then
+		export GREP_COLOR='1;32'
+	fi
+	if [ $jsonOutput -gt 0 ]; then
+		cmd=(searchChannels "$packageregexp" ${channels[@]} $refreshArg)
+	else
+		# Use grep to highlight text matches, but also include all the lines
+		# around the matches by using the `-C` context flag with a big number.
+		# It's also unfortunate that the Linux version of `column` which
+		# supports the `--keep-empty-lines` option is not available on Darwin,
+		# so we instead embed a line with "---" between groupings and then use
+		# `sed` below to replace it with a blank line.
+		searchChannels "$packageregexp" ${channels[@]} $refreshArg | \
+			$_jq -r -f "$_lib/search.jq" | $_column -t -s "|" | $_sed 's/^---$//' | \
+			$_grep -C 1000000 --ignore-case --color -E "$packageregexp"
+	fi
+}
+
+_general_commands+=("config")
+_usage["config"]="configure user parameters"
+
+_general_commands+=("gh")
+_usage["gh"]="access to the gh CLI"
+
+_general_commands+=("(envs|environments)")
+_usage["(envs|environments)"]="list all available environments"
+
+## Environment commands
+
+_environment_commands+=("activate")
+_usage["activate"]="activate environment:
+        in current shell: . <(flox activate)
+        in subshell: flox activate
+        for command: flox activate -- <command> <args>"
+
+_environment_commands+=("list")
+_usage["list"]="list installed packages"
+_usage_options["list"]="[--out-path]"
+
+_environment_commands+=("install")
+_usage["install"]="install a package into an environment"
+
+_environment_commands+=("(rm|remove)")
+_usage["(rm|remove)"]="remove packages from an environment"
+
+_environment_commands+=("upgrade")
+_usage["upgrade"]="upgrade packages using their most recent flake"
+
+_environment_commands+=("edit")
+_usage["edit"]="edit declarative environment manifest"
+
+_environment_commands+=("cat")
+_usage["cat"]="display declarative environment manifest"
+
+_environment_commands+=("history")
+_usage["history"]="show all versions of an environment"
+
+_environment_commands+=("generations")
+_usage["generations"]="list environment generations with contents"
+
+_environment_commands+=("rollback")
+_usage["rollback"]="roll back to the previous generation of an environment"
+
+_environment_commands+=("switch-generation")
+_usage["switch-generation"]="switch to a specific generation of an environment"
+
+_environment_commands+=("wipe-history")
+_usage["wipe-history"]="delete non-current versions of an environment"
+
+_environment_commands+=("destroy")
+_usage["destroy"]="remove all data pertaining to an environment"
+
+#_environment_commands+=("diff-closures")
+#_usage["diff-closures"]="show the closure difference between each version of an environment"
+
+_environment_commands+=("push")
+_usage["push"]="send environment metadata to remote registry"
+_usage_options["push"]="[--force]"
+
+_environment_commands+=("pull")
+_usage["pull"]="pull environment metadata from remote registry"
+_usage_options["pull"]="[--force]"
+
+_environment_commands+=("git")
+_usage["git"]="access to the git CLI for floxmeta repository"
+
 
 ## Development commands
+
+# flox init
+_development_commands+=("init")
+_usage["init"]="initialize flox expressions for current project"
+function floxInit() {
+	trace "$@"
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
+
+	local template
+	local pname
+	while test $# -gt 0; do
+		case "$1" in
+		-t | --template) # takes one arg
+			shift
+			template="$1"
+			shift
+			;;
+		-n | --name) # takes one arg
+			shift
+			pname="$1"
+			shift
+			;;
+		*)
+			usage | error "invalid argument: $1"
+			shift
+			;;
+		esac
+
+	done
+
+	# Select template.
+	if [[ -z "$template" ]]; then
+		template=$($_nix eval --no-write-lock-file --raw --apply '
+		  x: with builtins; concatStringsSep "\n" (
+			attrValues (mapAttrs (k: v: k + ": " + v.description) (removeAttrs x ["_init"]))
+		  )
+		' "flox#templates" | $_gum filter | $_cut -d: -f1)
+		[ -n "$template" ] || exit 1
+	fi
+
+	# Identify pname.
+	if [[ -z "$pname" ]]; then
+		local origin=$($_git remote get-url origin)
+		local bn=${origin//*\//}
+		local pname=$($_gum input --value "${bn//.git/}" --prompt "Enter package name: ")
+		[ -n "$pname" ] || exit 1
+	fi
+
+	# Extract flox _init template if it hasn't already.
+	[ -f flox.nix ] || {
+		# Start by extracting "_init" template to floxify project.
+		$invoke_nix flake init --template "flox#templates._init" "$@"
+	}
+
+	# Extract requested template.
+	$invoke_nix "${_nixArgs[@]}" flake init --template "flox#templates.$template" "$@"
+	if [ -f pkgs/default.nix ]; then
+		$invoke_mkdir -p "pkgs/$pname"
+		$invoke_git mv pkgs/default.nix "pkgs/$pname/default.nix"
+		echo "renamed: pkgs/default.nix -> pkgs/$pname/default.nix" 1>&2
+		$invoke_sed -i -e \
+			"s/pname = \".*\";/pname = \"$pname\";/" \
+			"pkgs/$pname/default.nix"
+	fi
+}
 
 # flox build
 _development_commands+=("build")
@@ -225,77 +444,12 @@ function floxDevelop() {
 	$invoke_nix "${_nixArgs[@]}" develop --impure "${developArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
 }
 
-# flox init
-_development_commands+=("init")
-_usage["init"]="initialize flox expressions for current project"
-function floxInit() {
-	trace "$@"
-	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
-
-	local template
-	local pname
-	while test $# -gt 0; do
-		case "$1" in
-		-t | --template) # takes one arg
-			shift
-			template="$1"
-			shift
-			;;
-		-n | --name) # takes one arg
-			shift
-			pname="$1"
-			shift
-			;;
-		*)
-			usage | error "invalid argument: $1"
-			shift
-			;;
-		esac
-
-	done
-
-	# Select template.
-	if [[ -z "$template" ]]; then
-		template=$($_nix eval --no-write-lock-file --raw --apply '
-		  x: with builtins; concatStringsSep "\n" (
-			attrValues (mapAttrs (k: v: k + ": " + v.description) (removeAttrs x ["_init"]))
-		  )
-		' "flox#templates" | $_gum filter | $_cut -d: -f1)
-		[ -n "$template" ] || exit 1
-	fi
-
-	# Identify pname.
-	if [[ -z "$pname" ]]; then
-		local origin=$($_git remote get-url origin)
-		local bn=${origin//*\//}
-		local pname=$($_gum input --value "${bn//.git/}" --prompt "Enter package name: ")
-		[ -n "$pname" ] || exit 1
-	fi
-
-	# Extract flox _init template if it hasn't already.
-	[ -f flox.nix ] || {
-		# Start by extracting "_init" template to floxify project.
-		$invoke_nix flake init --template "flox#templates._init" "$@"
-	}
-
-	# Extract requested template.
-	$invoke_nix "${_nixArgs[@]}" flake init --template "flox#templates.$template" "$@"
-	if [ -f pkgs/default.nix ]; then
-		$invoke_mkdir -p "pkgs/$pname"
-		$invoke_git mv pkgs/default.nix "pkgs/$pname/default.nix"
-		echo "renamed: pkgs/default.nix -> pkgs/$pname/default.nix" 1>&2
-		$invoke_sed -i -e \
-			"s/pname = \".*\";/pname = \"$pname\";/" \
-			"pkgs/$pname/default.nix"
-	fi
-}
-
 # flox publish
 _development_commands+=("publish")
 _usage["publish"]="build and publish project to flox channel"
-_usage_options["publish"]="[ --publish-to <gitURL> ] [--upstream-url <gitURL>] \\
-                 [ --copy-to <nixURI> ] [ --copy-from <nixURI> ] \\
-                 [ --render-path <dir> ] [ --key-file <file> ]"
+_usage_options["publish"]="[--publish-to <gitURL>] [--upstream-url <gitURL>] \\
+                 [--copy-to <nixURI>] [--copy-from <nixURI>] \\
+                 [--render-path <dir>] [--key-file <file>]"
 function floxPublish() {
 	trace "$@"
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
@@ -404,7 +558,7 @@ function floxPublish() {
 		# TODO: improve user visibility, validate url with proper error
 		# messages
 		local origin=$($_git remote get-url origin)
-		
+
 		# put this after querying the url from the user?
 		local nixGitRef=
 		case "$origin" in
@@ -414,7 +568,7 @@ function floxPublish() {
 			ssh://* | http://* | https://* )
 				nixGitRef="git+$origin"
 				;;
-			*) 
+			*)
 				nixGitRef="$origin"
 				;;
 		esac
@@ -634,7 +788,7 @@ function floxRun() {
 
 # flox shell
 _development_commands+=("shell")
-_usage["shell"]="launch build shell for current project"
+_usage["shell"]="run a shell in which the current project is available"
 function floxShell() {
 	trace "$@"
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
@@ -689,136 +843,5 @@ function floxShell() {
 
 	$invoke_nix "${_nixArgs[@]}" shell --impure "${shellArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
 }
-
-## Environment commands
-
-_environment_commands+=("cat")
-_usage["cat"]="display declarative environment manifest"
-
-_environment_commands+=("destroy")
-_usage["destroy"]="remove all data pertaining to an environment"
-
-#_environment_commands+=("diff-closures")
-#_usage["diff-closures"]="show the closure difference between each version of an environment"
-
-_environment_commands+=("edit")
-_usage["edit"]="edit declarative environment manifest"
-
-_environment_commands+=("generations")
-_usage["generations"]="list environment generations with contents"
-
-_environment_commands+=("history")
-_usage["history"]="show all versions of an environment"
-
-_environment_commands+=("install")
-_usage["install"]="install a package into an environment"
-
-_environment_commands+=("list")
-_usage["list"]="list installed packages"
-_usage_options["list"]="[--out-path]"
-
-_environment_commands+=("pull")
-_usage["pull"]="pull environment metadata from remote registry"
-_usage_options["pull"]="[--force]"
-
-_environment_commands+=("push")
-_usage["push"]="send environment metadata to remote registry"
-_usage_options["push"]="[--force]"
-
-_environment_commands+=("rollback")
-_usage["rollback"]="roll back to the previous generation of an environment"
-
-_environment_commands+=("(rm|remove)")
-_usage["(rm|remove)"]="remove packages from an environment"
-
-_environment_commands+=("(search|packages)")
-_usage["(search|packages)"]="search packages in subscribed channels"
-_usage_options["(search|packages)"]=" [-c CHANNEL | --channel CHANNEL] \\
-                            [--all]\\
-                            [--refresh]\\
-                            [--json] \\
-                            SEARCH_TERM
-"
-function floxSearch() {
-	packageregexp=
-	declare -i jsonOutput=0
-	declare refreshArg
-	declare -a channels=()
-	while test $# -gt 0; do
-		case "$1" in
-		-c | --channel)
-			shift
-			channels+=("$1")
-			shift
-			;;
-		--show-libs)
-			# Not yet supported; will implement when catalog has hasBin|hasMan.
-			shift
-			;;
-		--all)
-			packageregexp="."
-			shift
-			;;
-		--refresh)
-			refreshArg="--refresh"
-			shift
-			;;
-		--json)
-			jsonOutput=1
-			shift
-			;;
-		*)
-			if [ "$subcommand" = "packages" ]; then
-				# Expecting a channel name (and optionally a jobset).
-				packageregexp="^$1\."
-			elif [ -z "$packageregexp" ]; then
-				# Expecting a package name (or part of a package name)
-				packageregexp="$1"
-				# In the event that someone has passed a space or "|"-separated
-				# search term (thank you Eelco :-\), turn that into an equivalent
-				# regexp.
-				if [[ "$packageregexp" =~ [:space:] ]]; then
-					packageregexp="(${packageregexp// /|})"
-				fi
-			else
-				usage | error "multiple search terms provided"
-			fi
-			shift
-			;;
-		esac
-	done
-	[ -n "$packageregexp" ] ||
-		usage | error "missing channel argument"
-	[ -z "$@" ] ||
-		usage | error "extra arguments \"$@\""
-	if [ -z "$GREP_COLOR" ]; then
-		export GREP_COLOR='1;32'
-	fi
-	if [ $jsonOutput -gt 0 ]; then
-		cmd=(searchChannels "$packageregexp" ${channels[@]} $refreshArg)
-	else
-		# Use grep to highlight text matches, but also include all the lines
-		# around the matches by using the `-C` context flag with a big number.
-		# It's also unfortunate that the Linux version of `column` which
-		# supports the `--keep-empty-lines` option is not available on Darwin,
-		# so we instead embed a line with "---" between groupings and then use
-		# `sed` below to replace it with a blank line.
-		searchChannels "$packageregexp" ${channels[@]} $refreshArg | \
-			$_jq -r -f "$_lib/search.jq" | $_column -t -s "|" | $_sed 's/^---$//' | \
-			$_grep -C 1000000 --ignore-case --color -E "$packageregexp"
-	fi
-}
-
-_environment_commands+=("switch-generation")
-_usage["switch-generation"]="switch to a specific generation of an environment"
-
-#_environment_commands+=("sync")
-#_usage["sync"]="synchronize environment metadata and links"
-
-_environment_commands+=("upgrade")
-_usage["upgrade"]="upgrade packages using their most recent flake"
-
-_environment_commands+=("wipe-history")
-_usage["wipe-history"]="delete non-current versions of an environment"
 
 # vim:ts=4:noet:syntax=bash
