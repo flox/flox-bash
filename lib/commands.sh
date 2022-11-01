@@ -379,7 +379,7 @@ function floxBuild() {
 		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" build --impure "${buildArgs[@]}" "${installables[@]}"
+	$invoke_nix "${_nixArgs[@]}" build --impure "${buildArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY
 }
 
 # flox develop
@@ -441,7 +441,7 @@ function floxDevelop() {
 		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" develop --impure "${developArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
+	$invoke_nix "${_nixArgs[@]}" develop --impure "${developArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
 }
 
 # flox publish
@@ -783,7 +783,7 @@ function floxRun() {
 		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" run --impure "${runArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
+	$invoke_nix "${_nixArgs[@]}" run --impure "${runArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
 }
 
 # flox shell
@@ -841,7 +841,7 @@ function floxShell() {
 		installables=(".#$attrPath")
 	fi
 
-	$invoke_nix "${_nixArgs[@]}" shell --impure "${shellArgs[@]}" "${installables[@]}" "${remainingArgs[@]}"
+	$invoke_nix "${_nixArgs[@]}" shell --impure "${shellArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
 }
 
 # vim:ts=4:noet:syntax=bash
