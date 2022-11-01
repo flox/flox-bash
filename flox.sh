@@ -650,6 +650,11 @@ channels | list-channels)
 	;;
 
 help)
+	# Believe it or not the man package relies on finding both "cat" and
+	# "less" in its PATH, and even when we patch the man package it then
+	# calls "nroff" (in the groff package) which is similarly broken.
+	# So, for this one instance just add coreutils & less to the PATH.
+	export PATH="@@FLOXPATH@@"
 	cmd=($invoke_man -l "$_share/man/man1/flox.1.gz")
 	;;
 

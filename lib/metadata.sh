@@ -136,7 +136,7 @@ function metaGit() {
 }
 
 snipline="------------------------ >8 ------------------------"
-protoManifestToml=$(cat <<EOF
+protoManifestToml=$($_cat <<EOF
 # This is a prototype profile declarative manifest in TOML format,
 # supporting comments and the ability to invoke "shellHook" commands
 # upon profile activation. See the flox(1) man page for more details.

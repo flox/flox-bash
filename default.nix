@@ -18,6 +18,7 @@ let
     gzip
     hostPlatform
     jq
+    less # Required by man, believe it or not  :-(
     lib
     libossp_uuid
     makeWrapper
@@ -81,7 +82,7 @@ in stdenv.mkDerivation rec {
   buildInputs = [
     ansifilter bashInteractive coreutils curl dasel diffutils
     findutils gawk getent git gh gnugrep gnused gum gzip jq
-    libossp_uuid man nixPatched parallel util-linuxMinimal
+    less libossp_uuid man nixPatched parallel util-linuxMinimal
   ];
   makeFlags = [
     "PREFIX=$(out)"
@@ -114,5 +115,17 @@ in stdenv.mkDerivation rec {
       --prefix PATH : "${lib.makeBinPath([ git ])}"
     makeWrapper ${gh}/bin/gh $out/libexec/flox/gh --argv0 '$0' \
       --prefix PATH : "${lib.makeBinPath([ git ])}"
+
+    # Rewrite /bin/sh to the full path of bashInteractive.
+    # Use --host to resolve using the runtime path.
+    patchShebangs --host $out/libexec/flox/flox
+  '';
+
+  doInstallCheck = true;
+  postInstallCheck = ''
+    # Quick unit test to ensure that we are not using any "naked"
+    # commands within our scripts. Doesn't hit all codepaths but
+    # catches most of them.
+    env -i $out/bin/flox help > /dev/null
   '';
 }

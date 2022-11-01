@@ -146,7 +146,7 @@ fi
 # Default profile "owner" directory, i.e. ~/.local/share/flox/environments/local/default/bin
 profileOwner="local" # as in "/usr/local"
 if [ -L "$FLOX_ENVIRONMENTS/$profileOwner" ]; then
-	profileOwner=$(readlink "$FLOX_ENVIRONMENTS/$profileOwner")
+	profileOwner=$($_readlink "$FLOX_ENVIRONMENTS/$profileOwner")
 fi
 
 # Define place to store user-specific metadata separate
