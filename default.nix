@@ -121,11 +121,11 @@ in stdenv.mkDerivation rec {
     patchShebangs --host $out/libexec/flox/flox
   '';
 
-  doInstallCheck = ! stdenv.isDarwin;
+  doInstallCheck = true;
   postInstallCheck = ''
     # Quick unit test to ensure that we are not using any "naked"
     # commands within our scripts. Doesn't hit all codepaths but
     # catches most of them.
-    env -i $out/bin/flox help > /dev/null
+    env -i USER=`id -un` HOME=$PWD $out/bin/flox help > /dev/null
   '';
 }
