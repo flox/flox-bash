@@ -622,10 +622,8 @@ function floxPublish() {
 	# Gather local package outpath metadata.
 	local metadata=$($invoke_nix flake metadata "$flakeRef" --json)
 
-	local gitRevisionLocal="$(echo "$metadata" | $_jq -r '.revision' )"
-
 	# Fail if local repo dirty
-	if [[ -z "$gitRevisionLocal" ]]; then
+	if ! gitRevisionLocal="$($_jq -n -r -e --argjson md "$metadata" '$md.revision')"; then
 		error "The flake '$flakeRef' is dirty or not a git repository" < /dev/null
 	fi
 
@@ -711,6 +709,8 @@ function floxPublish() {
 		echo "$elementPath" | $_jq -r '.analysis' > "$( echo "$elementPath" | $_jq -r '.attrPath' )"
 		warn "flox publish completed"
 		$_git -C "$gitClone" add $renderPath
+	else 
+		$_jq -n -r --argjson ep "$elementPath" '$ep.analysis'
 	fi
 
 	if [ ! -d "$publishTo" -a "$publishTo" != "-" ]; then
