@@ -66,6 +66,10 @@ export GUM_FILTER_PROMPT_FOREGROUND="$DARKBLUE256"
 export GUM_INPUT_CURSOR_FOREGROUND="$DARKPEACH256"
 export GUM_INPUT_PROMPT_FOREGROUND="$DARKPEACH256"
 
+# Set flox prompt colors.
+export FLOX_PROMPT_COLOR_1=${FLOX_PROMPT_COLOR_1:-$LIGHTBLUE256}
+export FLOX_PROMPT_COLOR_2=${FLOX_PROMPT_COLOR_2:-$DARKPEACH256}
+
 function pprint() {
 	# Step through args and encase with single-quotes those which need it.
 	local space=""
@@ -310,15 +314,13 @@ function manifest() {
 }
 
 #
-# manifestTOML(manifest,command,[args])
+# manifestTOML(command,[args])
 #
 # Accessor method for declarative TOML manifest library functions.
+# Expects to read a manifest.toml passed in STDIN.
 #
 function manifestTOML() {
 	trace "$@"
-	local manifest="$1"; shift
-	# Bootstrap: will not exist at first for a new user/environment.
-	[ -e "$manifest" ] || return
 	# jq args:
 	#   -r \                        # raw output (i.e. don't add quotes)
 	#   -f $_lib/manifest.jq \      # the manifest processing library
@@ -341,7 +343,7 @@ function manifestTOML() {
 	jqargs+=("--args" "--" "$@")
 
 	# Finally invoke jq.
-	minverbosity=2 $invoke_dasel -f "$manifest" -r toml -w json | $invoke_jq "${jqargs[@]}"
+	minverbosity=2 $invoke_dasel -f - -r toml -w json | $invoke_jq "${jqargs[@]}"
 }
 
 # boolPrompt($prompt, $default)

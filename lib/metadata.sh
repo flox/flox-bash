@@ -13,7 +13,7 @@
 # one metadata repository per user and each profile is represented
 # as a separate branch. See https://github.com/flox/flox/issues/14.
 #
-# Example hierarcy:
+# Example hierarchy:
 # .
 # ├── limeytexan (x86_64-linux.default branch)
 # │   ├── 1.json
@@ -133,6 +133,21 @@ function metaGit() {
 	gitCheckout "$profileMetaDir" "${system}.${profileName}"
 
 	githubHelperGit -C "$profileMetaDir" "$@"
+}
+
+# Performs a 'git show branch:file' for the purpose of fishing
+# out a file revision without checking out the branch.
+function metaGitShow() {
+	trace "$@"
+	local profile="$1"; shift
+	local system="$1"; shift
+	local filename="$1"; shift
+	local profileName=$($_basename $profile)
+	local profileOwner=$($_basename $($_dirname $profile))
+	local profileMetaDir="$FLOX_META/$profileOwner"
+
+	$invoke_git -C "$profileMetaDir" \
+		show "${system}.${profileName}:${filename}"
 }
 
 snipline="------------------------ >8 ------------------------"

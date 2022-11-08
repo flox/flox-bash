@@ -64,7 +64,13 @@ let
     # This file provides a place for defining global environment variables
     # and borrows liberally from the set of default environment variables
     # set by NixOS, the principal proving ground for Nix packaging efforts.
-    export PATH=$FLOX_PATH_PREPEND:$PATH
+    _flox_activate_verbose=/dev/null
+    if [ -n "$FLOX_ACTIVATE_VERBOSE" ]; then
+        _flox_activate_verbose=/dev/stderr
+        echo "prepending \"$FLOX_PATH_PREPEND\" to \$PATH" 1>&2
+    fi
+    export PATH="$FLOX_PATH_PREPEND":"$PATH"
+    source <(${coreutils}/bin/tee $_flox_activate_verbose <<EOF
     export SSL_CERT_FILE="''${SSL_CERT_FILE:-${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt}"
     export NIX_SSL_CERT_FILE="''${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
   '' + lib.optionalString hostPlatform.isLinux ''
@@ -72,6 +78,10 @@ let
   '' + lib.optionalString hostPlatform.isDarwin ''
     export NIX_COREFOUNDATION_RPATH="${pkgs.darwin.CF}/Library/Frameworks"
     export PATH_LOCALE="${pkgs.darwin.locale}/share/locale"
+  '' + ''
+    EOF
+    )
+    unset FLOX_PATH_PREPEND FLOX_ACTIVATE_VERBOSE
   '');
 
 in stdenv.mkDerivation rec {

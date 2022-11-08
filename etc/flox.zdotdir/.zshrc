@@ -21,7 +21,11 @@ fi
 source @@PREFIX@@/etc/flox.profile
 
 # Tweak the (already customized) prompt: add a flox indicator.
-_flox=${FLOX_PROMPT-"[flox] "}
+if [ -z "$FLOX_PROMPT_DISABLE" ]; then
+    _floxPrompt1="%F{${FLOX_PROMPT_COLOR_1}}flox"
+    _floxPrompt2="%F{$FLOX_PROMPT_COLOR_2}[$FLOX_PROMPT_ENVIRONMENTS]"
+    _flox="%B${FLOX_PROMPT-$_floxPrompt1} ${_floxPrompt2}%f%b "
+fi
 
 if [ -n "$_flox" -a -n "$PS1" ]
 then
@@ -39,4 +43,4 @@ then
     # TODO: figure out zsh way of setting window and icon title.
 fi
 
-unset _flox
+unset _flox _floxPrompt1 _floxPrompt2

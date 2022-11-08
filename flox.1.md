@@ -291,16 +291,29 @@ flox install unstable.nixpkgs-flox.hello@2.10
     Defaults to `$XDG_DATA_HOME/flox/environments` or `$HOME/.local/share/flox/environments`
     if `$XDG_DATA_HOME` is not defined.
 
-`$FLOX_PROMPT`
-:   The **FLOX_PROMPT** variable defaults to `[flox] ` and can be used to specify
-    an alternate flox indicator string (including fancy colors, if desired), or set
-    to the empty string to opt out of prompt customization for interactive shells.
+`$FLOX_PROMPT`, `$FLOX_PROMPT_COLOR_{1,2}`, `$FLOX_PROMPT_DISABLE`
+:   The **FLOX_PROMPT** variable defaults to a bold blue "flox"
+    and can be used to specify an alternate flox indicator string
+    (including fancy colors, if desired).
+    For example, include the following in your `~/.bashrc` and/or `~/.zshprofile`
+    (or equivalent) to display the flox indicator in bold green:
 
-    For example, include the following in your `.bashrc` and/or `.zshprofile` file
-    (or equivalent) to display the flox indicator in bright blue:
+    bash: `export FLOX_PROMPT="\[\033[1;32m\]flox\[\033[0m\] "`
+    \
+    zsh: `export FLOX_PROMPT='%B%F{green}flox%f%b '`
 
-    - **bash**: `export FLOX_PROMPT="\[\033[1;34m\]flox\[\033[0m\] "`
-    - **zsh**: `export FLOX_PROMPT='%B%F{blue}flox%f%b '`
+    If you're just looking to pick different colors,
+    the **FLOX_PROMPT_COLOR_1** and **FLOX_PROMPT_COLOR_2** variables
+    can be used to select the color of the
+    "flox" and activated environments portions of the prompt, respectively.
+    The values of these variables should be integers
+    chosen from the 256-color palette as described in the
+    [xterm-256color chart](https://upload.wikimedia.org/wikipedia/commons/1/15/Xterm_256color_chart.svg).
+    For example, setting `FLOX_PROMPT_COLOR_1=32` will result in the same
+    prompt as in the examples above.
+
+    If defined, the **FLOX_PROMPT_DISABLE** variable prevents
+    flox from performing all prompt customization for interactive shells.
 
 `$FLOX_VERBOSE`
 :   Setting **FLOX_VERBOSE=1** is the same as invoking `flox` with the `--verbose`
