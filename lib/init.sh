@@ -217,7 +217,6 @@ else
 	warn "Updating $nixConf"
 	$_mv -f $tmpNixConf $nixConf
 fi
-export NIX_REMOTE=${NIX_REMOTE:-daemon}
 export NIX_USER_CONF_FILES="$nixConf"
 export SSL_CERT_FILE="${SSL_CERT_FILE:-@@NIXPKGS_CACERT_BUNDLE_CRT@@}"
 export NIX_SSL_CERT_FILE="${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
