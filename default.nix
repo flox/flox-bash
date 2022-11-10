@@ -79,9 +79,12 @@ let
     export NIX_COREFOUNDATION_RPATH="${pkgs.darwin.CF}/Library/Frameworks"
     export PATH_LOCALE="${pkgs.darwin.locale}/share/locale"
   '' + ''
+    if [ -n "$FLOX_BASH_INIT_SCRIPT" ]; then
+        . "$FLOX_BASH_INIT_SCRIPT"
+    fi
     EOF
     )
-    unset FLOX_PATH_PREPEND FLOX_ACTIVATE_VERBOSE
+    unset FLOX_PATH_PREPEND FLOX_ACTIVATE_VERBOSE FLOX_BASH_INIT_SCRIPT
   '');
 
 in stdenv.mkDerivation rec {

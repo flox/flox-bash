@@ -228,17 +228,20 @@ activate | history | install | list | remove | rollback | \
 		# for each environment to be activated.
 		FLOX_PATH_PREPEND=
 		_flox_active_environments_prepend=
-		_bashInit=
+		FLOX_BASH_INIT_SCRIPT=$($_mktemp)
 		for i in "${_environments_to_activate[@]}"; do
 			FLOX_PATH_PREPEND="${FLOX_PATH_PREPEND:+$FLOX_PATH_PREPEND:}$i/bin"
 			_flox_active_environments_prepend="${_flox_active_environments_prepend:+$_flox_active_environments_prepend:}${i}"
 			# Use 'git show' to grab the correct manifest.toml without checkout
 			# out the branch, and if the branch or manifest.toml file does not
 			# exist then carry on.
-			_bashInit="${_bashInit}$(metaGitShow $i $NIX_CONFIG_system manifest.toml 2>/dev/null | manifestTOML bashInit)" || :
+			(metaGitShow $i $NIX_CONFIG_system manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
 		done
 		FLOX_ACTIVE_ENVIRONMENTS=${_flox_active_environments_prepend}${FLOX_ACTIVE_ENVIRONMENTS:+:}${FLOX_ACTIVE_ENVIRONMENTS}
 		unset _flox_active_environments_prepend
+
+		# Set the init script to self-destruct upon activation. Very James Bond.
+		echo "$_rm $FLOX_BASH_INIT_SCRIPT" >> $FLOX_BASH_INIT_SCRIPT
 
 		# FLOX_PROMPT_ENVIRONMENTS is a space-separated list of the
 		# abbreviated "alias" names of activated environments for
@@ -257,7 +260,7 @@ activate | history | install | list | remove | rollback | \
 			FLOX_PROMPT_ENVIRONMENTS="${FLOX_PROMPT_ENVIRONMENTS:+$FLOX_PROMPT_ENVIRONMENTS }${i}"
 		done
 
-		export FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PATH_PREPEND
+		export FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PATH_PREPEND FLOX_BASH_INIT_SCRIPT
 		# Export FLOX_ACTIVATE_VERBOSE for use within flox.profile.
 		[ $verbose -eq 0 ] || export FLOX_ACTIVATE_VERBOSE=$verbose
 
@@ -280,7 +283,6 @@ activate | history | install | list | remove | rollback | \
 
 		if [ ${#cmdArgs[@]} -gt 0 ]; then
 			export PATH="$FLOX_PATH_PREPEND:$PATH"
-			. <(echo "$_bashInit")
 			cmd=("invoke" "${cmdArgs[@]}")
 		else
 			case "$SHELL" in
@@ -288,14 +290,13 @@ activate | history | install | list | remove | rollback | \
 				if [ -t 1 ]; then
 					# TODO: export variable for setting flox env from within flox.profile,
 					# *after* the PATH has been set.
-					. <(echo "$_bashInit")
 					cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
 				else
 					echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\""
+					echo "export FLOX_BASH_INIT_SCRIPT=\"$FLOX_BASH_INIT_SCRIPT\""
 					echo "export FLOX_ACTIVE_ENVIRONMENTS=\"$FLOX_ACTIVE_ENVIRONMENTS\""
 					echo "export FLOX_PROMPT_ENVIRONMENTS=\"$FLOX_PROMPT_ENVIRONMENTS\""
 					echo "source $_etc/flox.profile"
-					echo "$_bashInit"
 					exit 0
 				fi
 				;;
@@ -303,7 +304,6 @@ activate | history | install | list | remove | rollback | \
 				if [ -t 1 ]; then
 					# TODO: export variable for setting flox env from within flox.profile,
 					# *after* the PATH has been set.
-					. <(echo "$_bashInit")
 					if [ -n "$ZDOTDIR" ]; then
 						[ $verbose -eq 0 ] || warn "+ export FLOX_ORIG_ZDOTDIR=\"$ZDOTDIR\""
 						export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
@@ -313,10 +313,10 @@ activate | history | install | list | remove | rollback | \
 					cmd=("invoke" "$SHELL")
 				else
 					echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\""
+					echo "export FLOX_BASH_INIT_SCRIPT=\"$FLOX_BASH_INIT_SCRIPT\""
 					echo "export FLOX_ACTIVE_ENVIRONMENTS=\"$FLOX_ACTIVE_ENVIRONMENTS\""
 					echo "export FLOX_PROMPT_ENVIRONMENTS=\"$FLOX_PROMPT_ENVIRONMENTS\""
 					echo "source $_etc/flox.profile"
-					echo "$_bashInit"
 					exit 0
 				fi
 				;;
@@ -325,7 +325,6 @@ activate | history | install | list | remove | rollback | \
 					warn "unsupported shell: \"$SHELL\""
 					warn "Launching bash instead"
 					export SHELL="$_bash"
-					. <(echo "$_bashInit")
 					cmd=("invoke" "$SHELL" "--rcfile" "$_etc/flox.bashrc")
 				else
 					error "unsupported shell: \"$SHELL\" - please run 'flox activate' in interactive mode" </dev/null
