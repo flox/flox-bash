@@ -640,7 +640,9 @@ function floxPublish() {
 	local analyzer="github:flox/catalog-ingest"
 	# Nix eval command is noisy so filter out the expected output.
 	local tmpstderr=$(mktemp)
-	evalAndBuild=$($invoke_nix eval --json --override-input target "$flakeRef" \
+	evalAndBuild=$($invoke_nix eval --json \
+		--override-input target "$flakeRef" \
+		--override-input target/floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
 		"$analyzer#analysis.eval.packages.$NIX_CONFIG_system.$attrPath" 2>$tmpstderr) || {
 		$_grep --no-filename -v \
 		  -e "^evaluating 'catalog\." \
@@ -709,7 +711,7 @@ function floxPublish() {
 		echo "$elementPath" | $_jq -r '.analysis' > "$( echo "$elementPath" | $_jq -r '.attrPath' )"
 		warn "flox publish completed"
 		$_git -C "$gitClone" add $renderPath
-	else 
+	else
 		$_jq -n -r --argjson ep "$elementPath" '$ep.analysis'
 	fi
 
