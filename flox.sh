@@ -196,8 +196,9 @@ activate | history | install | list | remove | rollback | \
 				fi
 				_environments_to_activate+=("$i")
 				_flox_active_environments[$i]=1
-			else
-				# Only throw an error if an interactive session.
+			elif [ "$i" != "$defaultEnv" ]; then
+				# Only throw an error if in an interactive session, and don't
+				# throw an error when attempting to activate the default env.
 				if [ -t 1 ]; then
 					error "$i environment already active" < /dev/null
 				fi
@@ -210,17 +211,6 @@ activate | history | install | list | remove | rollback | \
 		if [ -z "${_flox_active_environments[$defaultEnv]}" ]; then
 			_environments_to_activate+=("$defaultEnv")
 			_flox_active_environments[$defaultEnv]=1
-		fi
-
-		if [ ${#_environments_to_activate[@]} -eq 0 ]; then
-			# Only throw an error if an interactive session, otherwise
-			# exit quietly.
-			if [ -t 1 ]; then
-				error "no new environments to activate" < /dev/null
-			else
-				[ $verbose -eq 0 ] || warn "no new environments to activate"
-				exit 0
-			fi
 		fi
 
 		# Build up string to be prepended to PATH. Add in order provided.
@@ -259,6 +249,15 @@ activate | history | install | list | remove | rollback | \
 			fi
 			FLOX_PROMPT_ENVIRONMENTS="${FLOX_PROMPT_ENVIRONMENTS:+$FLOX_PROMPT_ENVIRONMENTS }${i}"
 		done
+
+		if [ ${#_environments_to_activate[@]} -eq 0 ]; then
+			# Only throw an error if an interactive session, otherwise
+			# exit quietly.
+			if [[ -t 1 || $verbose -gt 0 ]]; then
+				warn "no new environments to activate (active environments: $FLOX_PROMPT_ENVIRONMENTS)"
+			fi
+			exit 0
+		fi
 
 		export FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PATH_PREPEND FLOX_BASH_INIT_SCRIPT
 		# Export FLOX_ACTIVATE_VERBOSE for use within flox.profile.
