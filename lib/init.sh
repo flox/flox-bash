@@ -109,7 +109,7 @@ export PWD=$($_pwd)
 # Define and create flox metadata cache, data, and profiles directories.
 export FLOX_STABILITY="${FLOX_STABILITY:-stable}"
 export FLOX_CACHE_HOME="${FLOX_CACHE_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/flox}"
-export FLOX_META="${FLOX_META:-$FLOX_CACHE_HOME/profilemeta}"
+export FLOX_META="${FLOX_META:-$FLOX_CACHE_HOME/meta}"
 export FLOX_METRICS="${FLOX_METRICS:-$FLOX_CACHE_HOME/metrics-events.json}"
 export FLOX_DATA_HOME="${FLOX_DATA_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/flox}"
 export FLOX_ENVIRONMENTS="${FLOX_ENVIRONMENTS:-$FLOX_DATA_HOME/environments}"
@@ -120,25 +120,6 @@ for i in "$FLOX_CACHE_HOME" "$FLOX_META" "$FLOX_DATA_HOME" "$FLOX_ENVIRONMENTS" 
 	[ -w "$i" ] || $_mkdir -p "$i" || \
 		error "directory '$i' not writable ... aborting" < /dev/null
 done
-
-# XXX Temporary: following the rename of profile -> environment:
-# * rename $FLOX_DATA_HOME/profiles -> $FLOX_DATA_HOME/environments
-# * rename $FLOX_CACHE_HOME/profilemeta -> $FLOX_CACHE_HOME/meta
-# * leave symbolic links in place redirecting old to new
-# Remove after 20221031
-if [ -d "$FLOX_DATA_HOME/profiles" ]; then
-	if [ ! -L "$FLOX_DATA_HOME/profiles" ]; then
-		$_mv "$FLOX_DATA_HOME/profiles" "$FLOX_ENVIRONMENTS"
-		$_ln -s environments "$FLOX_DATA_HOME/profiles"
-	fi
-fi
-if [ -d "$FLOX_CACHE_HOME/profilemeta" ]; then
-	if [ ! -L "$FLOX_CACHE_HOME/profilemeta" ]; then
-		$_mv "$FLOX_CACHE_HOME/profilemeta" "$FLOX_CACHE_HOME/meta"
-		$_ln -s meta "$FLOX_CACHE_HOME/profilemeta"
-	fi
-fi
-# XXX
 
 # Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}

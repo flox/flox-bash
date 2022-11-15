@@ -593,9 +593,9 @@ function getSetOrigin() {
 		if [ "$profileOwner" == "local" ]; then
 			local newProfileOwner=$($_dirname $origin); newProfileOwner=${newProfileOwner/*[:\/]/} # XXX hack
 
-			# rename .cache/flox/profilemeta/{local -> owner} &&
+			# rename .cache/flox/meta/{local -> owner} &&
 			#   replace with symlink from local -> owner
-			# use .cache/flox/profilemeta/owner as profileMetaDir going forward (only for this function though!)
+			# use .cache/flox/meta/owner as profileMetaDir going forward (only for this function though!)
 			if [ -d "$FLOX_META/$newProfileOwner" ]; then
 				warn "moving profile metadata directory $FLOX_META/$newProfileOwner out of the way"
 				$invoke_mv --verbose $FLOX_META/$newProfileOwner{,.$$}
