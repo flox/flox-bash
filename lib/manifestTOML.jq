@@ -30,7 +30,7 @@ def expectedArgs(count; args):
 def bashEnv:
   $manifest | if .environment then [
     if ($verbose == 1) then
-      "echo \"flox: setting \($profileOwner)/\($profileName) environment variables\" 1>&2"
+      "echo \"flox: setting \($environmentOwner)/\($environmentName) environment variables\" 1>&2"
     else empty end,
     ( .environment | to_entries | map(
       if ($verbose == 1) then
@@ -43,7 +43,7 @@ def bashEnv:
 def bashAliases:
   $manifest | if .aliases then [
     if ($verbose == 1) then
-      "echo \"flox: setting \($profileOwner)/\($profileName) aliases\" 1>&2"
+      "echo \"flox: setting \($environmentOwner)/\($environmentName) aliases\" 1>&2"
     else empty end,
     ( .aliases | to_entries | map(
       if ($verbose == 1) then
@@ -57,7 +57,7 @@ def bashHooks:
   $manifest | if .hooks then (
     .hooks | to_entries | map(
       if ($verbose == 1) then
-        "echo \"flox: invoking \($profileOwner)/\($profileName) \\\"\(.key)\\\" hook\" 1>&2",
+        "echo \"flox: invoking \($environmentOwner)/\($environmentName) \\\"\(.key)\\\" hook\" 1>&2",
         "\(.key)_posthook=:",
         "if [[ $- =~ *x* ]]; then",
         "  \(.key)_posthook=:",

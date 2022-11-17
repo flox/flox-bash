@@ -106,11 +106,14 @@ The following option is supported by the commands below.
 :   Upgrade package(s) in environment.
     See *PACKAGE ARGUMENTS* below for a description of flox package arguments.
 
-**remove** `<package>` [ `<package>` ... ]
+**remove** [ \--force ] `<package>` [ `<package>` ... ]
 :   Remove package(s) from environment.
     See *PACKAGE ARGUMENTS* below for a description of flox package arguments.
 
-**cat**
+**import**
+:   Import declarative environment manifest as new generation.
+
+**export**
 :   Display declarative environment manifest.
 
 **edit**
@@ -165,12 +168,15 @@ The following option is supported by the commands below.
     upstream or local copy of the environment based on having invoked
     `push` or `pull`, respectively.
 
-**destroy** [ \--origin ]
+**destroy** [ \--origin ] [ \--force ]
 :   Remove all local data pertaining to an environment.
     Does *not* remove “upstream” environment data by default.
 
     Invoke with the `--origin` flag to delete environment data
     both upstream and downstream.
+
+    Invoke with the `--force` flag to avoid the interactive
+    confirmation dialog. (Required for non-interactive use.)
 
 ## Development
 

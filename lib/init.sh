@@ -125,9 +125,9 @@ done
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 
 # Default profile "owner" directory, i.e. ~/.local/share/flox/environments/local/default/bin
-profileOwner="local" # as in "/usr/local"
-if [ -L "$FLOX_ENVIRONMENTS/$profileOwner" ]; then
-	profileOwner=$($_readlink "$FLOX_ENVIRONMENTS/$profileOwner")
+environmentOwner="local" # as in "/usr/local"
+if [ -L "$FLOX_ENVIRONMENTS/$environmentOwner" ]; then
+	environmentOwner=$($_readlink "$FLOX_ENVIRONMENTS/$environmentOwner")
 fi
 
 # Define place to store user-specific metadata separate

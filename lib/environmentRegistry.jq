@@ -2,7 +2,7 @@
 #
 # This is a copy of lib/registry.jq. It should instead be
 # a module that first includes that file and then adds the
-# profile-specific functions.
+# environment-specific functions.
 #
 # FIXME FIXME FIXME
 #
@@ -122,7 +122,7 @@ def listGenerations(args):
 # Functions which generate script snippets.
 #
 
-# The process of generating a profile package is straightforward
+# The process of generating an environment package is straightforward
 # but requires that all storePaths referenced by the manifest are
 # present on the system before invoking `nix profile build`. Take
 # this opportunity to verify all the paths are present by invoking
@@ -135,28 +135,28 @@ def _syncGeneration(args):
   .value.created as $created |
   .value.lastActive as $lastActive |
   (($now-$lastActive)/(24*60*60)) as $daysSinceActive |
-  "\($profileDir)/\($profileName)-\($generation)-link" as $targetLink |
+  "\($environmentDir)/\($environmentName)-\($generation)-link" as $targetLink |
   # Cannot embed newlines so best we can do is return array and flatten later.
   if .value.path != null then (
     # Don't bother building an old generation *unless* it's the current one.
     if (($currentGen == $generation) or ($daysSinceActive <= $ageDays)) then [
-      # Don't rebuild links/profiles for generations that already exist.
+      # Don't rebuild links/environments for generations that already exist.
       "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then " +
         ": verified existence of \($targetLink); " +
       "else " +
-        # Ensure all flakes referenced in profile are built.
-        "manifest $profileMetaDir/\($generation).json listFlakesInProfile | " +
+        # Ensure all flakes referenced in environment are built.
+        "manifest $environmentMetaDir/\($generation).json listFlakesInEnvironment | " +
         " $_xargs --no-run-if-empty $( [ $verbose -eq 0 ] || echo '--verbose' ) -- $_nix build --impure --no-link && " +
-        # Ensure all anonymous store paths referenced in profile are copied.
-        "manifest $profileMetaDir/\($generation).json listStorePaths | " +
+        # Ensure all anonymous store paths referenced in environment are copied.
+        "manifest $environmentMetaDir/\($generation).json listStorePaths | " +
         " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
         " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
-        # Now we can attempt to build the profile and store in the bash $profilePath variable.
-        "profilePath=$($_nix profile build $profileMetaDir/\($generation).json) && " +
+        # Now we can attempt to build the environment and store in the bash $environmentPath variable.
+        "environmentPath=$($_nix profile build $environmentMetaDir/\($generation).json) && " +
         # Now create the generation link using nix-store so that it creates a
         # GC root in the process. N.B. this command will silently overwrite a
         # symlink in situ.
-        "$_nix_store --add-root \($targetLink) -r $profilePath >/dev/null && " +
+        "$_nix_store --add-root \($targetLink) -r $environmentPath >/dev/null && " +
         # And set the symbolic link's date.
         "$_touch -h --date=@\($created) \($targetLink); " +
       "fi"
@@ -173,9 +173,19 @@ def syncGenerations(args):
   ( $registry | (if has("ageDays") then .ageDays else 10 end) ) as $ageDays |
   ( $registry | .generations | to_entries ) | map(_syncGeneration([$currentGen, $ageDays])) + [
     # Set the current generation symlink. Let its timestamp be now.
-    "$_rm -f \($profileDir)/\($profileName)",
-    "$_ln --force -s \($profileName)-\($currentGen)-link \($profileDir)/\($profileName)"
+    "$_rm -f \($environmentDir)/\($environmentName)",
+    "$_ln --force -s \($environmentName)-\($currentGen)-link \($environmentDir)/\($environmentName)"
   ] | flatten | .[];
+
+# JSON does not permit integer keys so the generation keys are strings.
+def curGeneration(args):
+  $registry.currentGen | tonumber;
+
+# JSON does not permit integer keys so the generation keys are strings.
+# To find the max generation we must therefore convert to number first.
+def nextGeneration(args):
+  ( $registry.generations | keys | map(tonumber) | max ) as $maxGen |
+  ( $maxGen + 1);
 
 #
 # Call requested function with provided args.
@@ -198,5 +208,7 @@ else if $function == "dump"            then dump($funcargs)
 else if $function == "version"         then version($funcargs)
 else if $function == "listGenerations" then listGenerations($funcargs)
 else if $function == "syncGenerations" then syncGenerations($funcargs)
+else if $function == "curGeneration"   then curGeneration($funcargs)
+else if $function == "nextGeneration"  then nextGeneration($funcargs)
 else error("unknown function: \"\($function)\"")
-end end end end end end end end end end end end end end end
+end end end end end end end end end end end end end end end end end

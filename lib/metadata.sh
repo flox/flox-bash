@@ -1,157 +1,111 @@
 #
-# Subroutines for management of flox profile metadata cache.
+# Subroutines for management of "floxmeta" environment metadata repo.
 #
-# This module provides functions which synchronize the user's profile
-# metadata repository following change in profile data, or to populate
-# the profile directories from user's profile metadata repository.
+# This module provides functions to manage the user's environment metadata
+# repository in conjunction with the generational links pointing to the flox
+# environment packages in the store.
 #
-# The profile metadata repository contains copies of the manifest.json
-# files from each generation with the name <generation_number>.json,
-# along with a single manifest.json symlink pointing at the current
-# version and a rudimentary flake.{nix,json} pair which enables the
-# directory to be used as a package collection if desired. There is
-# one metadata repository per user and each profile is represented
+# The profile metadata repository contains copies of all source files required
+# to create each generation in a subdirectory corresponding with the generation
+# number. This includes a flake.{nix,lock} pair which enables the directory to
+# be built as a standalone package if desired.
+#
+# There is one metadata repository per user and each profile is represented
 # as a separate branch. See https://github.com/flox/flox/issues/14.
 #
-# Example hierarchy:
+
+# Example hierarchy (temporary during refactoring):
 # .
 # ├── limeytexan (x86_64-linux.default branch)
-# │   ├── 1.json
-# │   ├── 2.json
-# │   ├── 3.json
-# │   ├── registry.json
-# │   ├── flake.json
-# │   ├── flake.nix
-# │   └── manifest.json -> 3.json
+# │   ├── 1
+# │   │   ├── manifest.toml
+# │   │   └── manifest.json
+# │   └── metadata.json
 # ├── limeytexan (x86_64-linux.toolbox branch)
-# │   ├── 1.json
-# │   ├── 2.json
-# │   ├── registry.json
-# │   ├── flake.json
-# │   ├── flake.nix
-# │   └── manifest.json -> 2.json
+# │   ├── 1
+# │   │   ├── manifest.toml
+# │   │   └── manifest.json
+# │   ├── 2
+# │   │   ├── manifest.toml
+# │   │   └── manifest.json
+# │   └── metadata.json
 # └── tomberek (aarch64-darwin.default branch)
-#     ├── 1.json
-#     ├── 2.json
-#     ├── 3.json
-#     ├── 4.json
-#     ├── registry.json
-#     ├── flake.json
-#     ├── flake.nix
-#     └── manifest.json -> 4.json
+#     ├── 1
+#     │   ├── manifest.toml
+#     │   └── manifest.json
+#     ├── 2
+#     │   ├── manifest.toml
+#     │   └── manifest.json
+#     ├── 3
+#     │   ├── manifest.toml
+#     │   └── manifest.json
+#     └── metadata.json
+
+# Example hierarchy (unification):
+# .
+# ├── limeytexan (x86_64-linux.default branch)
+# │   ├── 1
+# │   │   ├── flake.lock
+# │   │   ├── flake.nix
+# │   │   └── pkgs
+# │   │       └── default
+# │   │           ├── catalog.json
+# │   │           └── flox.nix
+# │   └── metadata.json
+# ├── limeytexan (x86_64-linux.toolbox branch)
+# │   ├── 1
+# │   │   ├── flake.lock
+# │   │   ├── flake.nix
+# │   │   └── pkgs
+# │   │       └── default
+# │   │           ├── catalog.json
+# │   │           └── flox.nix
+# │   ├── 2
+# │   │   ├── flake.lock
+# │   │   ├── flake.nix
+# │   │   └── pkgs
+# │   │       └── default
+# │   │           ├── catalog.json
+# │   │           └── flox.nix
+# │   └── metadata.json
+# └── tomberek (aarch64-darwin.default branch)
+#     ├── 1
+#     │   ├── flake.lock
+#     │   ├── flake.nix
+#     │   └── pkgs
+#     │       └── default
+#     │           ├── catalog.json
+#     │           └── flox.nix
+#     ├── 2
+#     │   ├── flake.lock
+#     │   ├── flake.nix
+#     │   └── pkgs
+#     │       └── default
+#     │           ├── catalog.json
+#     │           └── flox.nix
+#     ├── 3
+#     │   ├── flake.lock
+#     │   ├── flake.nix
+#     │   └── pkgs
+#     │       └── default
+#     │           ├── catalog.json
+#     │           └── flox.nix
+#     └── metadata.json
+
 #
 # "Public" functions exposed by this module:
 #
-# * syncProfiles(): reconciles/updates profile data from metadata repository
-# * syncMetadata(): reconciles/updates metadata repository from profile data
 # * pullMetadata(): pulls metadata updates from upstream to local cache
 # * pushMetadata(): pushes metadata updates from local cache to upstream
 # * metaGit():      provides access to git commands for metadata repo
+# * metaGitShow():  used to print file contents without checking out branch
 #
 # Many git conventions employed here are borrowed from Nix's own
 # src/libfetchers/git.cc file.
 #
 
-#
-# gitInit($repoDir,$defaultBranch)
-#
-declare defaultBranch="floxmain"
-function gitInit() {
-	trace "$@"
-	local repoDir="$1"; shift
-	# Set initial branch with `-c init.defaultBranch=` instead of
-	# `--initial-branch=` to stay compatible with old version of
-	# git, which will ignore unrecognized `-c` options.
-	$invoke_git -c init.defaultBranch="${defaultBranch}" init --quiet "$repoDir"
-}
-
-#
-# gitCheckout($repoDir,$branch)
-#
-function gitCheckout() {
-	trace "$@"
-	local repoDir="$1"; shift
-	local branch="$1"; shift
-	[ -d "$repoDir" ] || {
-		gitInit "$repoDir"
-		$_git -C "$repoDir" config pull.rebase true
-		# A commit is needed in order to make the branch visible.
-		$_git -C "$repoDir" commit --quiet --allow-empty \
-			-m "$USER created repository"
-	}
-
-	# XXX Temporary: ensure there's an (orphan) floxmain branch in each repository.
-	# XXX Delete after 2022: gitInit() takes care of creating the branch going forward,
-	# XXX so we won't need this once all existing floxmeta repos have been updated.
-	$_git -C "$repoDir" show-ref -q refs/heads/"$defaultBranch" || {
-		$_git -C "$repoDir" checkout --quiet --orphan "$defaultBranch"
-		$_git -C "$repoDir" ls-files | $_xargs --no-run-if-empty $_git -C "$repoDir" rm --quiet -f
-		$_git -C "$repoDir" commit --quiet --allow-empty \
-			-m "$USER created repository"
-	} # XXX
-
-	# It's somewhat awkward to determine the current branch
-	# *before* that first commit. If there's a better git
-	# subcommand to figure this out I can't find it.
-	local currentBranch=
-	if [ -d "$repoDir" ]; then
-		currentBranch=$($_git -C "$repoDir" branch --show-current)
-	fi
-	[ "$currentBranch" = "$branch" ] || {
-		if $_git -C "$repoDir" show-ref -q refs/heads/"$branch"; then
-			$_git -C "$repoDir" checkout --quiet "$branch"
-		else
-			$_git -C "$repoDir" checkout --quiet --orphan "$branch"
-			$_git -C "$repoDir" ls-files | $_xargs --no-run-if-empty $_git -C "$repoDir" rm --quiet -f
-			# A commit is needed in order to make the branch visible.
-			$_git -C "$repoDir" commit --quiet --allow-empty \
-				-m "$USER created profile"
-		fi
-	}
-}
-
-# githubHelperGit($dir)
-#
-# Invokes git in provided directory with github helper configured.
-function githubHelperGit() {
-	trace "$@"
-	# For github.com specifically, set authentication helper.
-	$invoke_git \
-		-c "credential.https://github.com.helper=!$_gh auth git-credential" "$@"
-}
-
-function metaGit() {
-	trace "$@"
-	local profile="$1"; shift
-	local system="$1"; shift
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
-
-	# First verify that the clone is not out of date and check
-	# out requested branch.
-	gitCheckout "$profileMetaDir" "${system}.${profileName}"
-
-	githubHelperGit -C "$profileMetaDir" "$@"
-}
-
-# Performs a 'git show branch:file' for the purpose of fishing
-# out a file revision without checking out the branch.
-function metaGitShow() {
-	trace "$@"
-	local profile="$1"; shift
-	local system="$1"; shift
-	local filename="$1"; shift
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
-
-	$invoke_git -C "$profileMetaDir" \
-		show "${system}.${profileName}:${filename}"
-}
-
 snipline="------------------------ >8 ------------------------"
-protoManifestToml=$($_cat <<EOF
+declare protoManifestToml=$($_cat <<EOF
 # This is a prototype profile declarative manifest in TOML format,
 # supporting comments and the ability to invoke "shellHook" commands
 # upon profile activation. See the flox(1) man page for more details.
@@ -176,131 +130,166 @@ protoManifestToml=$($_cat <<EOF
 EOF
 )
 
-# metaEdit($profile, $system)
 #
-# Edits profile declarative manifest. Is only invoked from an
-# interactive terminal.
-function metaEdit() {
+# gitInit($repoDir,$defaultBranch)
+#
+declare defaultBranch="floxmain"
+function gitInit() {
 	trace "$@"
-	local profile="$1"; shift
+	local repoDir="$1"; shift
+	# Set initial branch with `-c init.defaultBranch=` instead of
+	# `--initial-branch=` to stay compatible with old version of
+	# git, which will ignore unrecognized `-c` options.
+	$invoke_git -c init.defaultBranch="${defaultBranch}" init --quiet "$repoDir"
+}
+
+# XXX TEMPORARY function to convert old-style "1.json" -> "1/manifest.json"
+#     **Delete after 20221215**
+function temporaryAssert007Schema {
+	trace "$@"
+	local repoDir="$1"; shift
+
+	# Use the presence of manifest.toml in the top directory as
+	# an indication that the repository has NOT been converted.
+	[ -e "$repoDir/manifest.toml" ] || return 0
+
+	# Prompt user to confirm they want to change the format.
+	warn "floxmeta repository ($repoDir) using deprecated (<=0.0.6) format."
+	$invoke_gum confirm "Convert to latest (>=0.0.7) format?"
+
+	# Rename/move each file.
+	for file in $($_git -C "$repoDir" ls-files); do
+		case "$file" in
+		[0-9]*.json)
+			local gen=$($_basename "$file" .json)
+			$invoke_mkdir -p "$repoDir/${gen}"
+			$invoke_git -C "$repoDir" mv "$file" "${gen}/manifest.json"
+			# Constructing the manifest.toml is not as straightforward.
+			# The pre-0.0.7 format didn't include a generation-specific
+			# manifest.toml, but rather forced you to go back to a previous
+			# git commit to find the corresponding version. Worse than that,
+			# when doing rollbacks and other generation flips the top half
+			# of the manifest.toml didn't change, which was arguably wrong
+			# (although appreciated as a feature by some).
+			#
+			# To create the old generation-specific manifest start by
+			# including everything up to the snipline.
+			$invoke_git -C "$repoDir" show "HEAD:manifest.toml" | \
+				$_awk "{if (/$snipline/) {exit} else {print}}" > "$repoDir/$gen/manifest.toml"
+			# Then use the current generation's manifest.json to create
+			# the rest.
+			echo "# $snipline" >> "$repoDir/$gen/manifest.toml"
+			manifest "$repoDir/$gen/manifest.json" listEnvironmentTOML >> "$repoDir/$gen/manifest.toml"
+			$invoke_git -C "$repoDir" add "$gen/manifest.toml"
+			;;
+		manifest.json)
+			$invoke_git -C "$repoDir" rm "$file" ;;
+		manifest.toml)
+			$invoke_git -C "$repoDir" rm "$file" ;;
+		metadata.json)
+			: leave intact ;;
+		*)
+			error "unknown file \"$file\" in $repoDir repository" < /dev/null
+			;;
+		esac
+	done
+
+	# Commit, reading commit message from STDIN.
+	$invoke_git -C "$repoDir" commit \
+		--quiet -m "$USER converted to 0.0.7 floxmeta schema"
+	$invoke_git -C $repoDir push --quiet
+
+	warn "Conversion complete. Please re-run command."
+	exit 0
+}
+# /XXX
+
+#
+# gitCheckout($repoDir,$branch)
+#
+function gitCheckout() {
+	trace "$@"
+	local repoDir="$1"; shift
+	local branch="$1"; shift
+	[ -d "$repoDir" ] || {
+		gitInit "$repoDir"
+		$_git -C "$repoDir" config pull.rebase true
+		# A commit is needed in order to make the branch visible.
+		$_git -C "$repoDir" commit --quiet --allow-empty \
+			-m "$USER created repository"
+	}
+
+	# Confirm or checkout the desired branch.
+	local currentBranch=
+	if [ -d "$repoDir" ]; then
+		currentBranch=$($_git -C "$repoDir" branch --show-current)
+	fi
+	[ "$currentBranch" = "$branch" ] || {
+		if $_git -C "$repoDir" show-ref --quiet refs/heads/"$branch"; then
+			$_git -C "$repoDir" checkout --quiet "$branch"
+		else
+			$_git -C "$repoDir" checkout --quiet --orphan "$branch"
+			$_git -C "$repoDir" ls-files | $_xargs --no-run-if-empty $_git -C "$repoDir" rm --quiet -f
+			# A commit is needed in order to make the branch visible.
+			$_git -C "$repoDir" commit --quiet --allow-empty \
+				-m "$USER created profile"
+		fi
+	}
+}
+
+# githubHelperGit()
+#
+# Invokes git in provided directory with github helper configured.
+function githubHelperGit() {
+	trace "$@"
+	# For github.com specifically, set authentication helper.
+	$invoke_git \
+		-c "credential.https://github.com.helper=!$_gh auth git-credential" "$@"
+}
+
+function metaGit() {
+	trace "$@"
+	local environment="$1"; shift
 	local system="$1"; shift
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
+	local environmentName=$($_basename $environment)
+	local environmentOwner=$($_basename $($_dirname $environment))
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
 
 	# First verify that the clone is not out of date and check
-	# out requested branch. This is essential because we're
-	# about to edit a file in that directory and it needs to be
-	# the correct version.
-	gitCheckout "$profileMetaDir" "${system}.${profileName}"
+	# out requested branch.
+	gitCheckout "$environmentMetaDir" "${system}.${environmentName}"
 
-	# Create a temp file for editing.
-	tmpfile=$($_mktemp)
-
-	# If the declarative manifest does not yet exist then we need
-	# to initialize it first with a blank version
-	if [ -f "$profileMetaDir/manifest.toml" ]; then
-		cp "$profileMetaDir/manifest.toml" $tmpfile
-	else
-		$_cat > $tmpfile <<EOF
-$protoManifestToml
-
-EOF
-		# If manifest.json already exists then append current package manifest.
-		if [ -f "$profileMetaDir/manifest.json" ]; then
-			manifest $profile/manifest.json listProfileTOML >> $tmpfile
-		fi
-	fi
-
-	# Edit
-	while true; do
-		$editorCommand $tmpfile
-
-		# Verify valid TOML syntax
-		[ -s $tmpfile ] || (
-			$_rm -f $tmpfile
-			error "editor returned empty manifest .. aborting" < /dev/null
-		)
-		if validateTOML $tmpfile; then
-			: confirmed valid TOML
-			break
-		else
-			if boolPrompt "Try again?" "yes"; then
-				: will try again
-			else
-				$_rm -f $tmpfile
-				error "editor returned invalid TOML .. aborting" < /dev/null
-			fi
-		fi
-	done
-
-	# We copy rather than move to preserve bespoke ownership and mode.
-	if $_cmp -s $tmpfile "$profileMetaDir/manifest.toml"; then
-		$_rm -f $tmpfile
-		if [ "$editorCommand" != "$_cat" ]; then
-			warn "no changes detected ... exiting"
-		fi
-		exit 0
-	else
-		$_cp $tmpfile "$profileMetaDir/manifest.toml"
-		$_rm -f $tmpfile
-		metaGit "$profile" "$system" add "manifest.toml"
-	fi
+	githubHelperGit -C "$environmentMetaDir" "$@"
 }
 
-#
-# syncProfile($profile,$system)
-#
-function syncProfile() {
+# Performs a 'git show branch:file' for the purpose of fishing
+# out a file revision without checking out the branch.
+function metaGitShow() {
 	trace "$@"
-	local profile="$1"; shift
+	local environment="$1"; shift
 	local system="$1"; shift
-	local profileDir=$($_dirname $profile)
-	local profileName=$($_basename $profile)
-	local profileRealDir=$($_readlink -f $profileDir)
-	local profileOwner=$($_basename $profileRealDir)
-	local profileMetaDir="$FLOX_META/$profileOwner"
+	local filename="$1"; shift
+	local environmentName=$($_basename $environment)
+	local environmentOwner=$($_basename $($_dirname $environment))
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	local branch="${system}.${environmentName}"
 
-	# Ensure metadata repo is checked out to correct branch.
-	gitCheckout "$profileMetaDir" "${system}.${profileName}"
-
-	# Run snippet to generate links using data from metadata repo.
-	$_mkdir -v -p "$profileRealDir" 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
-
-	local snippet=$(profileRegistry "$profile" syncGenerations)
-	eval "$snippet" || true
-
-	# FIXME REFACTOR based on detecting actual change.
-	[ -z "$_cline" ] || metaGit "$profile" "$system" add "metadata.json"
-}
-
-#
-# syncProfiles($profileOwner)
-#
-# The analog of syncMetadata(), this populates profile data using
-# information found in the metadata repository and registers a
-# GCRoot for the profile directory.
-#
-function syncProfiles() {
-	trace "$@"
-	local profileOwner="$1"
-	local profileMetaDir="$FLOX_META/$profileOwner"
-
-	local branches=$($_git -C "$profileMetaDir" branch --format="%(refname:short)")
-	for branch in "${branches}"; do
-		syncProfile "$profileMetaDir" "$branch" || true # keep going
-	done
+	# First assert the relevant branch exists.
+	if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branch"; then
+		$invoke_git -C "$environmentMetaDir" show "${branch}:${filename}"
+	else
+		error "environment '$environmentOwner/$environmentName' not found for system '$system'" < /dev/null
+	fi
 }
 
 function commitMessage() {
 	trace "$@"
-	local profile="$1"; shift
-	local system="$1"; shift
-	local startGen="$1"; shift
-	local endGen="$1"; shift
+	local environment="$1"; shift
+	local -i startGen=$1; shift
+	local -i endGen=$1; shift
 	local logMessage="$1"; shift
 	local invocation="${@}"
-	local profileName=$($_basename $profile)
+	local environmentName=$($_basename $environment)
 	cat <<EOF
 $logMessage
 
@@ -323,24 +312,24 @@ EOF
 	# ... so, we mock up a tmpDir with the qualities of #2 above.
 	# Not fun but better than nothing.
 	#
-	local tmpDir=$($_mktemp -d)
+	local tmpDir=$(mkTempDir)
 	# `nix profile history` requires generations to be in sequential
 	# order, so for the purpose of this invocation we set the generations
 	# as 1 and 2 if both are defined, or 1 if there is only one generation.
 	local myEndGen=
-	if [ -n "$startGen" ]; then
+	if [ $startGen -gt 0 ]; then
 		# If there is a start and end generation then set generat
-		$_ln -s $($_readlink "${profile}-${startGen}-link") $tmpDir/${profileName}-1-link
-		$_ln -s $($_readlink "${profile}-${endGen}-link") $tmpDir/${profileName}-2-link
-		local myEndGen=2
+		$invoke_ln -s $($_readlink "${environment}-${startGen}-link") $tmpDir/${environmentName}-1-link
+		$invoke_ln -s $($_readlink "${environment}-${endGen}-link") $tmpDir/${environmentName}-2-link
+		myEndGen=2
 	else
-		$_ln -s $($_readlink "${profile}-${endGen}-link") $tmpDir/${profileName}-1-link
-		local myEndGen=1
+		$invoke_ln -s $($_readlink "${environment}-${endGen}-link") $tmpDir/${environmentName}-1-link
+		myEndGen=1
 	fi
-	$_ln -s ${profileName}-${myEndGen}-link $tmpDir/${profileName}
+	$invoke_ln -s ${environmentName}-${myEndGen}-link $tmpDir/${environmentName}
 
 	local _cline
-	$_nix profile history --profile $tmpDir/${profileName} | $_ansifilter --text | \
+	$_nix profile history --profile $tmpDir/${environmentName} | $_ansifilter --text | \
 		$_awk '\
 			BEGIN {p=0} \
 			/^  flake:/ {if (p==1) {print $0}} \
@@ -349,122 +338,15 @@ EOF
 		do
 			local flakeref=$(echo "$_cline" | $_cut -d: -f1,2)
 			local detail=$(echo "$_cline" | $_cut -d: -f3-)
-			local floxpkg=$(manifest $profile/manifest.json flakerefToFloxpkg "$flakeref")
+			local floxpkg=$(manifest $environment/manifest.json flakerefToFloxpkg "$flakeref")
 			echo "  ${floxpkg}:${detail}"
 		done
 
 	$_rm -f \
-		$tmpDir/"${profileName}-1-link" \
-		$tmpDir/"${profileName}-2-link" \
-		$tmpDir/"${profileName}"
+		$tmpDir/"${environmentName}-1-link" \
+		$tmpDir/"${environmentName}-2-link" \
+		$tmpDir/"${environmentName}"
 	$_rmdir $tmpDir
-}
-
-#
-# syncMetadata($profile)
-#
-# Expects commit message from STDIN.
-#
-function syncMetadata() {
-	trace "$@"
-	local profile="$1"; shift
-	local system="$1"; shift
-	local startGen="$1"; shift
-	local endGen="$1"; shift
-	local logMessage="$1"; shift
-	local invocation="${@}"
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
-
-	# First verify that the clone is not out of date and check
-	# out requested branch.
-	gitCheckout "$profileMetaDir" "${system}.${profileName}"
-
-	# Now reconcile the data.
-	for i in ${profile}-+([0-9])-link; do
-		local gen_link=${i#${profile}-} # remove prefix
-		local gen=${gen_link%-link} # remove suffix
-		if [ -e "$i/manifest.json" ]; then
-			[ -e "$profileMetaDir/${gen}.json" ] || {
-				$_cp "$i/manifest.json" "$profileMetaDir/${gen}.json"
-				metaGit "$profile" "$system" add "${gen}.json"
-			}
-			# Upgrade manifest.json with change of schema version.
-			$_cmp -s "$i/manifest.json" "$profileMetaDir/${gen}.json" || \
-				metaGit "$profile" "$system" add "${gen}.json"
-		fi
-	done
-
-	# Update manifest.json to point to current generation.
-	local endMetaGeneration
-	[ ! -e "$profileMetaDir/manifest.json" ] || \
-		endMetaGeneration=$($_readlink "$profileMetaDir/manifest.json")
-	[ "$endMetaGeneration" = "${endGen}.json" ] || {
-		$_ln -f -s "${endGen}.json" "$profileMetaDir/manifest.json"
-		metaGit "$profile" "$system" add "manifest.json"
-	}
-	profileRegistry "$profile" set currentGen "${endGen}"
-
-	# Update profile metadata with end generation information.
-	profileRegistry "$profile" set generations \
-		${endGen} path $($_readlink ${profile}-${endGen}-link)
-	profileRegistry "$profile" addArray generations \
-		${endGen} logMessage "$logMessage"
-	profileRegistry "$profile" setNumber generations \
-		${endGen} created $($_stat --format=%Y ${profile}-${endGen}-link)
-	profileRegistry "$profile" setNumber generations \
-		${endGen} lastActive "$now"
-
-	# Also update lastActive time for starting generation, if known.
-	[ -z "${startGen}" ] || \
-		profileRegistry "$profile" setNumber generations \
-			${startGen} lastActive "$now"
-
-	# Update package contents of declarative manifest.
-	tmpfile=$($_mktemp)
-	# Generate declarative manifest with packages section removed.
-	if [ -f "$profileMetaDir/manifest.toml" ]; then
-		# Include everything up to the snipline.
-		$_awk "{if (/$snipline/) {exit} else {print}}" "$profileMetaDir/manifest.toml" > $tmpfile
-	else
-		# Bootstrap with prototype manifest.
-		$_cat > $tmpfile <<EOF
-$protoManifestToml
-EOF
-	fi
-	# Append empty line if it doesn't already end with one.
-	$_tail -1 $tmpfile | $_grep -q '^$' || ( echo >> $tmpfile )
-	# Append updated packages list.
-	echo "# $snipline" >> $tmpfile
-	manifest "$profileMetaDir/manifest.json" listProfileTOML >> $tmpfile
-
-	# Verify valid TOML syntax
-	if validateTOML $tmpfile; then
-		: confirmed valid TOML
-	else
-		$_rm -f $tmpfile
-		error "program autogenerated invalid TOML .. aborting" < /dev/null
-	fi
-
-	if [ "$profileMetaDir/manifest.toml" ]; then
-		if $_cmp -s "$profileMetaDir/manifest.toml" $tmpfile; then
-			: no changes
-		else
-			$_cp -f $tmpfile "$profileMetaDir/manifest.toml"
-			metaGit "$profile" "$system" add "manifest.toml"
-		fi
-	else
-		$_cp -f $tmpfile "$profileMetaDir/manifest.toml"
-		metaGit "$profile" "$system" add "manifest.toml"
-	fi
-	$_rm -f $tmpfile
-
-	# Commit, reading commit message from STDIN.
-	commitMessage \
-		"$profile" "$system" "$startGen" "$endGen" \
-		"$logMessage" "${invocation[@]}" | \
-		metaGit "$profile" "$system" commit --quiet -F -
 }
 
 function checkGhAuth {
@@ -556,32 +438,32 @@ function rewriteURLs() {
 }
 
 #
-# getSetOrigin($profile)
+# getSetOrigin($environment)
 #
 function getSetOrigin() {
 	trace "$@"
-	local profile="$1"; shift
+	local environment="$1"; shift
 	local system="$1"; shift
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
-	local branch="${system}.${profileName}"
+	local environmentName=$($_basename $environment)
+	local environmentOwner=$($_basename $($_dirname $environment))
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	local branch="${system}.${environmentName}"
 
 	# Check to see if the origin is already set.
-	local origin=$([ -d "$profileMetaDir" ] && $_git -C "$profileMetaDir" \
+	local origin=$([ -d "$environmentMetaDir" ] && $_git -C "$environmentMetaDir" \
 		"config" "--get" "remote.origin.url" || true)
 	if [ -z "$origin" ]; then
 		# Infer/set origin using a variety of information.
-		local profileName=$($_basename $profile)
-		local profileOwner=$($_basename $($_dirname $profile))
+		local environmentName=$($_basename $environment)
+		local environmentOwner=$($_basename $($_dirname $environment))
 		local defaultOrigin=
-		if [ "$profileOwner" == "local" ]; then
+		if [ "$environmentOwner" == "local" ]; then
 			defaultOrigin=$(promptMetaOrigin)
 		else
 			# Strange to have a profile on disk in a named without a
 			# remote origin. Prompt user to confirm floxmeta repo on
 			# github.
-			defaultOrigin="${gitBaseURL/+ssh/}$profileOwner/floxmeta"
+			defaultOrigin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
 		fi
 
 		echo 1>&2
@@ -590,39 +472,39 @@ function getSetOrigin() {
 			-i "$defaultOrigin" origin
 
 		# A few final cleanup steps.
-		if [ "$profileOwner" == "local" ]; then
-			local newProfileOwner=$($_dirname $origin); newProfileOwner=${newProfileOwner/*[:\/]/} # XXX hack
+		if [ "$environmentOwner" == "local" ]; then
+			local newEnvironmentOwner=$($_dirname $origin); newEnvironmentOwner=${newEnvironmentOwner/*[:\/]/} # XXX hack
 
 			# rename .cache/flox/meta/{local -> owner} &&
 			#   replace with symlink from local -> owner
-			# use .cache/flox/meta/owner as profileMetaDir going forward (only for this function though!)
-			if [ -d "$FLOX_META/$newProfileOwner" ]; then
-				warn "moving profile metadata directory $FLOX_META/$newProfileOwner out of the way"
-				$invoke_mv --verbose $FLOX_META/$newProfileOwner{,.$$}
+			# use .cache/flox/meta/owner as environmentMetaDir going forward (only for this function though!)
+			if [ -d "$FLOX_META/$newEnvironmentOwner" ]; then
+				warn "moving profile metadata directory $FLOX_META/$newEnvironmentOwner out of the way"
+				$invoke_mv --verbose $FLOX_META/$newEnvironmentOwner{,.$$}
 			fi
 			if [ -d "$FLOX_META/local" ]; then
-				$invoke_mv "$FLOX_META/local" "$FLOX_META/$newProfileOwner"
+				$invoke_mv "$FLOX_META/local" "$FLOX_META/$newEnvironmentOwner"
 			fi
-			$invoke_ln -s -f $newProfileOwner "$FLOX_META/local"
-			profileMetaDir="$FLOX_META/$newProfileOwner"
+			$invoke_ln -s -f $newEnvironmentOwner "$FLOX_META/local"
+			environmentMetaDir="$FLOX_META/$newEnvironmentOwner"
 
 			# rename .local/share/flox/environments/{local -> owner}
 			#   replace with symlink from local -> owner
-			if [ -d "$FLOX_ENVIRONMENTS/$newProfileOwner" ]; then
-				warn "moving profile directory $FLOX_ENVIRONMENTS/$newProfileOwner out of the way"
-				$invoke_mv --verbose $FLOX_ENVIRONMENTS/$newProfileOwner{,.$$}
+			if [ -d "$FLOX_ENVIRONMENTS/$newEnvironmentOwner" ]; then
+				warn "moving profile directory $FLOX_ENVIRONMENTS/$newEnvironmentOwner out of the way"
+				$invoke_mv --verbose $FLOX_ENVIRONMENTS/$newEnvironmentOwner{,.$$}
 			fi
 			if [ -d "$FLOX_ENVIRONMENTS/local" ]; then
-				$invoke_mv "$FLOX_ENVIRONMENTS/local" "$FLOX_ENVIRONMENTS/$newProfileOwner"
+				$invoke_mv "$FLOX_ENVIRONMENTS/local" "$FLOX_ENVIRONMENTS/$newEnvironmentOwner"
 			fi
-			$invoke_ln -s -f $newProfileOwner "$FLOX_ENVIRONMENTS/local"
+			$invoke_ln -s -f $newEnvironmentOwner "$FLOX_ENVIRONMENTS/local"
 
 			# perform single commit rewriting all URL references to refer to new home of floxmeta repo
 			rewriteURLs "$FLOX_ENVIRONMENTS/local" "$origin"
 		fi
 
-		[ -d "$profileMetaDir" ] || gitInit "$profileMetaDir"
-		$invoke_git -C "$profileMetaDir" "remote" "add" "origin" "$origin"
+		[ -d "$environmentMetaDir" ] || gitInit "$environmentMetaDir"
+		$invoke_git -C "$environmentMetaDir" "remote" "add" "origin" "$origin"
 	fi
 
 	ensureGHRepoExists "$origin" private "https://github.com/flox/floxmeta-template.git"
@@ -630,7 +512,141 @@ function getSetOrigin() {
 }
 
 #
-# pushpullMetadata("(push|pull)",$profile,$system)
+# beginTransaction($environment, $system, $workDir)
+#
+# This function creates an ephemeral clone for staging commits to
+# a floxmeta repository.
+#
+function beginTransaction() {
+	trace "$@"
+	local environment="$1"; shift
+	local system="$1"; shift
+	local workDir="$1"; shift
+	local environmentName=$($_basename $environment)
+	local environmentOwner=$($_basename $($_dirname $environment))
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	local branch="${system}.${environmentName}"
+
+	# Perform a fetch to get remote data into sync.
+	githubHelperGit -C "$environmentMetaDir" fetch origin
+
+	# Create an ephemeral clone.
+	$invoke_git clone --quiet --shared "$environmentMetaDir" $workDir
+
+	# Check out the relevant branch. Can be complicated in the event
+	# that this is the first pull of a brand-new branch.
+	if $invoke_git -C "$workDir" show-ref --quiet refs/heads/"$branch"; then
+		$invoke_git -C "$workDir" checkout --quiet "$branch"
+	elif $invoke_git -C "$workDir" show-ref --quiet refs/remotes/origin/"$branch"; then
+		$invoke_git -C "$workDir" checkout --quiet --track origin/"$branch"
+	else
+		$invoke_git -C "$workDir" checkout --quiet --orphan "$branch"
+		$invoke_git -C "$workDir" ls-files | $_xargs --no-run-if-empty $_git -C "$workDir" rm --quiet -f
+		# A commit is needed in order to make the branch visible.
+		$invoke_git -C "$workDir" commit --quiet --allow-empty \
+			-m "$USER created environment"
+		$invoke_git -C "$workDir" push --quiet --set-upstream origin "$branch"
+	fi
+
+	# XXX Temporary covering transition from 0.0.6 -> 0.0.7
+	temporaryAssert007Schema "$workDir"
+	# /XXX
+
+	# Any function calling this one will probably be wanting to make
+	# some sort of change that will generate a new generation, so take
+	# this opportunity to identify the current and next generations
+	# and drop in helper symlinks pointing to the "current" and "next"
+	# generations to make it easy for calling functions to make changes.
+	# (But don't add them to the git index.)
+
+	# Record starting generation.
+	local -i startGen=$(registry "$workDir/metadata.json" 1 currentGen)
+	if [ $startGen -gt 0 ]; then
+		$invoke_ln -s $startGen "$workDir/current"
+	fi
+
+	# Calculate next available generation. Note this is _not_ just
+	# (startGen + 1), but rather (max(generations) + 1) as recorded
+	# in the environment registry. (We're no longer using symlinks
+	# to record this in the floxmeta repo.)
+	local -i nextGen=$(registry "$workDir/metadata.json" 1 nextGen)
+	$invoke_mkdir -p $workDir/$nextGen
+	$invoke_ln -s $nextGen $workDir/next
+}
+
+#
+# commitTransaction($environment, $workDir, $logMessage)
+#
+# This function completes the process of committing updates to
+# a floxmeta repository from an ephemeral clone.
+#
+function commitTransaction() {
+	trace "$@"
+	local environment="$1"; shift
+	local workDir="$1"; shift
+	local environmentPackage="$1"; shift
+	local logMessage="$1"; shift
+	local invocation="${@}"
+	local environmentName=$($_basename $environment)
+
+	# Glean current and next generations from clone.
+	local -i currentGen=$($_readlink $workDir/current || echo 0)
+	local -i nextGen=$($_readlink $workDir/next)
+
+	# Activate the new generation just as Nix would have done.
+	# First check to see if the environment has actually changed,
+	# and if not then return immediately.
+	oldEnvPackage=$($_realpath $environment)
+	if [ "$environmentPackage" = "$oldEnvPackage" ]; then
+		warn "No environment changes detected .. exiting"
+		return 0
+	fi
+
+	# Update the floxmeta registry to record the new generation.
+	registry "$workDir/metadata.json" 1 set currentGen $nextGen
+
+	# Figure out if we're creating or switching to an existing generation.
+	local createdOrSwitchedTo="created"
+	if $invoke_jq -e --arg gen $nextGen '.generations | has($gen)' $workDir/metadata.json >/dev/null; then
+		createdOrSwitchedTo="switched to"
+	else
+		# Update environment metadata with new end generation information.
+		registry "$workDir/metadata.json" 1 set generations \
+			${nextGen} path $environmentPackage
+		registry "$workDir/metadata.json" 1 addArray generations \
+			${nextGen} logMessage "$logMessage"
+		registry "$workDir/metadata.json" 1 setNumber generations \
+			${nextGen} created "$now"
+		registry "$workDir/metadata.json" 1 setNumber generations \
+			${nextGen} lastActive "$now"
+	fi
+
+	# Also update lastActive time for current generation, if known.
+	[ $currentGen -eq 0 ] || \
+		registry "$workDir/metadata.json" 1 setNumber generations \
+			$currentGen lastActive "$now"
+
+	# Now that metadata is recorded, actually put the change
+	# into effect. Must be done before calling commitMessage().
+	if [ "$createdOrSwitchedTo" = "created" ]; then
+		$invoke_nix_store --add-root "${environment}-${nextGen}-link" \
+			-r $environmentPackage >/dev/null
+	fi
+	$invoke_rm -f $environment
+	$invoke_ln -s "${environmentName}-${nextGen}-link" $environment
+
+	# Commit, reading commit message from STDIN.
+	commitMessage \
+		"$environment" $currentGen $nextGen \
+		"$logMessage" "${invocation[@]}" | \
+		$invoke_git -C $workDir commit --quiet -F -
+	$invoke_git -C $workDir push --quiet
+
+	warn "$createdOrSwitchedTo generation $nextGen"
+}
+
+#
+# pushpullMetadata("(push|pull)",$environment,$system)
 #
 # This function creates an ephemeral clone for reconciling commits before
 # pushing the result to either of the local (origin) or remote (upstream)
@@ -639,12 +655,12 @@ function getSetOrigin() {
 function pushpullMetadata() {
 	trace "$@"
 	local action="$1"; shift
-	local profile="$1"; shift
+	local environment="$1"; shift
 	local system="$1"; shift
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
-	local branch="${system}.${profileName}"
+	local environmentName=$($_basename $environment)
+	local environmentOwner=$($_basename $($_dirname $environment))
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	local branch="${system}.${environmentName}"
 	local forceArg=
 	for i in "$@"; do
 		if [ "$i" = "--force" ]; then
@@ -660,14 +676,14 @@ function pushpullMetadata() {
 	# First verify that the clone has an origin defined.
 	# XXX: BUG no idea why, but this is reporting origin twice
 	#      when first creating the repository; hack with sort.
-	local origin=$(getSetOrigin "$profile" "$system" | $_sort -u)
+	local origin=$(getSetOrigin "$environment" "$system" | $_sort -u)
 
 	# Perform a fetch to get remote data into sync.
-	githubHelperGit -C "$profileMetaDir" fetch origin
+	githubHelperGit -C "$environmentMetaDir" fetch origin
 
 	# Create an ephemeral clone with which to perform the synchronization.
-	local tmpDir=$($_mktemp -d)
-	$invoke_git clone --quiet --shared "$profileMetaDir" $tmpDir
+	local tmpDir=$(mkTempDir)
+	$invoke_git clone --quiet --shared "$environmentMetaDir" $tmpDir
 
 	# Add the upstream remote to the ephemeral clone.
 	$invoke_git -C $tmpDir remote add upstream $origin
@@ -675,12 +691,12 @@ function pushpullMetadata() {
 
 	# Check out the relevant branch. Can be complicated in the event
 	# that this is the first pull of a brand-new branch.
-	if $invoke_git -C "$tmpDir" show-ref -q refs/heads/"$branch"; then
+	if $invoke_git -C "$tmpDir" show-ref --quiet refs/heads/"$branch"; then
 		$invoke_git -C "$tmpDir" checkout "$branch"
-	elif $invoke_git -C "$tmpDir" show-ref -q refs/remotes/origin/"$branch"; then
-		$invoke_git -C "$tmpDir" checkout --track origin/"$branch"
-	elif $invoke_git -C "$tmpDir" show-ref -q refs/remotes/upstream/"$branch"; then
-		$invoke_git -C "$tmpDir" checkout --track upstream/"$branch"
+	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/origin/"$branch"; then
+		$invoke_git -C "$tmpDir" checkout --quiet --track origin/"$branch"
+	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branch"; then
+		$invoke_git -C "$tmpDir" checkout --quiet --track upstream/"$branch"
 	else
 		$invoke_git -C "$tmpDir" checkout --orphan "$branch"
 		$invoke_git -C "$tmpDir" ls-files | $_xargs --no-run-if-empty $_git -C "$tmpDir" rm --quiet -f
@@ -694,12 +710,12 @@ function pushpullMetadata() {
 	if [ "$action" = "push" ]; then
 		githubHelperGit -C $tmpDir push $forceArg upstream origin/"$branch":refs/heads/"$branch" ||
 			error "repeat command with '--force' to overwrite" < /dev/null
-		# Push succeeded, ensure that $profileMetaDir has remote ref for this branch.
-		$invoke_git -C "$profileMetaDir" fetch --quiet origin
+		# Push succeeded, ensure that $environmentMetaDir has remote ref for this branch.
+		$invoke_git -C "$environmentMetaDir" fetch --quiet origin
 	elif [ "$action" = "pull" ]; then
 		# Slightly different here; we first attempt to rebase and do
 		# a hard reset if invoked with --force.
-		if $invoke_git -C "$tmpDir" show-ref -q refs/remotes/upstream/"$branch"; then
+		if $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branch"; then
 			if [ -z "$forceArg" ]; then
 				$invoke_git -C $tmpDir rebase --quiet upstream/"$branch" ||
 					error "repeat command with '--force' to overwrite" < /dev/null
@@ -708,9 +724,9 @@ function pushpullMetadata() {
 			fi
 			# Set receive.denyCurrentBranch=updateInstead before pushing
 			# to update both the bare repository and the checked out branch.
-			$invoke_git -C "$profileMetaDir" config receive.denyCurrentBranch updateInstead
+			$invoke_git -C "$environmentMetaDir" config receive.denyCurrentBranch updateInstead
 			$invoke_git -C $tmpDir push $forceArg origin
-			syncProfile "$profile" "$system"
+			syncEnvironment "$environment" "$system"
 		else
 			error "branch '$branch' does not exist on $origin upstream" < /dev/null
 		fi
@@ -719,16 +735,20 @@ function pushpullMetadata() {
 }
 
 #
-# listProfiles($system)
+# listEnvironments($system)
 #
-function listProfile() {
+function listEnvironments() {
 	trace "$@"
 	local system="$1"; shift
-	local profileMetaDir="$1"; shift
-	local profileOwner=$($_basename $profileMetaDir)
+	local environmentMetaDir="$1"; shift
+	local environmentOwner=$($_basename $environmentMetaDir)
+
+	# Quick sanity check .. is this a git repo?
+	[ -d "$environmentMetaDir/.git" ] || \
+		error "not a git clone? Please remove: $environmentMetaDir" < /dev/null
 
 	# Start by updating all remotes in the clone dir.
-	githubHelperGit -C $profileMetaDir fetch --quiet --all
+	githubHelperGit -C $environmentMetaDir fetch --quiet --all
 
 	# Derive all known branches. Recall branches will be of the form:
 	#   remotes/origin/x86_64-linux.default
@@ -737,7 +757,7 @@ function listProfile() {
 	local -A _local
 	local -A _origin
 	local -a _cline
-	. <($invoke_git -C $profileMetaDir branch -av | $_sed 's/^\*//' | while read -a _cline
+	. <($invoke_git -C $environmentMetaDir branch -av | $_sed 's/^\*//' | while read -a _cline
 		do
 			_remote=$($_dirname "${_cline[0]}")
 			_branch=$($_basename "${_cline[0]}")
@@ -749,7 +769,7 @@ function listProfile() {
 					echo "_origin[\"$_branch\"]=\"$_revision\""
 					;;
 				"remotes/*")
-					warn "unexpected remote '$_remote' in $profileMetaDir clone ... ignoring"
+					warn "unexpected remote '$_remote' in $environmentMetaDir clone ... ignoring"
 					;;
 				*)
 					echo "_branches[\"$_branch\"]=1"
@@ -768,142 +788,47 @@ function listProfile() {
 		local -i __printCommit=0
 		local __generation="unknown"
 		local __name=${_branch##*.}
-		local __path="$FLOX_ENVIRONMENTS/$profileOwner/$__name"
-		local __alias="$profileOwner/$__name"
-		local __localProfileOwner="local"
+		local __path="$FLOX_ENVIRONMENTS/$environmentOwner/$__name"
+		local __alias="$environmentOwner/$__name"
+		local __localEnvironmentOwner="local"
 		if [ -L "$FLOX_ENVIRONMENTS/local" ]; then
-			__localProfileOwner=$($_readlink "$FLOX_ENVIRONMENTS/local")
+			__localEnvironmentOwner=$($_readlink "$FLOX_ENVIRONMENTS/local")
 		fi
-		if [ "$__localProfileOwner" = "$profileOwner" ]; then
+		if [ "$__localEnvironmentOwner" = "$environmentOwner" ]; then
 			__alias="$__name"
 		fi
 		if [ -n "$__local" ]; then
-			__commit="$__local"
-			__generation=$($invoke_git -C $profileMetaDir show $__local:manifest.json | $_cut -d. -f1)
+			local __metadata=$(mkTempFile)
+			if $invoke_git -C $environmentMetaDir show $__local:metadata.json > $__metadata 2>/dev/null; then
+				__commit="$__local"
+				__generation=$($invoke_jq -r .currentGen $__metadata)
+			fi
 		fi
 		if [ -n "$__origin" -a "$__origin" != "$__local" ]; then
-			__commit="$__commit (remote $__origin)"
-			__printCommit=1
-			__generation="$__generation (remote $($invoke_git -C $profileMetaDir show $__origin:manifest.json | $_cut -d. -f1))"
+			local __metadata=$(mkTempFile)
+			if $invoke_git -C $environmentMetaDir show $__origin:metadata.json > $__metadata 2>/dev/null; then
+				__commit="$__commit (remote $__origin)"
+				__printCommit=1
+				__generation=$($invoke_jq -r .currentGen $__metadata)
+			fi
 		fi
 		$_cat <<EOF
-$profileOwner/$__name
+$environmentOwner/$__name
     Alias     $__alias
     System    $system
-    Path      $FLOX_ENVIRONMENTS/$profileOwner/$__name
+    Path      $FLOX_ENVIRONMENTS/$environmentOwner/$__name
     Curr Gen  $__generation
 EOF
 		if [ $verbose -eq 0 ]; then
 			[ $__printCommit -eq 0 ] || echo "    Commit    $__commit"
 		else
 			$_cat <<EOF
-    Branch    $profileOwner/$_branch
+    Branch    $environmentOwner/$_branch
     Commit    $__commit
 EOF
 		fi
 		echo ""
 	done
-}
-
-#
-# listProfiles($system)
-#
-function listProfiles() {
-	trace "$@"
-	local system="$1"; shift
-
-	# For each profileMetaDir, list profiles
-	for i in $FLOX_META/*; do
-		if [ -d $i ]; then
-			[ -L $i ] || listProfile $system $i
-		fi
-	done
-}
-
-#
-# destroyProfile($profile,$system)
-#
-# This function entirely removes a profile's manifestation on disk
-# and deletes the associated branch from the local floxmeta repository,
-# and on the "origin" repository as well if invoked with `--origin`.
-#
-function destroyProfile() {
-	trace "$@"
-	local profile="$1"; shift
-	local system="$1"; shift
-	local profileDir=$($_dirname $profile)
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
-	local branch="${system}.${profileName}"
-	local originArg=
-	for i in "$@"; do
-		if [ "$i" = "--origin" ]; then
-			originArg="--origin"
-		else
-			usage | error "unknown argument: '$i'"
-		fi
-	done
-
-	# Accumulate warning lines as we go.
-	local -a warnings=("WARNING: you are about to delete the following:")
-
-	# Look for symlinks to delete.
-	local -a links=()
-	for i in $profileDir/$profileName{,-*-link}; do
-		if [ -L "$i" ]; then
-			links+=("$i")
-			warnings+=(" - $i")
-		fi
-	done
-
-	# Look for a local branch.
-	local localBranch=
-	if $invoke_git -C "$profileMetaDir" show-ref -q refs/heads/"$branch" >/dev/null; then
-		localBranch="$branch"
-		warnings+=(" - the $branch branch in $profileMetaDir")
-	fi
-
-	# Look for an origin branch.
-	local origin=
-	if [ -n "$originArg" ]; then
-		if $invoke_git -C "$profileMetaDir" show-ref -q refs/remotes/origin/"$branch" >/dev/null; then
-			# XXX: BUG no idea why, but this is reporting origin twice
-			#      when first creating the repository; hack with sort.
-			origin=$(getSetOrigin "$profile" "$system" | $_sort -u)
-			warnings+=(" - the $branch branch in $origin")
-		fi
-	fi
-
-	# If no warnings (other than the header warning) then nothing to destroy.
-	if [ ${#warnings[@]} -le 1 ]; then
-		warn "Nothing to delete for the '$profileName' environment"
-		return
-	fi
-
-	# Issue all the warnings and prompt for confirmation
-	for i in "${warnings[@]}"; do
-		warn "$i"
-	done
-	if boolPrompt "Are you sure?" "no"; then
-		# Start by changing to the (default) floxmain branch to ensure
-		# we're not attempting to delete the current branch.
-		if [ -n "$localBranch" ]; then
-			if $invoke_git -C "$profileMetaDir" checkout --quiet "$defaultBranch" 2>/dev/null; then
-				# Ensure following commands always succeed so that subsequent
-				# invocations can reach the --origin remote removal below.
-				$invoke_git -C "$profileMetaDir" branch -D "$branch" || true
-			fi
-		fi
-		if [ -n "$origin" ]; then
-			$invoke_git -C "$profileMetaDir" branch -rd origin/"$branch" || true
-			githubHelperGit -C "$profileMetaDir" push origin --delete "$branch" || true
-		fi
-		$invoke_rm --verbose -f ${links[@]}
-	else
-		warn "aborted"
-		exit 1
-	fi
 }
 
 function subscribeFlake() {

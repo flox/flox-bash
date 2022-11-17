@@ -1,37 +1,40 @@
-{pkgs, revision, ...}:
+{ self
+, stdenv
+, withRev
+
+, ansifilter
+, bashInteractive
+, coreutils
+, curl
+, dasel
+, diffutils
+, entr
+, fetchpatch
+, findutils
+, gawk
+, gh
+, gnugrep
+, gnused
+, gum
+, gzip
+, hostPlatform
+, jq
+, less # Required by man, believe it or not  :-(
+, lib
+, libossp_uuid
+, makeWrapper
+, man
+, nixUnstable
+, pandoc
+, parallel
+, pkgs
+, shfmt
+, util-linuxMinimal
+, which
+, writeText
+}:
+
 let
-  inherit (pkgs)
-    stdenv
-    ansifilter
-    bashInteractive
-    coreutils
-    curl
-    dasel
-    diffutils
-    fetchpatch
-    findutils
-    gawk
-    gh
-    gnugrep
-    gnused
-    gum
-    gzip
-    hostPlatform
-    jq
-    less # Required by man, believe it or not  :-(
-    lib
-    libossp_uuid
-    makeWrapper
-    man
-    nixUnstable
-    pandoc
-    parallel
-    shfmt
-    util-linuxMinimal
-    which
-    writeText
-    unixutils
-    ;
 
   # The getent package can be found in pkgs.unixtools.
   inherit (pkgs.unixtools) getent;
@@ -87,11 +90,13 @@ let
     unset FLOX_PATH_PREPEND FLOX_ACTIVATE_VERBOSE FLOX_BASH_INIT_SCRIPT
   '');
 
+  bats = pkgs.bats.withLibraries (p: [ p.bats-support p.bats-assert ]);
+
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.6${revision}";
-  src = ./.;
-  nativeBuildInputs = [ makeWrapper pandoc shfmt which ];
+  version = withRev "0.0.7";
+  src = self;
+  nativeBuildInputs = [ bats entr makeWrapper pandoc shfmt which ];
   buildInputs = [
     ansifilter bashInteractive coreutils curl dasel diffutils
     findutils gawk getent git gh gnugrep gnused gum gzip jq

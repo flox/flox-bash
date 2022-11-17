@@ -228,7 +228,7 @@ def positionToFloxpkg(args): expectedArgs(1; args) |
 #
 # Functions which present output directly to users.
 #
-def listProfile(args):
+def listEnvironment(args):
   (args | length) as $argc |
   if $argc == 0 then
     $elements | map(
@@ -246,16 +246,16 @@ def listProfile(args):
     error("unknown option: " + args[0])
   end;
 
-def listProfileTOML(args): expectedArgs(0; args) |
+def listEnvironmentTOML(args): expectedArgs(0; args) |
   $elements | sort_by(.packageName) | unique_by(.packageName) |
     map( TOMLFromElement) as $TOMLelements |
   (["[packages]"] + $TOMLelements) | join("\n");
 
-def listFlakesInProfile(args): expectedArgs(0; args) |
+def listFlakesInEnvironment(args): expectedArgs(0; args) |
   ( $elements | map(
     if .attrPath then lockedFlakerefFromElement else empty end
-  ) ) as $flakesInProfile |
-  if ($flakesInProfile | length) == 0 then " " else ($flakesInProfile | .[]) end;
+  ) ) as $flakesInEnvironment |
+  if ($flakesInEnvironment | length) == 0 then " " else ($flakesInEnvironment | .[]) end;
 
 def listStorePaths(args): expectedArgs(0; args) |
   ( $elements | map(.storePaths) | flatten ) as $anonStorePaths |
@@ -277,9 +277,9 @@ else if $function == "floxpkgToPosition"   then floxpkgToPosition($funcargs)
 else if $function == "flakerefToPosition"  then flakerefToPosition($funcargs)
 else if $function == "storepathToPosition" then storepathToPosition($funcargs)
 else if $function == "positionToFloxpkg"   then positionToFloxpkg($funcargs)
-else if $function == "listProfile"         then listProfile($funcargs)
-else if $function == "listProfileTOML"     then listProfileTOML($funcargs)
-else if $function == "listFlakesInProfile" then listFlakesInProfile($funcargs)
+else if $function == "listEnvironment"         then listEnvironment($funcargs)
+else if $function == "listEnvironmentTOML"     then listEnvironmentTOML($funcargs)
+else if $function == "listFlakesInEnvironment" then listFlakesInEnvironment($funcargs)
 else if $function == "listStorePaths"      then listStorePaths($funcargs)
 else if $function == "dump"                then dump($funcargs)
 else error("unknown function: \"\($function)\"")

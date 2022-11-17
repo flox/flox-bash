@@ -66,6 +66,10 @@ export GUM_FILTER_PROMPT_FOREGROUND="$DARKBLUE256"
 export GUM_INPUT_CURSOR_FOREGROUND="$DARKPEACH256"
 export GUM_INPUT_PROMPT_FOREGROUND="$DARKPEACH256"
 
+export GUM_CONFIRM_SELECTED_FOREGROUND="$DARKBLUE256"
+export GUM_CONFIRM_SELECTED_BACKGROUND="$LIGHTPEACH256"
+export GUM_CONFIRM_PROMPT_FOREGROUND="$DARKPEACH256"
+
 # Set flox prompt colors.
 export FLOX_PROMPT_COLOR_1=${FLOX_PROMPT_COLOR_1:-$LIGHTBLUE256}
 export FLOX_PROMPT_COLOR_2=${FLOX_PROMPT_COLOR_2:-$DARKPEACH256}
@@ -175,6 +179,13 @@ function warn() {
 	[ ${#@} -eq 0 ] || echo -e "${colorBold}${@}${colorReset}" 1>&2
 }
 
+# verboseExec() uses pprint() to safely print exec() calls to STDERR
+function verboseExec() {
+	trace "$@"
+	[ $verbose -eq 0 ] || warn $(pprint "+" "$@")
+	exec "$@"
+}
+
 # error() prints spaces around the arguments, prints to STDERR in
 # bold color and then exits nonzero (unless in interactive shell).
 function error() {
@@ -189,6 +200,41 @@ function error() {
 	*i*) : ;;
 	*) exit 1 ;;
 	esac
+}
+
+# Add to $tmpFiles and $tmpDirs to ensure they're cleaned up upon exit.
+# Be careful adding to $tmpDirs as it is recursively removed.
+declare -a tmpFiles=()
+declare -a tmpDirs=()
+function cleanup() {
+	# Keep temp files if debugging.
+	if [ $debug -eq 0 ]; then
+		if [ ${#tmpFiles[@]} -gt 0 ]; then
+			$invoke_rm -f "${tmpFiles[@]}"
+		fi
+		if [ ${#tmpDirs[@]} -gt 0 ]; then
+			for i in "${tmpDirs[@]}"; do
+				if [[ $i =~ ^/tmp || $i =~ ^${TMPDIR} ]]; then
+					$invoke_rm -rf "$i"
+				else
+					warn "cowardly refusing to recursively remove '$i'"
+				fi
+			done
+		fi
+	fi
+}
+trap cleanup EXIT
+
+function mkTempFile() {
+	local tmpFile=$($_mktemp)
+	tmpFiles+=($tmpFile)
+	echo $tmpFile
+}
+
+function mkTempDir() {
+	local tmpDir=$($_mktemp -d)
+	tmpDirs+=($tmpDir)
+	echo $tmpDir
 }
 
 declare -A _usage
@@ -334,8 +380,8 @@ function manifestTOML() {
 	# Append various args.
 	jqargs+=("--arg" "system" "$NIX_CONFIG_system")
 	jqargs+=("--argjson" "verbose" "$verbose")
-	jqargs+=("--arg" "profileOwner" "$profileOwner")
-	jqargs+=("--arg" "profileName" "$profileName")
+	jqargs+=("--arg" "environmentOwner" "$environmentOwner")
+	jqargs+=("--arg" "environmentName" "$environmentName")
 	jqargs+=("--arg" "FLOX_PATH_PREPEND" "$FLOX_PATH_PREPEND")
 
 	# Append remaining args using jq "--args" flag and "--" to
@@ -344,6 +390,41 @@ function manifestTOML() {
 
 	# Finally invoke jq.
 	minverbosity=2 $invoke_dasel -f - -r toml -w json | $invoke_jq "${jqargs[@]}"
+}
+
+#
+# renderManifestTOML(path/to/manifest.toml)
+#
+# Invokes commands to create a profile package from the supplied
+# manifest.toml file. To be replaced by renderFloxEnv() someday soon.
+#
+function renderManifestTOML() {
+	trace "$@"
+	local manifest_toml="$1"; shift
+
+	# Derive a list of Nix installables.
+	local -a installables=($($_cat $manifest_toml | manifestTOML installables))
+
+	# Convert this list of installables to a list of floxpkgArgs.
+	local -a floxpkgArgs
+	for i in "${installables[@]}"; do
+		floxpkgArgs+=($(floxpkgArg "$i"))
+	done
+
+	if [ ${#floxpkgArgs[@]} -gt 0 ]; then
+		# Now we use this list of floxpkgArgs to create a temporary profile.
+		local tmpdir=$(mkTempDir)
+		$invoke_nix profile install --impure --profile $tmpdir/profile "${floxpkgArgs[@]}"
+
+		# If we've gotten this far we have a profile. Follow the links to
+		# identify the package, then (carefully) discard the tmpdir.
+		environmentPackage=$(cd $tmpdir && readlink $(readlink profile))
+		$_rm $tmpdir/profile $tmpdir/profile-1-link
+		$_rmdir $tmpdir
+		echo $environmentPackage
+	else
+		error "rendered empty environment" < /dev/null
+	fi
 }
 
 # boolPrompt($prompt, $default)
@@ -466,7 +547,7 @@ function registry() {
 		set | setNumber | setString | \
 		addArray | addArrayNumber | addArrayString | \
 		delete | delArray | delArrayNumber | delArrayString)
-			local _tmpfile=$($_mktemp)
+			local _tmpfile=$(mkTempFile)
 			minverbosity=2 $invoke_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
@@ -486,29 +567,24 @@ function registry() {
 	esac
 }
 
-function flakeRegistry() {
-	trace "$@"
-	registry "$_etc/nix/registry.json" 2 "$@"
-}
-
 #
-# profileRegistry($profile,command,[args])
-# XXX refactor; had to duplicate above to add $profileName.  :-\
+# environmentRegistry($environment,command,[args])
+# XXX refactor; had to duplicate above to add $environmentName.  :-\
 #
-function profileRegistry() {
+function environmentRegistry() {
 	trace "$@"
-	local profile="$1"; shift
-	local profileDir=$($_dirname $profile)
-	local profileName=$($_basename $profile)
-	local profileOwner=$($_basename $($_dirname $profile))
-	local profileMetaDir="$FLOX_META/$profileOwner"
-	local registry="$profileMetaDir/metadata.json"
+	local registry="$1"; shift
+	local environment="$1"; shift
+	local environmentDir=$($_dirname $environment)
+	local environmentName=$($_basename $environment)
+	local environmentOwner=$($_basename $($_dirname $environment))
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
 	local version=1
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
 	# XXX refactor: migrate this to lib/metadata.sh?
-	gitCheckout "$profileMetaDir" "${NIX_CONFIG_system}.${profileName}"
+	gitCheckout "$environmentMetaDir" "${NIX_CONFIG_system}.${environmentName}"
 
 	# jq args:
 	#   -n \                        # null input
@@ -518,12 +594,12 @@ function profileRegistry() {
 	#   --slurpfile registry "$1" \ # slurp json into "$registry"
 	#	--arg version "$2" \        # required schema version
 	local jqargs=(
-		"-n" "-e" "-r" "-f" "$_lib/profileRegistry.jq"
+		"-n" "-e" "-r" "-f" "$_lib/environmentRegistry.jq"
 		"--argjson" "now" "$now"
 		"--arg" "version" "$version"
-		"--arg" "profileDir" "$profileDir"
-		"--arg" "profileName" "$profileName"
-		"--arg" "profileMetaDir" "$profileMetaDir"
+		"--arg" "environmentDir" "$environmentDir"
+		"--arg" "environmentName" "$environmentName"
+		"--arg" "environmentMetaDir" "$environmentMetaDir"
 	)
 
 	# N.B jq invocation aborts if it cannot slurp a file, so if the registry
@@ -543,7 +619,7 @@ function profileRegistry() {
 		set | setNumber | setString | \
 		addArray | addArrayNumber | addArrayString | \
 		delete | delArray | delArrayNumber | delArrayString)
-			local _tmpfile=$($_mktemp)
+			local _tmpfile=$(mkTempFile)
 			$_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
@@ -608,48 +684,7 @@ function multChoice {
 	# Not reached
 }
 
-function promptTemplate {
-	trace "$@"
-	local IFS=$'\n'
-	local -a args=( $( $_nix eval --no-write-lock-file --raw --apply '
-	  x: with builtins; concatStringsSep "\n" (
-		attrValues (mapAttrs (k: v: k + ": " + v.description) x)
-	  )
-	' "flox#templates" ) )
-	multChoice "" "template" "${args[@]}"
-}
-
-function pastTense() {
-	trace "$@"
-	local subcommand="$1"
-	case "$subcommand" in
-	install)           echo "installed";;
-	remove)            echo "removed";;
-	rollback)          echo "switched to generation";;
-	upgrade)           echo "upgraded";;
-	wipe-history)      echo "wiped history";;
-	*)                 echo "$subcommand";;
-	esac
-}
-
-function removePathDups {
-	trace "$@"
-	for varname in "$@"; do
-		declare -A __seen
-		__rewrite=
-		for i in $(local IFS=:; echo ${!varname}); do
-			if [ -z "${__seen[$i]}" ]; then
-				__rewrite="$__rewrite${__rewrite:+:}$i"
-				__seen[$i]=1
-			fi
-		done
-		export $varname="$__rewrite"
-		unset __seen
-		unset __rewrite
-	done
-}
-
-function profileArg() {
+function environmentArg() {
 	trace "$@"
 	# flox profiles must resolve to fully-qualified paths within
 	# $FLOX_ENVIRONMENTS. Resolve paths in a variety of ways:
@@ -662,7 +697,7 @@ function profileArg() {
 			echo "$1"
 		elif [[ -L "$1" ]]; then
 			# Path is a link - try again with the link value.
-			echo $(profileArg $(readlink "$1"))
+			echo $(environmentArg $(readlink "$1"))
 		else
 			error "\"$1\" is not a flox profile path" >&2
 		fi
@@ -675,7 +710,7 @@ function profileArg() {
 		IFS="$old_ifs"
 		if [ ${#_parts[@]} -eq 1 ]; then
 			# Return default path for the profile directory.
-			echo "$FLOX_ENVIRONMENTS/$profileOwner/$1"
+			echo "$FLOX_ENVIRONMENTS/$environmentOwner/$1"
 		elif [ ${#_parts[@]} -eq 2 ]; then
 			# Return default path for the profile directory.
 			echo "$FLOX_ENVIRONMENTS/$1"
@@ -685,32 +720,17 @@ function profileArg() {
 	fi
 }
 
-# Parses generation from profile path.
-function profileGen() {
+# Parses generation from environment path.
+function environmentGen() {
 	trace "$@"
-	local profile="$1"
-	local profileName=$($_basename $profile)
-	if [   -L "$profile" ]; then
-		if [[ $($_readlink "$profile") =~ ^${profileName}-([0-9]+)-link$ ]]; then
+	local environment="$1"
+	local environmentName=$($_basename $environment)
+	if [   -L "$environment" ]; then
+		if [[ $($_readlink "$environment") =~ ^${environmentName}-([0-9]+)-link$ ]]; then
 			echo ${BASH_REMATCH[1]}
 			return
 		fi
 	fi
-}
-
-# Identifies max profile generation.
-function maxProfileGen() {
-	trace "$@"
-	local profile="$1"
-	declare -i max=0
-	for i in ${profile}-*-link; do
-		if [[ $i =~ ^${profile}-([0-9]+)-link$ ]]; then
-			if [ ${BASH_REMATCH[1]} -gt $max ]; then
-				max=${BASH_REMATCH[1]}
-			fi
-		fi
-	done
-	echo $max
 }
 
 # Package args can take one of the following formats:
@@ -856,7 +876,7 @@ function validateTOML() {
 	trace "$@"
 	local path="$1"; shift
 	# XXX do more here to highlight what the problem is.
-	tmpstderr=$($_mktemp)
+	tmpstderr=$(mkTempFile)
 	if $_cat $path | $_dasel -p toml >/dev/null 2>$tmpstderr; then
 		: confirmed valid TOML
 		$_rm -f $tmpstderr
@@ -972,7 +992,7 @@ function searchChannels() {
 
 	# TODO: write our own parallel runner, or better yet port the CLI to a
 	# real language.
-	local _tmpdir=$(mktemp -d)
+	local _tmpdir=$(mkTempDir)
 	local -a _resultDirs=($(for i in ${channels[@]}; do echo \
 		$_tmpdir/1/$i/2/{stable,staging,unstable} $_tmpdir/1/$i/2 $_tmpdir/1/$i; \
 		done))
@@ -1033,13 +1053,6 @@ function selectAttrPath() {
 		echo '{{ Color "'$LIGHTPEACH256'" "'$DARKBLUE256'" "$ flox '$subcommand' -A '$attrPath'" }}' \
 		    | $_gum format -t template 1>&2
 		echo "$attrPath"
-	fi
-}
-
-function lookupPublishOrigin() {
-	local origin
-	if origin=$($_nix eval --raw ".#__reflect.finalFlake.config.publish.origin" 2>/dev/null); then
-		echo "$origin"
 	fi
 }
 

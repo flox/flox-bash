@@ -91,7 +91,43 @@ def dump(args): expectedArgs(0; args) |
   $registry;
 
 def version(args): expectedArgs(0; args) |
-  $registry | .version;
+  $registry.version;
+
+# Environment-specific functions.
+
+# JSON does not permit integer keys so the generation keys are strings.
+def currentGen(args):
+  if $registry.currentGen then (
+    $registry.currentGen | tonumber
+  ) else 0 end;
+
+# JSON does not permit integer keys so the generation keys are strings.
+# To find the max generation we must therefore convert to number first.
+def nextGen(args):
+  if $registry.generations then (
+    ( $registry.generations | keys | map(tonumber) | max ) + 1
+  ) else 1 end;
+
+#
+# Functions which present output directly to users.
+#
+def listGeneration:
+  select(.value.created != null and .value.lastActive != null) |
+  .key as $generation |
+  (.value.created | todate) as $created |
+  (.value.lastActive | todate) as $lastActive |
+  # Cannot embed newlines so best we can do is return array and flatten later.
+  [ "Generation \($generation):",
+    "  Path:        \(.value.path)",
+    "  Created:     \($created)",
+    "  Last active: \($lastActive)" ] +
+  if .value.logMessage != null then [
+    "  Log entries:", (.value.logMessage | map("    \(.)"))
+  ] else [] end;
+
+def listGenerations(args):
+  $registry | .generations | to_entries |
+    map(listGeneration) | flatten | .[];
 
 #
 # Call requested function with provided args.
@@ -112,5 +148,8 @@ else if $function == "delArrayString"  then delArrayString($funcargs)
 else if $function == "delArray"        then delArray($funcargs)
 else if $function == "dump"            then dump($funcargs)
 else if $function == "version"         then version($funcargs)
+else if $function == "currentGen"      then currentGen($funcargs)
+else if $function == "nextGen"         then nextGen($funcargs)
+else if $function == "listGenerations" then listGenerations($funcargs)
 else error("unknown function: \"\($function)\"")
-end end end end end end end end end end end end end
+end end end end end end end end end end end end end end end end

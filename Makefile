@@ -1,10 +1,7 @@
 .DEFAULT_GOAL = all
 PKGNAME = flox
 PREFIX ?= ./build
-
-ifeq (,$(VERSION))
-  $(error VERSION not defined - aborting build)
-endif
+VERSION ?= unknown
 
 # `nix show-config` does not work on Darwin, dies within a build:
 #
@@ -44,18 +41,30 @@ ETC = \
 LIB = \
 	lib/bootstrap.sh \
 	lib/commands.sh \
+	lib/commands/activate.sh \
+	lib/commands/development.sh \
+	lib/commands/environment.sh \
+	lib/commands/general.sh \
 	lib/init.sh \
 	lib/manifest.jq \
 	lib/manifestTOML.jq \
+	lib/merge-manifests.jq \
 	lib/merge-search-results.jq \
 	lib/metadata.sh \
-	lib/profileRegistry.jq \
+	lib/environmentRegistry.jq \
 	lib/registry.jq \
 	lib/search.jq \
 	lib/utils.sh
 LIBEXEC = libexec/flox/flox
 SHARE = share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here
+
+# Discern source files just for monitoring by entr with hivemind.
+GIT_LS_FILES := $(shell git ls-files)
+SRC_BASH = $(filter %.sh,$(GIT_LS_FILES))
+SRC_BATS = $(filter %.bats,$(GIT_LS_FILES))
+SRC_JQ = $(filter %.jq,$(GIT_LS_FILES))
+SRC = $(SRC_BASH) $(SRC_BATS) $(SRC_JQ)
 
 SHFMT = shfmt --language-dialect bash
 
@@ -131,5 +140,10 @@ endef
 $(foreach link,$(LINKBIN),$(eval $(call LINK_template)))
 install: $(LINKS)
 
+.PHONY: clean
 clean:
 	-rm -f $(BIN) $(MAN)
+
+.PHONY: test
+test:
+	for i in $(SRC); do echo $$i; done | entr -s 'echo Building ...; rm -f ./result; bats tests'
