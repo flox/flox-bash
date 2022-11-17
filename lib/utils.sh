@@ -620,7 +620,7 @@ function environmentRegistry() {
 		addArray | addArrayNumber | addArrayString | \
 		delete | delArray | delArrayNumber | delArrayString)
 			local _tmpfile=$(mkTempFile)
-			$_jq "${jqargs[@]}" > $_tmpfile
+			$invoke_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
@@ -634,7 +634,7 @@ function environmentRegistry() {
 
 		# All others return data from the registry.
 		*)
-			$_jq "${jqargs[@]}"
+			$invoke_jq "${jqargs[@]}"
 		;;
 	esac
 }

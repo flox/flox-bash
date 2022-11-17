@@ -723,7 +723,7 @@ function floxDestroy() {
 		if [ -n "$originArg" ]; then
 			deleteOrigin=1
 		else
-			if $invoke_gum confirm --default="false" "delete '$branch' on origin as well?"; then
+			if [ -t 1 ] && $invoke_gum confirm --default="false" "delete '$branch' on origin as well?"; then
 				deleteOrigin=1
 				warn "hint: invoke with '--origin' flag to avoid this prompt in future"
 			fi
@@ -774,6 +774,94 @@ _usage_options["push"]="[--force]"
 _environment_commands+=("pull")
 _usage["pull"]="pull environment metadata from remote registry"
 _usage_options["pull"]="[--force]"
+
+#
+# floxPushPull("(push|pull)",$environment,$system)
+#
+# This function creates an ephemeral clone for reconciling commits before
+# pushing the result to either of the local (origin) or remote (upstream)
+# repositories.
+#
+function floxPushPull() {
+	trace "$@"
+	local action="$1"; shift
+	local environment="$1"; shift
+	local system="$1"; shift
+	local environmentName=$($_basename $environment)
+	local environmentOwner=$($_basename $($_dirname $environment))
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	local branch="${system}.${environmentName}"
+	local forceArg=
+	for i in "$@"; do
+		if [ "$i" = "--force" ]; then
+			forceArg="--force"
+		else
+			usage | error "unknown argument: '$i'"
+		fi
+	done
+
+	[ $action = "push" -o $action = "pull" ] ||
+		error "pushpullMetadata(): first arg must be (push|pull)" < /dev/null
+
+	# First verify that the clone has an origin defined.
+	# XXX: BUG no idea why, but this is reporting origin twice
+	#      when first creating the repository; hack with sort.
+	local origin=$(getSetOrigin "$environment" "$system" | $_sort -u)
+
+	# Perform a fetch to get remote data into sync.
+	githubHelperGit -C "$environmentMetaDir" fetch origin
+
+	# Create an ephemeral clone with which to perform the synchronization.
+	local tmpDir=$(mkTempDir)
+	$invoke_git clone --quiet --shared "$environmentMetaDir" $tmpDir
+
+	# Add the upstream remote to the ephemeral clone.
+	$invoke_git -C $tmpDir remote add upstream $origin
+	githubHelperGit -C $tmpDir fetch --quiet --all
+
+	# Check out the relevant branch. Can be complicated in the event
+	# that this is the first pull of a brand-new branch.
+	if $invoke_git -C "$tmpDir" show-ref --quiet refs/heads/"$branch"; then
+		$invoke_git -C "$tmpDir" checkout "$branch"
+	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/origin/"$branch"; then
+		$invoke_git -C "$tmpDir" checkout --quiet --track origin/"$branch"
+	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branch"; then
+		$invoke_git -C "$tmpDir" checkout --quiet --track upstream/"$branch"
+	else
+		$invoke_git -C "$tmpDir" checkout --orphan "$branch"
+		$invoke_git -C "$tmpDir" ls-files | $_xargs --no-run-if-empty $_git -C "$tmpDir" rm --quiet -f
+		# A commit is needed in order to make the branch visible.
+		$invoke_git -C "$tmpDir" commit --quiet --allow-empty \
+			-m "$USER created profile"
+		$invoke_git -C "$tmpDir" push --quiet --set-upstream origin "$branch"
+	fi
+
+	# Then push or pull.
+	if [ "$action" = "push" ]; then
+		githubHelperGit -C $tmpDir push $forceArg upstream origin/"$branch":refs/heads/"$branch" ||
+			error "repeat command with '--force' to overwrite" < /dev/null
+		# Push succeeded, ensure that $environmentMetaDir has remote ref for this branch.
+		$invoke_git -C "$environmentMetaDir" fetch --quiet origin
+	elif [ "$action" = "pull" ]; then
+		# Slightly different here; we first attempt to rebase and do
+		# a hard reset if invoked with --force.
+		if $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branch"; then
+			if [ -z "$forceArg" ]; then
+				$invoke_git -C $tmpDir rebase --quiet upstream/"$branch" ||
+					error "repeat command with '--force' to overwrite" < /dev/null
+			else
+				$invoke_git -C $tmpDir reset --quiet --hard upstream/"$branch"
+			fi
+			# Set receive.denyCurrentBranch=updateInstead before pushing
+			# to update both the bare repository and the checked out branch.
+			$invoke_git -C "$environmentMetaDir" config receive.denyCurrentBranch updateInstead
+			$invoke_git -C $tmpDir push $forceArg origin
+			syncEnvironment "$environment" "$system"
+		else
+			error "branch '$branch' does not exist on $origin upstream" < /dev/null
+		fi
+	fi
+}
 
 _environment_commands+=("git")
 _usage["git"]="access to the git CLI for floxmeta repository"

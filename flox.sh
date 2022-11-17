@@ -187,7 +187,7 @@ activate | history | install | list | remove | rollback | \
 	list)
 		floxList "$environment" "$NIX_CONFIG_system" "${args[@]}";;
 	push | pull)
-		pushpullMetadata "$subcommand" "$environment" "$NIX_CONFIG_system" ${args[@]};;
+		floxPushPull "$subcommand" "$environment" "$NIX_CONFIG_system" ${args[@]};;
 	remove)
 		floxRemove "$environment" "$NIX_CONFIG_system" "${args[@]}";;
 	rollback|switch-generation)

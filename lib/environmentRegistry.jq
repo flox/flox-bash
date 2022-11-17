@@ -144,15 +144,17 @@ def _syncGeneration(args):
       "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then " +
         ": verified existence of \($targetLink); " +
       "else " +
+        # Temporary XXX: Identify schema version in use, <=006 or >=007
+        "environmentManifestFile=$( [ -e $environmentMetaDir/\($generation).json ] && echo $environmentMetaDir/\($generation).json || echo $environmentMetaDir/\($generation)/manifest.json ) && " +
         # Ensure all flakes referenced in environment are built.
-        "manifest $environmentMetaDir/\($generation).json listFlakesInEnvironment | " +
+        "manifest $environmentManifestFile listFlakesInEnvironment | " +
         " $_xargs --no-run-if-empty $( [ $verbose -eq 0 ] || echo '--verbose' ) -- $_nix build --impure --no-link && " +
         # Ensure all anonymous store paths referenced in environment are copied.
-        "manifest $environmentMetaDir/\($generation).json listStorePaths | " +
+        "manifest $environmentManifestFile listStorePaths | " +
         " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
         " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
         # Now we can attempt to build the environment and store in the bash $environmentPath variable.
-        "environmentPath=$($_nix profile build $environmentMetaDir/\($generation).json) && " +
+        "environmentPath=$($_nix profile build $environmentManifestFile) && " +
         # Now create the generation link using nix-store so that it creates a
         # GC root in the process. N.B. this command will silently overwrite a
         # symlink in situ.

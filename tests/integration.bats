@@ -19,7 +19,7 @@ setup_file() {
 	export FLOX_CLI=$FLOX_PACKAGE/bin/flox
 	export TEST_ENVIRONMENT=_testing_
 	# Remove any vestiges of previous test runs.
-	$FLOX_CLI destroy -e $TEST_ENVIRONMENT -f
+	$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
 	set +x
 }
 
@@ -76,6 +76,7 @@ setup_file() {
 @test "flox list after install should contain hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
+  assert_output --partial "Curr Gen  1"
   assert_output --partial "0 stable.nixpkgs-flox.hello"
 }
 
@@ -88,6 +89,7 @@ setup_file() {
 @test "flox list after install should contain cowsay and hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
+  assert_output --partial "Curr Gen  2"
   assert_output --partial "0 stable.nixpkgs-flox.cowsay"
   assert_output --partial "1 stable.nixpkgs-flox.dasel"
   assert_output --partial "2 stable.nixpkgs-flox.hello"
@@ -159,6 +161,7 @@ setup_file() {
 @test "flox list after remove should not contain hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
+  assert_output --partial "Curr Gen  5"
   assert_output --partial "0 stable.nixpkgs-flox.cowsay"
   assert_output --partial "1 stable.nixpkgs-flox.dasel"
   assert_output --partial "2 stable.nixpkgs-flox.jq"
@@ -168,6 +171,7 @@ setup_file() {
 @test "flox list of generation 2 should contain hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT 2
   assert_success
+  assert_output --partial "Curr Gen  2"
   assert_output --partial "0 stable.nixpkgs-flox.cowsay"
   assert_output --partial "1 stable.nixpkgs-flox.dasel"
   assert_output --partial "2 stable.nixpkgs-flox.hello"
@@ -192,6 +196,7 @@ setup_file() {
 @test "flox list after rollback should reflect generation 2" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
+  assert_output --partial "Curr Gen  4"
   assert_output --partial "0 stable.nixpkgs-flox.cowsay"
   assert_output --partial "1 stable.nixpkgs-flox.dasel"
   assert_output --partial "2 stable.nixpkgs-flox.hello"
@@ -207,6 +212,7 @@ setup_file() {
 @test "flox list after rollback --to 3 should reflect generation 3" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
+  assert_output --partial "Curr Gen  3"
   assert_output --partial "0 stable.nixpkgs-flox.cowsay"
   assert_output --partial "1 stable.nixpkgs-flox.dasel"
   assert_output --partial "2 stable.nixpkgs-flox.jq"
@@ -222,6 +228,7 @@ setup_file() {
 @test "flox list after switch-generation 1 should reflect generation 1" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
+  assert_output --partial "Curr Gen  1"
   assert_output --partial "0 stable.nixpkgs-flox.hello"
   ! assert_output --partial "stable.nixpkgs-flox.cowsay"
   ! assert_output --partial "stable.nixpkgs-flox.dasel"
@@ -278,6 +285,38 @@ setup_file() {
   assert_output --partial "Alias     $TEST_ENVIRONMENT"
 }
 
+@test "flox push" {
+  run $FLOX_CLI push -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "To "
+  assert_output --regexp "\* \[new branch\] +origin/.*.$TEST_ENVIRONMENT -> .*.$TEST_ENVIRONMENT"
+}
+
+@test "flox destroy local only" {
+  run $FLOX_CLI destroy -e $TEST_ENVIRONMENT -f
+  assert_success
+  assert_output --partial "WARNING: you are about to delete the following"
+  assert_output --partial "Deleted branch"
+  assert_output --partial "removed"
+}
+
+@test "flox pull" {
+  run $FLOX_CLI pull -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "To "
+  assert_output --regexp "\* \[new branch\] +.*\.$TEST_ENVIRONMENT -> .*\.$TEST_ENVIRONMENT"
+}
+
+@test "flox list after flox pull should be exactly as before" {
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Curr Gen  1"
+  assert_output --partial "0 stable.nixpkgs-flox.hello"
+  ! assert_output --partial "stable.nixpkgs-flox.cowsay"
+  ! assert_output --partial "stable.nixpkgs-flox.dasel"
+  ! assert_output --partial "stable.nixpkgs-flox.jq"
+}
+
 @test "flox search should return results quickly" {
   # "timeout 15 flox search" does not work? Haven't investigated why, just
   # fall back to doing the math manually and report when it takes too long.
@@ -295,7 +334,7 @@ setup_file() {
 }
 
 @test "tear down install test state" {
-  run $FLOX_CLI destroy -e $TEST_ENVIRONMENT -f
+  run $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
   assert_output --partial "WARNING: you are about to delete the following"
   assert_output --partial "Deleted branch"
   assert_output --partial "removed"
