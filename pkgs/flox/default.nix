@@ -1,6 +1,6 @@
 { self
 , stdenv
-, inputs
+, withRev
 
 , ansifilter
 , bashInteractive
@@ -94,7 +94,7 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.7-${inputs.floxpkgs.lib.getRev self}";
+  version = withRev "0.0.7";
   src = self;
   nativeBuildInputs = [ bats entr makeWrapper pandoc shfmt which ];
   buildInputs = [
