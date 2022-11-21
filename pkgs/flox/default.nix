@@ -24,7 +24,7 @@
 , libossp_uuid
 , makeWrapper
 , man
-, nixUnstable
+, nixStable
 , pandoc
 , parallel
 , pkgs
@@ -42,7 +42,7 @@ let
   # Choose a smaller version of git.
   git = pkgs.gitMinimal;
 
-  nixPatched = nixUnstable.overrideAttrs (oldAttrs: {
+  nixPatched = nixStable.overrideAttrs (oldAttrs: {
     patches = (oldAttrs.patches or []) ++ [
       ./nix-patches/CmdProfileBuild.patch
       ./nix-patches/CmdSearchAttributes.patch
