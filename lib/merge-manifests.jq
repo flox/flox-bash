@@ -9,8 +9,17 @@
 def unique_by_flake_url:
   map(
     # Put final package name at front to keep things sorted by pname.
-    ( .attrPath | split(".") | .[2:] | join(".") ) as $pname |
-    . * {"flakeUrl": "\($pname):\(.originalUrl)#\(.attrPath)"}
+    # If package contains the attrPath attribute then it is a flake,
+    # otherwise it can be a package of storePaths. If it is the
+    # latter then just use the first storePath as the flakeUrl to
+    # avoid breaking things.
+    if (has("attrPath")) then (
+      ( .attrPath | split(".") | .[2:] | join(".") ) as $pname |
+      . * {"flakeUrl": "\($pname):\(.originalUrl)#\(.attrPath)"}
+    ) else (
+      ( .storePaths[0] | split("-") | .[1:] | join("-") ) as $pname |
+      . * {"flakeUrl": "\($pname):\(.storePaths[0])"}
+    ) end
   ) |
   unique_by(.flakeUrl) |
   map(. | del(.flakeUrl));

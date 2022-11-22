@@ -333,6 +333,20 @@ setup_file() {
   [ $elapsed -lt 15 ]
 }
 
+@test "flox install by /nix/store path" {
+  run $FLOX_CLI install -e $TEST_ENVIRONMENT $FLOX_PACKAGE
+  assert_success
+  assert_output --partial "created generation 6"
+}
+
+@test "flox list after installing by store path should contain package" {
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Curr Gen  6"
+  assert_output --partial "0 $FLOX_PACKAGE"
+  assert_output --partial "1 stable.nixpkgs-flox.hello"
+}
+
 @test "tear down install test state" {
   run $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
   assert_output --partial "WARNING: you are about to delete the following"
