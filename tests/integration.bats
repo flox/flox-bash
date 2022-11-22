@@ -53,6 +53,7 @@ setup_file() {
 @test "flox --help" {
   run $FLOX_CLI --help
   assert_success
+  assert_output - < tests/usage.out
 }
 
 @test "flox install hello" {
