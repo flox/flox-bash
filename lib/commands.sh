@@ -120,5 +120,6 @@ function parseNixArgs() {
 
 ## Development commands
 . $_lib/commands/development.sh
+. $_lib/commands/publish.sh
 
 # vim:ts=4:noet:syntax=bash

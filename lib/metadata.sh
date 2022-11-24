@@ -657,6 +657,9 @@ function commitTransaction() {
 		registry "$workDir/metadata.json" 1 setNumber generations \
 			$currentGen lastActive "$now"
 
+	# Mark the metadata.json file to be included with the commit.
+	$invoke_git -C $workDir add "metadata.json"
+
 	# Now that metadata is recorded, actually put the change
 	# into effect. Must be done before calling commitMessage().
 	if [ "$createdOrSwitchedTo" = "created" ]; then

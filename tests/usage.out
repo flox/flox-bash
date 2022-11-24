@@ -52,10 +52,10 @@ development commands:
     flox init - initialize flox expressions for current project
     flox build - build package from current project
     flox develop - launch development shell for current project
-    flox publish [--publish-to <gitURL>] [--upstream-url <gitURL>] \
-                 [--copy-to <nixURI>] [--copy-from <nixURI>] \
-                 [--render-path <dir>] [--key-file <file>]
-         - build and publish project to flox channel
     flox run - run app from current project
     flox shell - run a shell in which the current project is available
+    flox publish [--build-repo <URL>] [--channel-repo <URL>] \
+                 [--upload-to <URL>] [--download-from <URL>] \
+                 [--render-path <dir>] [--key-file <file>]
+         - build and publish project to flox channel
 

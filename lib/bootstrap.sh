@@ -67,6 +67,7 @@ function bootstrap() {
 	floxClientUUID=$(registry $floxUserMeta 1 get floxClientUUID)
 	if [ -t 1 ]; then
 		# Interactive mode
+		interactive=1
 		gitBaseURL=$(registry $floxUserMeta 1 get gitBaseURL) || {
 			gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
 			registry $floxUserMeta 1 set gitBaseURL "$gitBaseURL"
@@ -125,6 +126,10 @@ fi # XXX
 			floxMetricsConsent=$(registry $floxUserMeta 1 get floxMetricsConsent)
 		}
 
+		# Note whether user has seen various educational/informational messages.
+		educatePublish=$(registry $floxUserMeta 1 get educatePublish) || \
+			registry $floxUserMeta 1 setNumber educatePublish 0
+
 	else
 
 		#
@@ -140,6 +145,9 @@ fi # XXX
 			echo "$FLOX_CONF_floxpkgs_defaultSubstituter")
 		floxMetricsConsent=$(registry $floxUserMeta 1 get floxMetricsConsent) || \
 			floxMetricsConsent=0
+		# Only educate in interactive mode; setting educatePublish=1
+		# means user has been educated.
+		educatePublish=1
 
 	fi
 }

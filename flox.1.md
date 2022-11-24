@@ -201,30 +201,57 @@ The following option is supported by the commands below.
 :   Perform a build, (optionally) copy to cache substituter,
     and render package metadata for inclusion in the flox catalog.
 
-    `[ --upstream-url <gitUrl> ]`
-    :   The `--upstream-url` determines the upstream repository containing
-        the source of the published package.
-        It is used to reproducibly build the pacakge from source if it can
-        not be fetched from a binary store.
+    `[ --build-repo <URL> ]`
+    :   The URL of the git repository from which to `flox build` the package.
+        This is used both to build the package as it is being published
+        and embedded in catalog metadata so that the package can be built
+        from source if it cannot be fetched from a binary store.
 
-    `[ --publish-to <dest> ]`
-    :   With the `--publish-to` argument, commits and writes metadata to
-        the URL or path of a git repository, or with the "-" argument
-        will write the publish metadata to stdout.
+        (Nix experts will recognize this repository as the source flake
+        for the package.)
 
-    `[ --copy-to <store-uri> ] [ --copy-from <store-uri> ]`
-    :   With the `--copy-to` argument, copies the package closure to the
-        provided URL. Conversely, the `--copy-from` argument embeds within
-        the package metadata the URL intended for use as a binary substituter
-        on the client side.
+    `[ --channel-repo <URL> ]`
+    :   The URL of the git channel repository to which package
+        metadata should be published.
+        See **subscribe** and **search** for descriptions on
+        the use of channel repositories.
 
-    `[ --render-path <dir> ] [ --key-file <file> ]`
-    :   `--render-path` sets the directory name for rendering the catalog
-        data within the catalog repository and `--key-file` is used for
-        identifying the path to the private key to be used in signing
-        packages before analysis and upload.
+    `[ --upload-to <URL> ]`
+    :   The URL of a binary cache location to which built package(s)
+        should be copied.
 
-    When invoked with no arguments, will prompt the user for the desired values.
+    `[ --download-from <URL> ]`
+    :   The URL from which built packages will be served at
+        installation time.
+        This URL typically refers to the same underlying resource
+        as specified by the `--upload-to` argument, but using
+        a different transport. For example, we upload packages
+        to the (writable, authenticated) s3://flox-store-public URL,
+        but users download these packages from the (read-only,
+        unauthenticated) https://cache.floxdev.com endpoint.
+
+        If not provided the `--download-from` argument will default to
+        the same value as provided for the `--upload-to` argument.
+
+    `[ --render-path <dir> ]`
+    :   Sets the directory name for rendering the catalog
+        within the git repository
+        specified by the `--catalog-repo` flag.
+        Defaults to "catalog" if not specified.
+
+    `[ --key-file <file> ]`
+    :   Used for identifying the path to the private key
+        to be used in signing packages
+        before analysis and upload.
+
+    When invoked without arguments, will prompt the user for the required values.
+
+    Once published to a channel repository, you can then
+    search for and use your package with the following:
+
+    * subscribe to the channel: `flox subscribe <channel> <URL>`
+    * search for a package: `flox search -c <channel> <package>`
+    * install a package: `flox install <channel>.<package>`
 
 **run**
 :   Run flake application from the requested package (or "installable").

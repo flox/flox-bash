@@ -460,6 +460,30 @@ function boolPrompt() {
 	esac
 }
 
+# promptInput($prompt, $value)
+#
+# Fancy gum invocation with --width set properly.
+function promptInput() {
+	trace "$@"
+	local placeholder="$1"; shift
+	local prompt="$1"; shift
+	local value="$1"; shift
+	# If not interactive then go with the default.(?)
+	[ $interactive -eq 1 ] || {
+		echo "$value"
+		return 0
+	}
+	# Just assume a reasonable(?) screen width if COLUMNS not set.
+	local -i columns=${COLUMNS:-80}
+	local -i width=$(( $columns - ${#prompt} ))
+	if [ $width -gt 0 ]; then
+		$_gum input --placeholder "$placeholder" --prompt "$prompt " --value "$value" --width $width
+	else
+		# If the math doesn't work then let gum choose what to do.
+		$_gum input --placeholder "$placeholder" --prompt "$prompt " --value "$value"
+	fi
+}
+
 # gitConfigSet($varname, $default)
 function gitConfigSet() {
 	trace "$@"
@@ -553,8 +577,6 @@ function registry() {
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
 				local dn=$($_dirname $registry)
-				[ ! -e "$dn/.git" ] || \
-					$_git -C $dn add $($_basename $registry)
 			else
 				error "something went wrong" < /dev/null
 			fi
@@ -1056,13 +1078,20 @@ function selectAttrPath() {
 	fi
 }
 
+function checkGitRepoExists() {
+	trace "$@"
+	local origin="$1"
+	githubHelperGit ls-remote "$origin" >/dev/null 2>&1
+}
+
 function ensureGHRepoExists() {
+	trace "$@"
 	local origin="$1"
 	local visibility="$2"
 	local template="$3"
 	# If using github, ensure that user is logged into gh CLI
 	# and confirm that repository exists.
-	if ! githubHelperGit ls-remote "$origin" >/dev/null 2>&1; then
+	if ! checkGitRepoExists "$origin"; then
 		if [[ "${origin,,}" =~ github ]]; then
 			( $_gh auth status >/dev/null 2>&1 ) ||
 				$_gh auth login
