@@ -1,6 +1,7 @@
 { self
 , stdenv
-, getRev
+, inputs
+, getRev ? inputs.floxpkgs.lib.getRev
 
 , ansifilter
 , bashInteractive
