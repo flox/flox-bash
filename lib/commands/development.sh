@@ -110,7 +110,7 @@ function floxBuild() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath build)"
+		local attrPath="$(selectAttrPath . build)"
 		installables=(".#$attrPath")
 	fi
 
@@ -172,7 +172,7 @@ function floxDevelop() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath develop)"
+		local attrPath="$(selectAttrPath . develop)"
 		installables=(".#$attrPath")
 	fi
 
@@ -236,7 +236,7 @@ function floxRun() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath run)"
+		local attrPath="$(selectAttrPath . run)"
 		installables=(".#$attrPath")
 	fi
 
@@ -294,7 +294,7 @@ function floxShell() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath shell)"
+		local attrPath="$(selectAttrPath . shell)"
 		installables=(".#$attrPath")
 	fi
 

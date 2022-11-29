@@ -21,6 +21,7 @@ brief overview of the process.
 Publishing a package requires the following:
 
   * the build repository from which to "flox build"
+  * a package to be published within that repository
   * a channel repository for storing built package metadata
   * [optional] a binary cache location for storing copies
     of already-built packages
@@ -70,7 +71,8 @@ _development_commands+=("publish")
 _usage["publish"]="build and publish project to flox channel"
 _usage_options["publish"]="[--build-repo <URL>] [--channel-repo <URL>] \\
                  [--upload-to <URL>] [--download-from <URL>] \\
-                 [--render-path <dir>] [--key-file <file>]"
+                 [--render-path <dir>] [--key-file <file>] \\
+                 [(-A|--attr) <package>] [--publish-system <system>]"
 function floxPublish() {
 	trace "$@"
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
@@ -79,16 +81,20 @@ function floxPublish() {
 	# Split out the publish args from the build args.
 	local -a buildArgs=()
 	local -a installables
-	local attrPath
-	local flakeRef
+	local packageAttrPath
+	local packageFlakeRef
+	local buildFlakeURL
+	local canonicalFlakeRef
+	local canonicalFlakeURL
+	local buildRepository
 	local channelRepository
 	local uploadTo
 	local downloadFrom
-	local buildRepository
 	local renderPath="catalog"
 	local tmpdir=$(mkTempDir)
 	local gitClone # separate from tmpdir out of abundance of caution
 	local keyFile
+	local publishSystem=$NIX_CONFIG_system
 	while test $# -gt 0; do
 		case "$1" in
 		# Required
@@ -126,9 +132,12 @@ function floxPublish() {
 			shift
 			keyFile="$1"; shift
 			;;
-		# Select installable
+		--publish-system) # takes one arg
+			shift
+			publishSystem="$1"; shift
+			;;
+		# Select package (installable)
 		-A | --attr) # takes one arg
-			# legacy nix-build option; convert to flakeref
 			shift
 			installables+=(".#$1"); shift
 			;;
@@ -158,64 +167,75 @@ function floxPublish() {
 
 	done
 
-	# If no installables specified then try identifying attrPath from
-	# capacitated flake.
-	if [ ${#installables[@]} -eq 0 ]; then
-		attrPath="$(selectAttrPath publish)"
-		installables+=(".#$attrPath")
-		flakeRef="."
-	elif [ ${#installables[@]} -eq 1 ]; then
-		# otherwise extract {attrPath,flakeRef} from provided installable.
-		attrPath=${installables[0]//*#/}
-		flakeRef=${installables[0]//#*/}
-	else
-		usage | error "multiple arguments provided to 'flox publish' command"
-	fi
-
-	# If the user has provided the fully-qualified attrPath then remove
-	# the "packages.$NIX_CONFIG_system." part as we'll add it back for
-	# those places below where we need it.
-	attrPath="${attrPath//packages.$NIX_CONFIG_system./}"
-
 	# Publishing a package requires answers to the following:
 	#
-	# 1) the "source" repository from which to "flox build"
-	# 2) a "channel" repository for storing built package metadata
-	# 3) (optional) a list of "binary cache" URLs for uploading signed
+	# 1) the "source" repository from which to "flox build" (the "flakeRef")
+	# 2) a package to be published within that repository (the "attrPath")
+	# 3) a "channel" repository for storing built package metadata
+	# 4) (optional) a list of "binary cache" URLs for uploading signed
 	#    copies of already-built packages
-	# 4) (optional) a list of "binary cache" URLs from which to download
+	# 5) (optional) a list of "binary cache" URLs from which to download
 	#    already-built packages
 	#
 	# Walk the user through the process of collecting each of
 	# these in turn.
 
-	# Start by figuring out if we're in a git clone, and if so
-	# make note of its origin.
-	local remote=$($_git rev-parse --abbrev-ref --symbolic-full-name @{u} | $_cut -d / -f 1 || echo "origin")
-	local origin=$($_git remote get-url $remote || :)
+	# If no installables specified then try identifying attrPath from
+	# capacitated flake in current directory.
+	if [ ${#installables[@]} -eq 0 ]; then
+		packageAttrPath="$(selectAttrPath . publish)"
+		packageFlakeRef="."
+	elif [ ${#installables[@]} -eq 1 ]; then
+		case ${installables[0]} in
+		*"#"*)
+			# extract {packageAttrPath,packageFlakeRef} from provided flakeURL.
+			# Example: git+ssh://git@github.com/flox/floxpkgs-internal?ref=master&rev=ca38729e6ab6066331b30c874053f12828c4a24f
+			packageAttrPath=${installables[0]//*#/}
+			packageFlakeRef=${installables[0]//#*/}
+			;;
+		*)
+			usage | error "invalid package reference: ${installables[0]}"
+			;;
+		esac
+	else
+		usage | error "multiple arguments provided to 'flox publish' command"
+	fi
 
-	# If we are in a git repository then create the project registry.
-	[ -z "$origin" ] || initProjectRegistry
+	# If the user has provided the fully-qualified attrPath then remove
+	# the "packages.$publishSystem." part as we'll add it back for
+	# those places below where we need it.
+	packageAttrPath="${packageAttrPath//packages.$publishSystem./}"
 
-	# The --build-repo argument specifies the repository of the flake
-	# used to build the package. When invoked from a git clone this
-	# defaults to its origin.
+	# First get our bearings with some data regarding the local git clone,
+	# if in fact we are in a local git clone.
+	local upstreamFullName upstreamRemote upstreamBranch
+	local cloneRemote cloneBranch cloneRev
+	if [ "$packageFlakeRef" = "." ] && $_git rev-parse --is-inside-work-tree > /dev/null; then
+		# Start with a quick refresh, then make note of all local state.
+		$_git fetch -q
+		upstreamFullName=$($_git rev-parse --abbrev-ref --symbolic-full-name @{u})
+		upstreamRemote=${upstreamFullName//\/*/}
+		upstreamBranch=${upstreamFullName//${upstreamRemote}\//}
+		cloneRemote=$($_git remote get-url ${upstreamRemote:-origin})
+		cloneBranch=$($_git rev-parse --abbrev-ref --symbolic-full-name @)
+		cloneRev=$($_git rev-parse @)
+	fi
+
+	# The --build-repo argument specifies the repository of the flake used
+	# to build the package. When invoked from a git clone without specifying
+	# a full flake URL this defaults to its current remote URL.
 	if [ -z "$buildRepository" ]; then
 		doEducatePublish
 		# Load previous answer (if applicable).
 		if ! buildRepository=$(registry "$gitCloneRegistry" 1 get buildRepository); then
-			# put this after querying the url from the user?
-			case "$origin" in
-				git@* )
-					buildRepository="git+ssh://${origin/[:]//}"
-					;;
-				ssh://* | http://* | https://* )
-					buildRepository="git+$origin"
-					;;
-				*)
-					buildRepository="$origin"
-					;;
-			esac
+			# Derive the default flakeRef from the current git clone.
+			if [ "$packageFlakeRef" = "." ]; then
+				buildRepository="$cloneRemote"
+				# Create the project registry before proceeding.
+				initProjectRegistry
+			else
+				buildRepository="$packageFlakeRef"
+			fi
 		fi
 		while true; do
 			buildRepository=$(promptInput \
@@ -224,10 +244,97 @@ function floxPublish() {
 				"$buildRepository")
 			if checkGitRepoExists "$buildRepository"; then
 				[ -z "$buildRepository" ] || break
+			else
+				warn "repository '$buildRepository' does not exist"
 			fi
 			warn "please enter a valid URL from which to 'flox build' a package"
 		done
 	fi
+	warn "build repository: $buildRepository"
+
+	# Canonicalize the full flake URL.
+	case "$buildRepository" in
+	*'?'*rev=*)
+		# The buildRepository can be specified of the form $baseURL?$options
+		# in which case we don't mess with it.
+		canonicalFlakeRef="${buildRepository}"
+		;;
+	*)
+		# Figure out the HEAD version to derive canonical flake URL.
+		local upstreamRev=$(githubHelperGit ls-remote "$buildRepository" HEAD)
+		# Keep only first 40 characters to remove the extra spaces and "HEAD" label.
+		upstreamRev=${upstreamRev:0:40}
+		canonicalFlakeRef="${buildRepository}?rev=${upstreamRev}"
+		# If we did derive the buildRepository from a local git clone, confirm
+		# that it is not out of sync with upstream.
+		if [ "$buildRepository" = "$cloneRemote" ]; then
+			if ! $_git diff --exit-code --quiet; then
+				warn "Warning: uncommitted changes not present in upstream rev ${upstreamRev:0:7}"
+				if ! $invoke_gum confirm "proceed to publish revision ${upstreamRev:0:7}?"; then
+					warn "aborting ..."
+					exit 1
+				fi
+			fi
+			if ! $_git diff --cached --exit-code --quiet; then
+				warn "Warning: staged commits not present in upstream rev ${upstreamRev:0:7}"
+				if ! $invoke_gum confirm "proceed to publish revision ${upstreamRev:0:7}?"; then
+					warn "aborting ..."
+					exit 1
+				fi
+			fi
+			if [ "$cloneRev" != "$upstreamRev" ]; then
+				warn "Warning: local clone (${cloneRev:0:7}) out of sync with upstream (${upstreamRev:0:7})"
+				if ! $invoke_gum confirm "proceed to publish revision ${upstreamRev:0:7}?"; then
+					warn "aborting ..."
+					exit 1
+				fi
+			fi
+		fi
+		;;
+	esac
+
+	# Nix m'annoye.
+	case "$canonicalFlakeRef" in
+		git@* )
+			canonicalFlakeRef="git+ssh://${canonicalFlakeRef/[:]//}"
+			;;
+		ssh://* | http://* | https://* )
+			canonicalFlakeRef="git+$canonicalFlakeRef"
+			;;
+	esac
+
+	# The -A argument specifies the package to be built within the
+	# $buildRepository if it's not provided in an explicit flakeURL.
+	if [ -z "$packageAttrPath" ]; then
+		doEducatePublish
+		packageAttrPath="$(selectAttrPath $canonicalFlakeRef publish)"
+	fi
+
+	# Stash the canonical and build flake URLs before altering $packageAttrPath.
+	canonicalFlakeURL="${canonicalFlakeRef}#${packageAttrPath}"
+	buildFlakeURL="${buildRepository}#${packageAttrPath}"
+
+	# The packageAttrPath as constructed by Hydra will be of the form
+	# <flakeRef>#hydraJobsStable.<pname>.<system>. Take this opportunity
+	# to extract the pname.
+	case "$packageAttrPath" in
+	hydraJobsStable.*.$publishSystem)
+		FLOX_STABILITY=stable
+		packageAttrPath="${packageAttrPath//hydraJobsStable./}"
+		packageAttrPath="${packageAttrPath//.$publishSystem/}"
+		;;
+	hydraJobsStaging.*.$publishSystem)
+		FLOX_STABILITY=staging
+		packageAttrPath="${packageAttrPath//hydraJobsStaging./}"
+		packageAttrPath="${packageAttrPath//.$publishSystem/}"
+		;;
+	hydraJobsUnstable.*.$publishSystem)
+		FLOX_STABILITY=unstable
+		packageAttrPath="${packageAttrPath//hydraJobsUnstable./}"
+		packageAttrPath="${packageAttrPath//.$publishSystem/}"
+		;;
+	esac
+	warn "package name: $packageAttrPath"
 
 	# The --channel-repo argument specifies the repository for storing
 	# built package metadata. When invoked from a git clone this defaults
@@ -253,6 +360,7 @@ function floxPublish() {
 			warn "please enter a valid URL with which to 'flox subscribe'"
 		done
 	fi
+	warn "channel repository: $channelRepository"
 
 	# Prompt for location(s) TO and FROM which we can (optionally) copy the
 	# built package store path(s). By default these will refer to the same
@@ -267,6 +375,7 @@ function floxPublish() {
 			"binary cache for upload:" \
 			"$uploadTo")
 	fi
+	[ -z "$uploadTo" ] || warn "upload to: $uploadTo"
 	if [ -z "$downloadFrom" ]; then
 		# Load previous answer (if applicable).
 		downloadFrom=$(registry "$gitCloneRegistry" 1 get downloadFrom || :)
@@ -280,11 +389,12 @@ function floxPublish() {
 			"binary cache for download:" \
 			"$downloadFrom")
 	fi
+	[ -z "$downloadFrom" ] || warn "download from: $downloadFrom"
 
 	# Construct string encapsulating entire command invocation.
 	local entirePublishCommand=$(printf \
-		"flox publish --build-repo %s --channel-repo %s" \
-		"$buildRepository" "$channelRepository")
+		"flox publish -A %s --build-repo %s --channel-repo %s" \
+		"$packageAttrPath" "$buildRepository" "$channelRepository")
 	[ -z "$uploadTo" ] || entirePublishCommand=$(printf "%s --upload-to %s" "$entirePublishCommand" "$uploadTo")
 	[ -z "$downloadFrom" ] || entirePublishCommand=$(printf "%s --download-from %s" "$entirePublishCommand" "$downloadFrom")
 
@@ -302,6 +412,7 @@ function floxPublish() {
 		# defaults for next time.
 		if [ -n "$gitCloneRegistry" ]; then
 			registry "$gitCloneRegistry" 1 set buildRepository "$buildRepository"
+			registry "$gitCloneRegistry" 1 set packageAttrPath "$packageAttrPath"
 			registry "$gitCloneRegistry" 1 set channelRepository "$channelRepository"
 			registry "$gitCloneRegistry" 1 set uploadTo "$uploadTo"
 			registry "$gitCloneRegistry" 1 set downloadFrom "$downloadFrom"
@@ -323,9 +434,10 @@ function floxPublish() {
 		$invoke_gh repo clone "$channelRepository" "$gitClone"
 	fi
 
-	# Then build installables.
-	warn "Building $attrPath ..."
-	local outpaths=$(floxBuild "${_nixArgs[@]}" --no-link --print-out-paths "${installables[@]}" "${buildArgs[@]}")
+	# Then build package.
+	warn "Building $packageAttrPath ..."
+	local outpaths=$(floxBuild "${_nixArgs[@]}" --no-link --print-out-paths "$canonicalFlakeURL" "${buildArgs[@]}")
+	[ -n "$outpaths" ] || error "could not build $canonicalFlakeURL" < /dev/null
 
 	# TODO Make content addressable (remove "false" below).
 	local ca_out
@@ -349,31 +461,15 @@ function floxPublish() {
 
 	### Next section cribbed from: github:flox/catalog-ingest#analyze
 
-	# Gather local package outpath metadata.
-	local metadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$flakeRef" --json)
-
-	# Fail if local repo dirty
-	local gitRevisionLocal
-	if ! gitRevisionLocal="$($_jq -n -r -e --argjson md "$metadata" '$md.revision')"; then
-		error "'$flakeRef' has uncommitted changes or is not a git repository" < /dev/null
-	fi
-
-	# Gather remote package outpath metadata ... why?
-	# XXX need to clean up $channelRepository to be a nix-friendly URL .. punt for now
-	local remoteMetadata
-	if ! remoteMetadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$buildRepository?rev=$gitRevisionLocal" --json); then
-		error "The local commit '$gitRevisionLocal'  was not found in build repository '$buildRepository'" < /dev/null
-	fi
-
 	# Analyze package.
 	# TODO: bundle lib/analysis.nix with flox CLI to avoid dependency on remote flake
 	local analyzer="github:flox/catalog-ingest"
 	# Nix eval command is noisy so filter out the expected output.
 	local tmpstderr=$(mkTempFile)
 	evalAndBuild=$($invoke_nix "${_nixArgs[@]}" eval --json \
-		--override-input target "$flakeRef" \
+		--override-input target "$canonicalFlakeRef" \
 		--override-input target/floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
-		"$analyzer#analysis.eval.packages.$NIX_CONFIG_system.$attrPath" 2>$tmpstderr) || {
+		"$analyzer#analysis.eval.packages.$publishSystem.$packageAttrPath" 2>$tmpstderr) || {
 		$_grep --no-filename -v \
 		  -e "^evaluating 'catalog\." \
 		  -e "not writing modified lock file of flake" \
@@ -381,15 +477,8 @@ function floxPublish() {
 		  -e " follows " \
 		  -e "\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)" \
 		  $tmpstderr 1>&2 || true
-		$_rm -f $tmpstderr
-		error "eval of $analyzer#analysis.eval.packages.$NIX_CONFIG_system.$attrPath failed - see above" < /dev/null
+		error "eval of $analyzer#analysis.eval.packages.$publishSystem.$packageAttrPath failed - see above" < /dev/null
 	}
-	$_rm -f $tmpstderr
-
-	# XXX TODO: refactor next section
-	sourceInfo=$(echo "$metadata" | $_jq '{locked:.locked, original:.original}')
-	remoteInfo=$(echo "$remoteMetadata" | $_jq '{remote:.original}')
-
 
 	# Copy to binary cache (optional).
 	if [ -n "$uploadTo" ]; then
@@ -400,16 +489,21 @@ function floxPublish() {
 			$invoke_nix "${_nixArgs[@]}" run "$builtfilter" -- --substituter $downloadFrom)
 	fi
 
+	# Gather buildRepository package outpath metadata.
+	local buildMetadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$canonicalFlakeRef" --json)
+
 	# shellcheck disable=SC2086 # since jq variables don't need to be quoted
 	evalAndBuildAndSource=$($_jq -n \
 		--argjson evalAndBuild "$evalAndBuild" \
-		--argjson sourceInfo "$sourceInfo" \
-		--argjson remoteInfo "$remoteInfo" \
-		--argjson remoteMetadata "$remoteMetadata" \
+		--argjson buildMetadata "$buildMetadata" \
 		--arg stability "$FLOX_STABILITY" '
 		$evalAndBuild * {
-			"element": {"url": "\($remoteMetadata.resolvedUrl)"},
-			"source": ($sourceInfo*$remoteInfo),
+			"element": {"url": "\($buildMetadata.resolvedUrl)"},
+			"source": {
+				locked: $buildMetadata.locked,
+				original: $buildMetadata.original,
+				remote: $buildMetadata.original
+			},
 			"eval": {
 				"stability": $stability
 			}
@@ -419,7 +513,7 @@ function floxPublish() {
 	### Next section cribbed from: github:flox/catalog-ingest#publish
 	warn "publishing render to $renderPath ..."
 
-	elementPath=$($_jq -n \
+	elementPath=$($_jq -n --sort-keys \
 		--argjson evalAndBuildAndSource "$evalAndBuildAndSource" \
 		--arg rootPath "$gitClone/$renderPath" '
 		{
@@ -441,15 +535,18 @@ function floxPublish() {
 		echo "$elementPath" | $_jq -r '.analysis' > "$( echo "$elementPath" | $_jq -r '.attrPath' )"
 		warn "flox publish completed"
 		$_git -C "$gitClone" add $renderPath
+		if [ ! -d "$channelRepository" ]; then
+			# TODO: improve contents of git log message
+			epAttrPath="${epAttrPath//$gitClone\/$renderPath\//}"
+			packageAttrPath="${packageAttrPath//packages.$publishSystem./}"
+			printf "published %s\n\nURL: %s\nAttrPath: %s\nSystem: %s\nStability: %s\nUser: %s\nCommand: %s\n" \
+				"$epAttrPath" "$buildFlakeURL" "$packageAttrPath" "$publishSystem" \
+				"$FLOX_STABILITY" "$USER" "$invocation_string" | \
+			if $_git -C "$gitClone" commit -F -; then
+				$_git -C "$gitClone" push
+			fi
+		fi
 	else
 		$_jq -n -r --argjson ep "$elementPath" '$ep.analysis'
 	fi
-
-	if [ ! -d "$channelRepository" -a "$channelRepository" != "-" ]; then
-		$_git -C "$gitClone" commit -m "$USER published ${installables[@]}"
-		$_git -C "$gitClone" push
-	fi
-
-	# Hate rm -rf, but safer to delete tmpdir than risk deleting wrong git clone.
-	$_rm -rf "$tmpdir"
 }

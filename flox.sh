@@ -115,6 +115,7 @@ fi
 
 # Store the original invocation arguments.
 declare -a invocation_args=("$@")
+declare invocation_string=$(pprint "$me" "$subcommand" "$@")
 
 # Flox environment path(s).
 declare -a environments=()

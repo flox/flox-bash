@@ -87,7 +87,7 @@ function pprint() {
 		elif [[ "$i" =~ ^\".*\"$ ]]; then
 			# already quoted(?)
 			echo -e -n "$space$i"
-		elif [[ "$i" =~ ([ !()|]) ]]; then
+		elif [[ "$i" =~ ([ !?*&()|]) ]]; then
 			echo -e -n "$space'$i'"
 		else
 			echo -e -n "$space$i"
@@ -1055,13 +1055,15 @@ function searchChannels() {
 #
 function lookupAttrPaths() {
 	trace "$@"
-	minverbosity=2 $invoke_nix eval ".#packages.$NIX_CONFIG_system" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
+	local flakeRef=$1; shift
+	minverbosity=2 $invoke_nix eval "$flakeRef#packages.$NIX_CONFIG_system" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
 }
 
 function selectAttrPath() {
 	trace "$@"
+	local flakeRef="$1"; shift
 	local subcommand="$1"; shift
-	local -a attrPaths=($(lookupAttrPaths))
+	local -a attrPaths=($(lookupAttrPaths $flakeRef))
 	local attrPath
 	if [ ${#attrPaths[@]} -eq 0 ]; then
 		error "cannot find attribute path - have you run 'flox init'?" < /dev/null
