@@ -56,6 +56,7 @@ development commands:
     flox shell - run a shell in which the current project is available
     flox publish [--build-repo <URL>] [--channel-repo <URL>] \
                  [--upload-to <URL>] [--download-from <URL>] \
-                 [--render-path <dir>] [--key-file <file>]
+                 [--render-path <dir>] [--key-file <file>] \
+                 [(-A|--attr) <package>] [--publish-system <system>]
          - build and publish project to flox channel
 
