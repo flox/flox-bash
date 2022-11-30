@@ -154,43 +154,55 @@ EOF
 # Ensure file is secure before appending access token(s).
 $_chmod 600 $tmpNixConf
 
-# If found, extract and append github token from gh file.
+# Look for github tokens from multiple sources:
+#   1. the user's own .config/nix/nix.conf, else
+#   2. the user's gh client backing store, else
+#   3. the user's own .config/flox/tokens (if it exists)
+# ... and if found, extract and append tokens to .config/flox/nix.conf.
+#
+# We need to do this because this nix.conf file is the one [1] place
+# where Nix will look to find access tokens for downloading URLs.
 declare -a accessTokens=()
 declare -A accessTokensMap # to detect/eliminate duplicates
-#XXX this is candidate for removal unless this is still in use
-if [ -f "$HOME/.config/gh/hosts.yml" ]; then
-	for i in $($_dasel -r yml -w json < "$HOME/.config/gh/hosts.yml" | $_jq -r '(
-			to_entries |
-			map(select(.value.oauth_token != null)) |
-			map("\(.key)=\(.value.oauth_token)") |
-			join(" ")
-		)'
-	); do
-		accessTokens+=($i)
-		accessTokensMap[$i]=1
-	done
-fi
 
-if [ -f "$HOME/.config/flox/tokens" ]; then
-	if [ "$($_stat -c %a $HOME/.config/flox/tokens)" != "600" ]; then
-		warn "fixing mode of $HOME/.config/flox/tokens"
-		$_chmod 600 "$HOME/.config/flox/tokens"
-	fi
-	for i in $($_sed 's/#.*//' "$HOME/.config/flox/tokens"); do
-		# XXX add more syntax validation in golang rewrite
-		if [ -z "${accessTokensMap[$i]}" ]; then
+declare userAccessTokens
+if [ -f "$HOME/.config/nix/nix.conf" ]; then
+	userAccessTokens=$($_awk '($1 == "access-tokens" && $2 == "=") {print}' "$HOME/.config/nix/nix.conf")
+fi
+if [ -z "$userAccessTokens" ]; then
+	if [ -f "$HOME/.config/gh/hosts.yml" ]; then
+		for i in $($_dasel -r yml -w json < "$HOME/.config/gh/hosts.yml" | $_jq -r '(
+				to_entries |
+				map(select(.value.oauth_token != null)) |
+				map("\(.key)=\(.value.oauth_token)") |
+				join(" ")
+			)'
+		); do
 			accessTokens+=($i)
 			accessTokensMap[$i]=1
+		done
+	fi
+	if [ -f "$HOME/.config/flox/tokens" ]; then
+		if [ "$($_stat -c %a $HOME/.config/flox/tokens)" != "600" ]; then
+			warn "fixing mode of $HOME/.config/flox/tokens"
+			$_chmod 600 "$HOME/.config/flox/tokens"
 		fi
-	done
+		for i in $($_sed 's/#.*//' "$HOME/.config/flox/tokens"); do
+			# XXX add more syntax validation in golang rewrite
+			if [ -z "${accessTokensMap[$i]}" ]; then
+				accessTokens+=($i)
+				accessTokensMap[$i]=1
+			fi
+		done
+	fi
+	# Append all available tokens to nix.conf.
+	if [ ${#accessTokens[@]} -gt 0 ]; then
+		userAccessTokens="access-tokens = ${accessTokens[@]}"
+	fi
 fi
-
-# Add static "floxbeta" developer token for closed beta. (expires 10/31/22)
-# XXX Remove after closed beta.
-betaToken="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"
-# XXX a temporary fix for pre-alpha demonstration to force access to
-# semi-private repositories.
-echo "access-tokens = github.com=${betaToken}" >> $tmpNixConf
+if [ -n "$userAccessTokens" ]; then
+	echo "$userAccessTokens" >> $tmpNixConf
+fi
 
 if $_cmp --quiet $tmpNixConf $nixConf; then
 	$_rm $tmpNixConf
@@ -214,50 +226,6 @@ $_cat > $tmpGitConfig <<EOF
 [user]
 	name = Flox User
 	email = floxuser@example.invalid
-
-# For access to the closed beta.
-[url "https://floxbeta:$betaToken@github.com/flox/capacitor"]
-	insteadOf = "https://github.com/flox/capacitor"
-	insteadOf = "ssh://git@github.com/flox/capacitor"
-	insteadOf = "git@github.com:flox/capacitor"
-
-[url "https://floxbeta:$betaToken@github.com/flox/nixpkgs-flox"]
-	insteadOf = "https://github.com/flox/nixpkgs-flox"
-	insteadOf = "ssh://git@github.com/flox/nixpkgs-flox"
-	insteadOf = "git@github.com:flox/nixpkgs-flox"
-
-[url "https://floxbeta:$betaToken@github.com/flox/nixpkgs-catalog"]
-	insteadOf = "https://github.com/flox/nixpkgs-catalog"
-	insteadOf = "ssh://git@github.com/flox/nixpkgs-catalog"
-	insteadOf = "git@github.com:flox/nixpkgs-catalog"
-
-[url "https://floxbeta:$betaToken@github.com/flox/catalog-ingest"]
-	insteadOf = "https://github.com/flox/catalog-ingest"
-	insteadOf = "ssh://git@github.com/flox/catalog-ingest"
-	insteadOf = "git@github.com:flox/catalog-ingest"
-
-[url "https://floxbeta:$betaToken@github.com/flox/flox-extras"]
-	insteadOf = "https://github.com/flox/flox-extras"
-	insteadOf = "ssh://git@github.com/flox/flox-extras"
-	insteadOf = "git@github.com:flox/flox-extras"
-
-# N.B. not dropping the trailing slash here because that
-# would rewrite other flox/flox* repositories.
-[url "https://floxbeta:$betaToken@github.com/flox/flox/"]
-	insteadOf = "https://github.com/flox/flox/"
-	insteadOf = "ssh://git@github.com/flox/flox/"
-	insteadOf = "git@github.com:flox/flox/"
-
-# Do not rewrite flox/floxpkgs-internal
-[url "ssh://git@github.com/flox/floxpkgs-internal"]
-	insteadOf = "ssh://git@github.com/flox/floxpkgs-internal"
-[url "git@github.com:flox/floxpkgs-internal"]
-	insteadOf = "git@github.com:flox/floxpkgs-internal"
-
-# Do rewrite flox/floxpkgs
-[url "https://github.com/flox/floxpkgs"]
-	insteadOf = "ssh://git@github.com/flox/floxpkgs"
-	insteadOf = "git@github.com:flox/floxpkgs"
 
 EOF
 # XXX Remove after closed beta.

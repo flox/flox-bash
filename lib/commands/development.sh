@@ -5,6 +5,7 @@ _development_commands+=("init")
 _usage["init"]="initialize flox expressions for current project"
 function floxInit() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	local template
@@ -70,6 +71,7 @@ _development_commands+=("build")
 _usage["build"]="build package from current project"
 function floxBuild() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	local -a buildArgs=()
@@ -122,6 +124,7 @@ _development_commands+=("develop")
 _usage["develop"]="launch development shell for current project"
 function floxDevelop() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	local -a developArgs=()
@@ -184,6 +187,7 @@ _development_commands+=("run")
 _usage["run"]="run app from current project"
 function floxRun() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	local -a runArgs=()
@@ -248,6 +252,7 @@ _development_commands+=("shell")
 _usage["shell"]="run a shell in which the current project is available"
 function floxShell() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	local -a shellArgs=()

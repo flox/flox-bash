@@ -1188,4 +1188,37 @@ function submitMetric() {
 	exit 0
 }
 
+#
+# betaRefreshNixCache()
+#
+# Updates user's Nix cache (~/.cache/nix) with copies of private
+# flox-maintained flakes. This will only be required during the
+# closed beta, after which these repositories will be marked public.
+#
+# This function is only called in advance of any nix invocation
+# that may require access to any of the private repositories.
+#
+function betaRefreshNixCache() {
+	trace "$@"
+	local betaToken="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"
+	local -a privateFlakes=(
+		github:flox/capacitor
+		github:flox/nixpkgs-flox
+		github:flox/nixpkgs-catalog
+		github:flox/catalog-ingest
+		github:flox/flox-extras
+		github:flox/flox
+	)
+	minverbosity=2 $invoke_gum spin \
+		--title="Refreshing closed beta flake cache ..." 1>&2 -- \
+		$_parallel --no-notice -- \
+			$_nix flake metadata \
+				--access-tokens "github.com=${betaToken}" \
+				--log-format bar \
+				--json \
+				--no-write-lock-file \
+				{1} \
+			::: ${privateFlakes[@]} || :
+}
+
 # vim:ts=4:noet:syntax=bash

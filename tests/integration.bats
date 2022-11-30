@@ -56,6 +56,30 @@ setup_file() {
   assert_output - < tests/usage.out
 }
 
+@test "flox subscribe public" {
+  run $FLOX_CLI subscribe flox-examples github:flox-examples/floxpkgs
+  assert_success
+  assert_output - < /dev/null
+}
+
+@test "flox unsubscribe public" {
+  run $FLOX_CLI unsubscribe flox-examples
+  assert_success
+  assert_output - < /dev/null
+}
+
+@test "flox subscribe private" {
+  run $FLOX_CLI subscribe flox-examples-private github:flox-examples/floxpkgs-private
+  assert_success
+  assert_output - < /dev/null
+}
+
+@test "flox unsubscribe private" {
+  run $FLOX_CLI unsubscribe flox-examples-private
+  assert_success
+  assert_output - < /dev/null
+}
+
 @test "flox install hello" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT hello
   assert_success
