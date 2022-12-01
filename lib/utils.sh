@@ -141,8 +141,8 @@ function hash_commands() {
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands \
 	ansifilter awk basename bash cat chmod cmp column cp curl cut dasel date dirname \
-	id jq getent gh git gum grep ln man mkdir mktemp mv nix nix-store parallel pwd \
-	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr uuid xargs zgrep
+	getent gh git grep gum id jq ln man mkdir mktemp mv nix nix-store parallel pwd \
+	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr uname uuid xargs zgrep
 
 # Return full path of first command available in PATH.
 #
@@ -1136,6 +1136,9 @@ function submitMetric() {
 		--arg subcommand "$subcommand" \
 		--arg floxClientUUID "$floxClientUUID" \
 		--arg uuid "$($_uuid)" \
+		--arg floxVersion '@@VERSION@@' \
+		--arg OS "$($_uname -s | $_sed 's/^Darwin$/Mac OS/')" \
+		--arg kernelVersion "$($_uname -r)" \
 		--argjson now "$now" '
 		{
 			"event": "cli-invocation",
@@ -1144,9 +1147,27 @@ function submitMetric() {
 			"properties": {
 				"distinct_id": "flox-cli:\($floxClientUUID)",
 				"$device_id": "flox-cli:\($floxClientUUID)",
+
+				"$os": "\($OS)",
+				"kernel_version": "\($kernelVersion)",
+				"flox_version": "\($floxVersion)",
+
 				"$lib": "flox-cli",
+
 				"subcommand": "\($subcommand)",
+				"$current_url": "flox://\($subcommand)",
+				"$pathname": "\($subcommand)",
+
+				"$set_once": {
+					"$initial_os": "\($OS)",
+					"initial_kernel_version": "\($kernelVersion)",
+					"initial_flox_version": "\($floxVersion)",
+				},
 				"$set": {
+					"$os": "\($OS)",
+					"kernel_version": "\($kernelVersion)",
+					"flox_version": "\($floxVersion)",
+
 					"flox-cli-uuid": "\($floxClientUUID)"
 				}
 			}

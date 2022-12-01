@@ -104,6 +104,7 @@ $(PREFIX)/lib/%: lib/%
 	@mkdir -p $(@D)
 	sed \
 	  -e 's%@@PREFIX@@%$(PREFIX)%' \
+	  -e 's%@@VERSION@@%$(VERSION)%' \
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
 	  -e 's%@@NIXPKGS_CACERT_BUNDLE_CRT@@%$(NIXPKGS_CACERT_BUNDLE_CRT)%' \
 	  $< > $@
