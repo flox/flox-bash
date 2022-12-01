@@ -99,6 +99,19 @@ setup_file() {
   assert_output --partial "No environment changes detected"
 }
 
+# A rose by any other name ...
+@test "flox subscribe nixpkgs-flox-dup" {
+  run $FLOX_CLI subscribe nixpkgs-flox-dup github:flox/nixpkgs-flox/master
+  assert_success
+  assert_output - < /dev/null
+}
+
+@test "flox install stable.nixpkgs-flox-dup.hello" {
+  run $FLOX_CLI install -e $TEST_ENVIRONMENT stable.nixpkgs-flox-dup.hello
+  assert_success
+  assert_output --partial "No environment changes detected"
+}
+
 @test "flox list after install should contain hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
