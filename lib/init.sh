@@ -267,6 +267,11 @@ fi
 # Override system gitconfig.
 export GIT_CONFIG_SYSTEM="$gitConfig"
 
+if [ -n "$NIX_GET_COMPLETIONS" ]; then
+	export FLOX_ORIGINAL_NIX_GET_COMPLETIONS="$NIX_GET_COMPLETIONS"
+	unset NIX_GET_COMPLETIONS
+fi
+
 # Load nix configuration (must happen after setting NIX_USER_CONF_FILES)
 eval $(nix_show_config)
 

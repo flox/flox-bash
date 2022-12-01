@@ -116,6 +116,9 @@ function floxBuild() {
 		installables=(".#$attrPath")
 	fi
 
+	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
+		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
+	fi
 	$invoke_nix "${_nixArgs[@]}" build --impure "${buildArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY
 }
 
@@ -179,6 +182,9 @@ function floxDevelop() {
 		installables=(".#$attrPath")
 	fi
 
+	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
+		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
+	fi
 	$invoke_nix "${_nixArgs[@]}" develop --impure "${developArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
 }
 
@@ -244,6 +250,9 @@ function floxRun() {
 		installables=(".#$attrPath")
 	fi
 
+	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
+		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
+	fi
 	$invoke_nix "${_nixArgs[@]}" run --impure "${runArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
 }
 
@@ -303,6 +312,9 @@ function floxShell() {
 		installables=(".#$attrPath")
 	fi
 
+	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
+		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
+	fi
 	$invoke_nix "${_nixArgs[@]}" shell --impure "${shellArgs[@]}" "${installables[@]}" --override-input floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
 }
 

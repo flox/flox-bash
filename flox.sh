@@ -252,6 +252,9 @@ packages|search)
 
 # Special "cut-thru" mode to invoke Nix directly.
 nix)
+	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
+		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS - 1 ))"
+	fi
 	verboseExec $_nix "$@"
 	;;
 
