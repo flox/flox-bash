@@ -18,6 +18,7 @@ setup_file() {
 	fi
 	export FLOX_CLI=$FLOX_PACKAGE/bin/flox
 	export TEST_ENVIRONMENT=_testing_
+	export NIX_SYSTEM=$($FLOX_CLI nix --extra-experimental-features nix-command show-config | awk '/system = / {print $NF}')
 	# Remove any vestiges of previous test runs.
 	$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
 	set +x
@@ -370,6 +371,92 @@ setup_file() {
   assert_output --partial "Curr Gen  6"
   assert_output --partial "0 $FLOX_PACKAGE"
   assert_output --partial "1 stable.nixpkgs-flox.hello"
+}
+
+@test "flox remove hello again" {
+  run $FLOX_CLI remove -e $TEST_ENVIRONMENT hello
+  assert_success
+  assert_output --partial "created generation 7"
+}
+
+@test "flox install by nixpkgs flake" {
+  run $FLOX_CLI install -e $TEST_ENVIRONMENT "nixpkgs#hello"
+  assert_success
+  assert_output --partial "created generation 8"
+}
+
+@test "flox list after installing by nixpkgs flake should contain package" {
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Curr Gen  8"
+  assert_output --partial "0 $FLOX_PACKAGE"
+  assert_output --partial "1 flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  ! assert_output --partial "stable.nixpkgs-flox.hello"
+}
+
+@test "flox export after installing by nixpkgs flake should contain package" {
+  run $FLOX_CLI export -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial '[packages."legacyPackages.'$NIX_SYSTEM'.hello"]'
+  assert_output --partial 'originalUrl = "flake:nixpkgs"'
+  assert_output --partial 'attrPath = "legacyPackages.'$NIX_SYSTEM'.hello"'
+}
+
+@test "flox remove by nixpkgs flake 1" {
+  run $FLOX_CLI remove -e $TEST_ENVIRONMENT "nixpkgs#hello"
+  assert_success
+  assert_output --partial "created generation 9"
+}
+
+@test "flox list after remove by nixpkgs flake 1 should not contain package" {
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Curr Gen  9"
+  assert_output --partial "0 $FLOX_PACKAGE"
+  ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  ! assert_output --partial "stable.nixpkgs-flox.hello"
+}
+
+@test "flox rollback after flake removal 1" {
+  run $FLOX_CLI rollback -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "switched to generation 8"
+}
+
+@test "flox remove by nixpkgs flake 2" {
+  run $FLOX_CLI remove -e $TEST_ENVIRONMENT "legacyPackages.$NIX_SYSTEM.hello"
+  assert_success
+  assert_output --partial "created generation 10"
+}
+
+@test "flox list after remove by nixpkgs flake 2 should not contain package" {
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Curr Gen  10"
+  assert_output --partial "0 $FLOX_PACKAGE"
+  ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  ! assert_output --partial "stable.nixpkgs-flox.hello"
+}
+
+@test "flox switch-generation after flake removal 2" {
+  run $FLOX_CLI rollback -e $TEST_ENVIRONMENT --to 8
+  assert_success
+  assert_output --partial "switched to generation 8"
+}
+
+@test "flox remove by nixpkgs flake 3" {
+  run $FLOX_CLI remove -e $TEST_ENVIRONMENT "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  assert_success
+  assert_output --partial "created generation 11"
+}
+
+@test "flox list after remove by nixpkgs flake 3 should not contain package" {
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Curr Gen  11"
+  assert_output --partial "0 $FLOX_PACKAGE"
+  ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
 @test "tear down install test state" {

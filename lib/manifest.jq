@@ -85,14 +85,15 @@ def flakerefToFloxpkg(args): expectedArgs(1; args) |
       $flakeAttrPathArray[3] as $channel |
       ( $flakeAttrPathArray[4:] | join(".") ) as $attrPath |
       "\($stability).\($channel).\($attrPath)"
-    ) else
-      "UNKNOWN"
-    end
+    ) else $flakeref end
   else
     # Current format starting 9/17/22: flake:<channel>#evalCatalog.<system>.<stability>.<name>
-    $flakeAttrPathArray[2] as $stability |
-    ( $flakeAttrPathArray[3:] | join(".") ) as $attrPath |
-    "\($stability).\($channel).\($attrPath)"
+    $flakeAttrPathArray[0] as $flakeType |
+    if ($flakeType == "evalCatalog") then (
+      $flakeAttrPathArray[2] as $stability |
+      ( $flakeAttrPathArray[3:] | join(".") ) as $attrPath |
+      "\($stability).\($channel).\($attrPath)"
+    ) else $flakeref end
   end;
 
 # Pull pname attribute from flakeref (for sorting).
@@ -115,7 +116,7 @@ def flakerefToPname(args): expectedArgs(1; args) |
 ) ) as $elements
 |
 
-def flakerefToTOML(arg):
+def evalCatalogFlakerefToTOML(arg):
   flakerefToFloxpkg([arg]) | split(".") |
   .[0] as $stability |
   .[1] as $channel |
@@ -124,6 +125,22 @@ def flakerefToTOML(arg):
   channel = \"\($channel)\"
   stability = \"\($stability)\"
 ";
+
+def legacyPackagesFlakerefToTOML(arg):
+  arg | split("#") |
+  .[0] as $originalUrl |
+  .[1] as $attrPath |
+  "  [packages.\"\($attrPath)\"]
+  originalUrl = \"\($originalUrl)\"
+  attrPath = \"\($attrPath)\"
+";
+
+def flakerefToTOML(arg):
+  if (arg | contains("#evalCatalog.\($system).")) then
+    evalCatalogFlakerefToTOML(arg)
+  else
+    legacyPackagesFlakerefToTOML(arg)
+  end;
 
 def storePathsToTOML(storePaths):
   ( "\"" + ( storePaths | join("\",\n      \"") ) + "\"" ) as $storePaths |
@@ -198,9 +215,26 @@ def flakerefToElementV1(args): expectedArgs(2; args) |
     (.originalUri == args[0]) and (.attrPath == args[1])
   )) | .[0];
 def flakerefToElementV2(args): expectedArgs(2; args) |
+  # Look for exact match.
   $elements | map(select(
     (.originalUrl == args[0]) and (.attrPath == args[1])
-  )) | .[0];
+  )) | .[0] as $fullMatch |
+  # Look for partial match of the attrPath part,
+  # e.g. "legacyPackages.x86_64-linux.hello".
+  $elements | map(select(
+    has("attrPath") and (
+      .attrPath as $attrPath |
+      args[1] | endswith($attrPath)
+    )
+  )) | .[0] as $partialMatch |
+  # Look to see if user provided some string that exactly matches
+  # the final part of the flake attrPath, e.g. "hello".
+  $elements | map(select(
+    (.originalUrl == "flake:\(args[0])") and
+    (.attrPath | endswith(args[1]))
+  )) | .[0] as $weakestMatch |
+  # Prefer full match over partial over weakest match if any exist.
+  ($fullMatch // $partialMatch // $weakestMatch);
 def flakerefToElement(args): expectedArgs(1; args) |
   ( args[0] | split("#") ) as $_args |
   if $manifest[].version == 2 then
