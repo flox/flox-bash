@@ -378,7 +378,7 @@ function floxUpgrade() {
 	local currentGen=$($_readlink $workDir/current || :)
 	local nextGen=$($_readlink $workDir/next)
 
-	# Create an ephemeral copy of the current generation to delete from.
+	# Create an ephemeral copy of the current generation to upgrade.
 	local profileWorkDir=$(mkTempDir)
 	local envPackage=$($_jq -r '.generations[.currentGen].path' $workDir/metadata.json)
 	$_ln -s $envPackage $profileWorkDir/x-$currentGen-link
@@ -411,7 +411,11 @@ function floxUpgrade() {
 	done
 
 	# Render a new environment with 'nix profile upgrade'.
-	$invoke_nix profile upgrade --impure --profile $profileWorkDir/x "${pkgArgs[@]}"
+	if [ ${#pkgArgs[@]} -gt 0 ]; then
+		$invoke_nix profile upgrade --impure --profile $profileWorkDir/x "${pkgArgs[@]}"
+	else
+		$invoke_nix profile upgrade --impure --profile $profileWorkDir/x '.*'
+	fi
 	envPackage=$($_realpath $profileWorkDir/x/.)
 
 	# That went well, update metadata accordingly.
