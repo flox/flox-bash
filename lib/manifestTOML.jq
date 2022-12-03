@@ -78,7 +78,11 @@ def bashInit(args): expectedArgs(0; args) |
 
 def installables(args): expectedArgs(0; args) |
   $manifest | if .packages then .packages else empty end | to_entries | map(
-    if .value.storePaths then .value.storePaths[] else (
+    if .value.storePaths then
+      .value.storePaths[]
+    elif .value.originalUrl then
+      "\(.value.originalUrl)#\(.value.attrPath)"
+    else (
       (if .value.channel then .value.channel else "nixpkgs-flox" end) as $channel |
       (if .value.stability then .value.stability else "stable" end) as $stability |
       "\($stability).\($channel).\(.key)"
