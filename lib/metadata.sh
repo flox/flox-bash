@@ -558,8 +558,20 @@ function beginTransaction() {
 	local environmentMetaDir="$FLOX_META/$environmentOwner"
 	local branch="${system}.${environmentName}"
 
+	# Verify that $environmentMetaDir/local exists either as a directory
+	# or as a symlink to another directory.
+	if [ ! -d "$environmentMetaDir" ]; then
+		if [ -L "$environmentMetaDir" ]; then
+			error "damaged symbolic link: $environmentMetaDir" < /dev/null
+		else
+			gitInit "$environmentMetaDir"
+		fi
+	fi
+
 	# Perform a fetch to get remote data into sync.
-	githubHelperGit -C "$environmentMetaDir" fetch origin
+	if $invoke_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/HEAD; then
+		githubHelperGit -C "$environmentMetaDir" fetch origin
+	fi
 
 	# Create an ephemeral clone.
 	$invoke_git clone --quiet --shared "$environmentMetaDir" $workDir
