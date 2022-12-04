@@ -1223,12 +1223,12 @@ function submitMetric() {
 function betaRefreshNixCache() {
 	trace "$@"
 	local -a privateFlakes=(
-		github:flox/capacitor
-		github:flox/nixpkgs-flox
+		github:flox/capacitor/v0
+		github:flox/nixpkgs-flox/master
 		github:flox/nixpkgs-catalog/$NIX_CONFIG_system
-		github:flox/catalog-ingest
-		github:flox/flox-extras
-		github:flox/flox
+		github:flox/catalog-ingest/main
+		github:flox/flox-extras/master
+		github:flox/flox/main
 	)
 	minverbosity=2 $invoke_gum spin \
 		--title="Refreshing closed beta flake cache ..." 1>&2 -- \
