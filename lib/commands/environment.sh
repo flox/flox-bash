@@ -79,6 +79,7 @@ _environment_commands+=("install")
 _usage["install"]="install a package into an environment"
 function floxInstall() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
@@ -344,6 +345,7 @@ _usage["upgrade"]="upgrade packages using their most recent flake"
 _usage_options["upgrade"]="[--force]"
 function floxUpgrade() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
@@ -451,6 +453,7 @@ _environment_commands+=("edit")
 _usage["edit"]="edit declarative environment manifest"
 function floxEdit() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
@@ -523,6 +526,7 @@ _environment_commands+=("import")
 _usage["import"]="import declarative environment manifest as new generation"
 function floxImport() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
@@ -623,6 +627,7 @@ _environment_commands+=("rollback")
 _usage["rollback"]="roll back to the previous generation of an environment"
 function floxRollback() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local subcommand="$1"; shift
@@ -788,6 +793,7 @@ _usage_options["pull"]="[--force]"
 #
 function floxPushPull() {
 	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	local action="$1"; shift
 	local environment="$1"; shift
 	local system="$1"; shift

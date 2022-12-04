@@ -639,7 +639,10 @@ function commitTransaction() {
 	# Activate the new generation just as Nix would have done.
 	# First check to see if the environment has actually changed,
 	# and if not then return immediately.
-	oldEnvPackage=$($_realpath $environment)
+	local oldEnvPackage
+	if [ -e "$environment" ]; then
+		oldEnvPackage=$($_realpath $environment)
+	fi
 	if [ "$environmentPackage" = "$oldEnvPackage" ]; then
 		warn "No environment changes detected .. exiting"
 		return 0
