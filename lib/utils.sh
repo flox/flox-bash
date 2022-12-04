@@ -990,7 +990,8 @@ function searchChannels() {
 
 	# always refresh all channels except nixpkgs
 	for channel in ${channels[@]}; do
-		[ $channel == "nixpkgs" ] && continue
+		[ $channel != "nixpkgs" ] || continue
+		[ $channel != "nixpkgs-flox" ] || continue	# XXX REMOVE AFTER BETA
 		$invoke_nix flake metadata "flake:${channel}" --refresh ${_nixArgs[@]}  > /dev/null
 	done
 
@@ -1225,7 +1226,7 @@ function betaRefreshNixCache() {
 	local -a privateFlakes=(
 		github:flox/capacitor
 		github:flox/nixpkgs-flox
-		github:flox/nixpkgs-catalog
+		github:flox/nixpkgs-catalog/$NIX_CONFIG_system
 		github:flox/catalog-ingest
 		github:flox/flox-extras
 		github:flox/flox
@@ -1233,7 +1234,7 @@ function betaRefreshNixCache() {
 	minverbosity=2 $invoke_gum spin \
 		--title="Refreshing closed beta flake cache ..." 1>&2 -- \
 		$_parallel --no-notice -- \
-			$_nix flake metadata \
+			$_nix flake prefetch \
 				--access-tokens "github.com=${betaToken}" \
 				--log-format bar \
 				--json \

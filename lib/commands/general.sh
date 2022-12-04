@@ -15,6 +15,8 @@ _general_commands+=("search")
 _usage["search"]="search packages in subscribed channels"
 _usage_options["search"]="[(-c|--channel) <channel>] [--json] <args>"
 function floxSearch() {
+	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
 	packageregexp=
 	declare -i jsonOutput=0
 	declare refreshArg
