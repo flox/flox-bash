@@ -219,6 +219,10 @@ export NIX_SSL_CERT_FILE="${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
 # passthru mechanism for passing options to git invocations. (?)
 gitConfig="$FLOX_CONFIG_HOME/gitconfig"
 
+# Static "floxbeta" token for closed beta.
+# XXX Remove after closed beta.
+betaToken="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"
+
 tmpGitConfig=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
 $_chmod 600 $tmpGitConfig
 $_cat > $tmpGitConfig <<EOF
@@ -226,6 +230,32 @@ $_cat > $tmpGitConfig <<EOF
 [user]
 	name = Flox User
 	email = floxuser@example.invalid
+
+# For access to the closed beta.
+[url "https://floxbeta:$betaToken@github.com/flox/capacitor"]
+	insteadOf = "https://github.com/flox/capacitor"
+	insteadOf = "ssh://git@github.com/flox/capacitor"
+	insteadOf = "git@github.com:flox/capacitor"
+
+[url "https://floxbeta:$betaToken@github.com/flox/nixpkgs-flox"]
+	insteadOf = "https://github.com/flox/nixpkgs-flox"
+	insteadOf = "ssh://git@github.com/flox/nixpkgs-flox"
+	insteadOf = "git@github.com:flox/nixpkgs-flox"
+
+[url "https://floxbeta:$betaToken@github.com/flox/nixpkgs-catalog"]
+	insteadOf = "https://github.com/flox/nixpkgs-catalog"
+	insteadOf = "ssh://git@github.com/flox/nixpkgs-catalog"
+	insteadOf = "git@github.com:flox/nixpkgs-catalog"
+
+[url "https://floxbeta:$betaToken@github.com/flox/catalog-ingest"]
+	insteadOf = "https://github.com/flox/catalog-ingest"
+	insteadOf = "ssh://git@github.com/flox/catalog-ingest"
+	insteadOf = "git@github.com:flox/catalog-ingest"
+
+[url "https://floxbeta:$betaToken@github.com/flox/flox-extras"]
+	insteadOf = "https://github.com/flox/flox-extras"
+	insteadOf = "ssh://git@github.com/flox/flox-extras"
+	insteadOf = "git@github.com:flox/flox-extras"
 
 EOF
 # XXX Remove after closed beta.

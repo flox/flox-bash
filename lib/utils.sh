@@ -1222,7 +1222,6 @@ function submitMetric() {
 #
 function betaRefreshNixCache() {
 	trace "$@"
-	local betaToken="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"
 	local -a privateFlakes=(
 		github:flox/capacitor
 		github:flox/nixpkgs-flox
