@@ -395,8 +395,8 @@ function getUsernameFromGhAuth {
 	trace "$@"
 	local hostname="$1"; shift
 	# Get github username from gh data, if known.
-	[ -s "$HOME/.config/gh/hosts.yml" ]
-	$_dasel -f "$HOME/.config/gh/hosts.yml" "${hostname//./\\.}.user"
+	[ -s "$XDG_CONFIG_HOME/gh/hosts.yml" ]
+	$_dasel -f "$XDG_CONFIG_HOME/gh/hosts.yml" "${hostname//./\\.}.user"
 }
 
 #

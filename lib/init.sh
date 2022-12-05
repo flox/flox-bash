@@ -113,7 +113,8 @@ export FLOX_META="${FLOX_META:-$FLOX_CACHE_HOME/meta}"
 export FLOX_METRICS="${FLOX_METRICS:-$FLOX_CACHE_HOME/metrics-events.json}"
 export FLOX_DATA_HOME="${FLOX_DATA_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/flox}"
 export FLOX_ENVIRONMENTS="${FLOX_ENVIRONMENTS:-$FLOX_DATA_HOME/environments}"
-export FLOX_CONFIG_HOME="${FLOX_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/flox}"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+export FLOX_CONFIG_HOME="${FLOX_CONFIG_HOME:-$XDG_CONFIG_HOME/flox}"
 $_mkdir -p "$FLOX_CACHE_HOME" "$FLOX_META" "$FLOX_DATA_HOME" "$FLOX_ENVIRONMENTS" "$FLOX_CONFIG_HOME"
 for i in "$FLOX_CACHE_HOME" "$FLOX_META" "$FLOX_DATA_HOME" "$FLOX_ENVIRONMENTS" "$FLOX_CONFIG_HOME"; do
 	# if $i is writable, do nothing, else try to create $i
@@ -166,8 +167,8 @@ declare -a accessTokens=()
 declare -A accessTokensMap # to detect/eliminate duplicates
 
 declare userAccessTokens
-if [ -f "$HOME/.config/nix/nix.conf" ]; then
-	userAccessTokens=$($_awk '($1 == "access-tokens" && $2 == "=") {print}' "$HOME/.config/nix/nix.conf")
+if [ -f "$XDG_CONFIG_HOME/nix/nix.conf" ]; then
+	userAccessTokens=$($_awk '($1 == "access-tokens" && $2 == "=") {print}' "$XDG_CONFIG_HOME/nix/nix.conf")
 fi
 if [ -z "$userAccessTokens" ]; then
 	if [ -f "$XDG_CONFIG_HOME/gh/hosts.yml" ]; then
