@@ -483,10 +483,9 @@ function getSetOrigin() {
 	local origin=$([ -d "$environmentMetaDir" ] && $_git -C "$environmentMetaDir" \
 		"config" "--get" "remote.origin.url" || true)
 	if [ -z "$origin" ]; then
+
 		# Infer/set origin using a variety of information.
-		local environmentName=$($_basename $environment)
-		local environmentOwner=$($_basename $($_dirname $environment))
-		if [ -t 1 ]; then
+		if [ $interactive -eq 1 ]; then
 			local defaultOrigin
 			if [ "$environmentOwner" == "local" ]; then
 				defaultOrigin=$(promptMetaOrigin)
@@ -501,13 +500,17 @@ function getSetOrigin() {
 				-p "confirm git URL for storing profile metadata: " \
 				-i "$defaultOrigin" origin
 		else
-			# Used primarily for testing; provide default floxmeta origin
-			# based on GitHub handle observed by `gh` client.
-			local ghAuthHandle
-			if ghAuthHandle=$($_gh auth status |& $_awk '/Logged in to github.com as/ {print $7}'); then
-				origin="${gitBaseURL/+ssh/}$ghAuthHandle/floxmeta"
+			if [ "$environmentOwner" == "local" ]; then
+				# Used primarily for testing; provide default floxmeta origin
+				# based on GitHub handle observed by `gh` client.
+				local ghAuthHandle
+				if ghAuthHandle=$($_gh auth status |& $_awk '/Logged in to github.com as/ {print $7}'); then
+					origin="${gitBaseURL/+ssh/}$ghAuthHandle/floxmeta"
+				else
+					error "cannot set default origin for $environmentMetaDir in noninteractive mode"
+				fi
 			else
-				error "cannot set default origin for $environmentMetaDir in noninteractive mode"
+				origin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
 			fi
 		fi
 
