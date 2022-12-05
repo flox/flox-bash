@@ -444,6 +444,7 @@ function boolPrompt() {
 		error "boolPrompt() called with invalid default" < /dev/null
 		;;
 	esac
+	[ -t 1 ] || return $defaultrc
 	local defaultCaps=$(echo $default | tr a-z A-Z)
 	local defaultPrompt=$(echo "y/n" | tr "$defaultLower" "$defaultCaps")
 	local value

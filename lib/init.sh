@@ -170,8 +170,8 @@ if [ -f "$HOME/.config/nix/nix.conf" ]; then
 	userAccessTokens=$($_awk '($1 == "access-tokens" && $2 == "=") {print}' "$HOME/.config/nix/nix.conf")
 fi
 if [ -z "$userAccessTokens" ]; then
-	if [ -f "$HOME/.config/gh/hosts.yml" ]; then
-		for i in $($_dasel -r yml -w json < "$HOME/.config/gh/hosts.yml" | $_jq -r '(
+	if [ -f "$XDG_CONFIG_HOME/gh/hosts.yml" ]; then
+		for i in $($_dasel -r yml -w json < "$XDG_CONFIG_HOME/gh/hosts.yml" | $_jq -r '(
 				to_entries |
 				map(select(.value.oauth_token != null)) |
 				map("\(.key)=\(.value.oauth_token)") |
@@ -182,12 +182,12 @@ if [ -z "$userAccessTokens" ]; then
 			accessTokensMap[$i]=1
 		done
 	fi
-	if [ -f "$HOME/.config/flox/tokens" ]; then
-		if [ "$($_stat -c %a $HOME/.config/flox/tokens)" != "600" ]; then
-			warn "fixing mode of $HOME/.config/flox/tokens"
-			$_chmod 600 "$HOME/.config/flox/tokens"
+	if [ -f "$FLOX_CONFIG_HOME/flox/tokens" ]; then
+		if [ "$($_stat -c %a $FLOX_CONFIG_HOME/flox/tokens)" != "600" ]; then
+			warn "fixing mode of $FLOX_CONFIG_HOME/flox/tokens"
+			$_chmod 600 "$FLOX_CONFIG_HOME/flox/tokens"
 		fi
-		for i in $($_sed 's/#.*//' "$HOME/.config/flox/tokens"); do
+		for i in $($_sed 's/#.*//' "$FLOX_CONFIG_HOME/flox/tokens"); do
 			# XXX add more syntax validation in golang rewrite
 			if [ -z "${accessTokensMap[$i]}" ]; then
 				accessTokens+=($i)

@@ -19,6 +19,28 @@ setup_file() {
 	export FLOX_CLI=$FLOX_PACKAGE/bin/flox
 	export TEST_ENVIRONMENT=_testing_
 	export NIX_SYSTEM=$($FLOX_CLI nix --extra-experimental-features nix-command show-config | awk '/system = / {print $NF}')
+	# Simulate pure bootstrapping environment. It is challenging to get
+	# the nix, gh, and flox tools to all use the same set of defaults.
+	export REAL_XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+	export FLOX_TEST_HOME=$(mktemp -d)
+	export XDG_CACHE_HOME=$FLOX_TEST_HOME/.cache
+	export XDG_DATA_HOME=$FLOX_TEST_HOME/.local/share
+	export XDG_CONFIG_HOME=$FLOX_TEST_HOME/.config
+	export FLOX_CACHE_HOME=$XDG_CACHE_HOME/flox
+	export FLOX_META=$FLOX_CACHE_HOME/meta
+	export FLOX_DATA_HOME=$XDG_DATA_HOME/flox
+	export FLOX_ENVIRONMENTS=$FLOX_DATA_HOME/environments
+	export FLOX_CONFIG_HOME=$XDG_CONFIG_HOME/flox
+	# Weirdest thing, gh will *move* your gh creds to the XDG_CONFIG_HOME
+	# if it finds them in your home directory. Doesn't ask permission, just
+	# does it. That is *so* not the right thing to do. (visible with strace)
+	# 1121700 renameat(AT_FDCWD, "/home/brantley/.config/gh", AT_FDCWD, "/tmp/nix-shell.dtE4l4/tmp.JD4ki0ZezY/.config/gh") = 0
+	# The way to defeat this behavior is by defining GH_CONFIG_DIR.
+	export REAL_GH_CONFIG_DIR=$REAL_XDG_CONFIG_HOME/gh
+	export GH_CONFIG_DIR=$XDG_CONFIG_HOME/gh
+	# Don't let ssh authentication confuse things.
+	export SSH_AUTH_SOCK=
+	unset SSH_AUTH_SOCK
 	# Remove any vestiges of previous test runs.
 	$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
 	set +x
@@ -45,6 +67,11 @@ setup_file() {
   # Could go on ...
 }
 
+@test "assert testing home $FLOX_TEST_HOME" {
+  run sh -c "test -d $FLOX_TEST_HOME"
+  assert_success
+}
+
 @test "flox --prefix" {
   run $FLOX_CLI --prefix
   assert_success
@@ -69,14 +96,42 @@ setup_file() {
   assert_output - < /dev/null
 }
 
-@test "flox subscribe private" {
+@test "assert not logged into github" {
+  run $FLOX_CLI gh auth status
+  assert_failure
+  assert_output --partial "You are not logged into any GitHub hosts. Run gh auth login to authenticate."
+}
+
+@test "assert no access to private repository" {
+  run $FLOX_CLI flake metadata github:flox-examples/floxpkgs-private --no-write-lock-file --json
+  assert_failure
+}
+
+@test "flox subscribe private without creds" {
   run $FLOX_CLI subscribe flox-examples-private github:flox-examples/floxpkgs-private
+  assert_failure
+  assert_output --partial 'ERROR: could not verify channel URL: "github:flox-examples/floxpkgs-private"'
+}
+
+# These next two tests are annoying:
+# - the `gh` tool requires GH_CONFIG_DIR
+# - while `nix` requires XDG_CONFIG_HOME
+#   - ... and because `nix` invokes `gh`, just provide them both
+@test "assert can log into github GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR" {
+  run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI gh auth status"
+  assert_success
+  assert_output --partial "✓ Logged in to github.com as"
+}
+
+@test "flox subscribe private with creds GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR" {
+  run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI subscribe flox-examples-private github:flox-examples/floxpkgs-private"
   assert_success
   assert_output - < /dev/null
 }
 
+# Keep environment in next test to prevent nix.conf rewrite warning.
 @test "flox unsubscribe private" {
-  run $FLOX_CLI unsubscribe flox-examples-private
+  run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI unsubscribe flox-examples-private"
   assert_success
   assert_output - < /dev/null
 }
@@ -318,14 +373,15 @@ setup_file() {
 }
 
 @test "flox environments should at least contain $TEST_ENVIRONMENT" {
-  run $FLOX_CLI environments
+  run $FLOX_CLI --debug --debug environments
   assert_success
   assert_output --partial "/$TEST_ENVIRONMENT"
   assert_output --partial "Alias     $TEST_ENVIRONMENT"
 }
 
+# Again we need github connectivity for this.
 @test "flox push" {
-  run $FLOX_CLI push -e $TEST_ENVIRONMENT
+  run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI --debug push -e $TEST_ENVIRONMENT"
   assert_success
   assert_output --partial "To "
   assert_output --regexp "\* \[new branch\] +origin/.*.$TEST_ENVIRONMENT -> .*.$TEST_ENVIRONMENT"
@@ -339,8 +395,9 @@ setup_file() {
   assert_output --partial "removed"
 }
 
+# ... and this.
 @test "flox pull" {
-  run $FLOX_CLI pull -e $TEST_ENVIRONMENT
+  run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI pull -e $TEST_ENVIRONMENT"
   assert_success
   assert_output --partial "To "
   assert_output --regexp "\* \[new branch\] +.*\.$TEST_ENVIRONMENT -> .*\.$TEST_ENVIRONMENT"
@@ -473,10 +530,15 @@ setup_file() {
 }
 
 @test "tear down install test state" {
-  run $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
+  run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f"
   assert_output --partial "WARNING: you are about to delete the following"
   assert_output --partial "Deleted branch"
   assert_output --partial "removed"
+}
+
+@test "rm -rf $FLOX_TEST_HOME" {
+  run rm -rf $FLOX_TEST_HOME
+  assert_success
 }
 
 # vim:ts=4:noet:syntax=bash

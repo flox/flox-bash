@@ -132,16 +132,21 @@ EOF
 )
 
 #
-# gitInit($repoDir,$defaultBranch)
+# gitInitFloxmeta($repoDir,$defaultBranch)
 #
 declare defaultBranch="floxmain"
-function gitInit() {
+function gitInitFloxmeta() {
 	trace "$@"
 	local repoDir="$1"; shift
 	# Set initial branch with `-c init.defaultBranch=` instead of
 	# `--initial-branch=` to stay compatible with old version of
 	# git, which will ignore unrecognized `-c` options.
 	$invoke_git -c init.defaultBranch="${defaultBranch}" init --quiet "$repoDir"
+	$invoke_git -C "$repoDir" config pull.rebase true
+	$invoke_git -C "$repoDir" config receive.denyCurrentBranch updateInstead
+	# A commit is needed in order to make the branch visible.
+	$invoke_git -C "$repoDir" commit --quiet --allow-empty \
+		-m "$USER created repository"
 }
 
 # XXX TEMPORARY function to convert old-style "1.json" -> "1/manifest.json"
@@ -212,13 +217,7 @@ function gitCheckout() {
 	trace "$@"
 	local repoDir="$1"; shift
 	local branch="$1"; shift
-	[ -d "$repoDir" ] || {
-		gitInit "$repoDir"
-		$_git -C "$repoDir" config pull.rebase true
-		# A commit is needed in order to make the branch visible.
-		$_git -C "$repoDir" commit --quiet --allow-empty \
-			-m "$USER created repository"
-	}
+	[ -d "$repoDir" ] || gitInitFloxmeta "$repoDir"
 
 	# Confirm or checkout the desired branch.
 	local currentBranch=
@@ -487,20 +486,30 @@ function getSetOrigin() {
 		# Infer/set origin using a variety of information.
 		local environmentName=$($_basename $environment)
 		local environmentOwner=$($_basename $($_dirname $environment))
-		local defaultOrigin=
-		if [ "$environmentOwner" == "local" ]; then
-			defaultOrigin=$(promptMetaOrigin)
+		if [ -t 1 ]; then
+			local defaultOrigin
+			if [ "$environmentOwner" == "local" ]; then
+				defaultOrigin=$(promptMetaOrigin)
+			else
+				# Strange to have a profile on disk in a named without a
+				# remote origin. Prompt user to confirm floxmeta repo on
+				# github.
+				defaultOrigin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
+			fi
+			echo 1>&2
+			read -e \
+				-p "confirm git URL for storing profile metadata: " \
+				-i "$defaultOrigin" origin
 		else
-			# Strange to have a profile on disk in a named without a
-			# remote origin. Prompt user to confirm floxmeta repo on
-			# github.
-			defaultOrigin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
+			# Used primarily for testing; provide default floxmeta origin
+			# based on GitHub handle observed by `gh` client.
+			local ghAuthHandle
+			if ghAuthHandle=$($_gh auth status |& $_awk '/Logged in to github.com as/ {print $7}'); then
+				origin="${gitBaseURL/+ssh/}$ghAuthHandle/floxmeta"
+			else
+				error "cannot set default origin for $environmentMetaDir in noninteractive mode"
+			fi
 		fi
-
-		echo 1>&2
-		read -e \
-			-p "confirm git URL for storing profile metadata: " \
-			-i "$defaultOrigin" origin
 
 		# A few final cleanup steps.
 		if [ "$environmentOwner" == "local" ]; then
@@ -534,7 +543,7 @@ function getSetOrigin() {
 			rewriteURLs "$FLOX_ENVIRONMENTS/local" "$origin"
 		fi
 
-		[ -d "$environmentMetaDir" ] || gitInit "$environmentMetaDir"
+		[ -d "$environmentMetaDir" ] || gitInitFloxmeta "$environmentMetaDir"
 		$invoke_git -C "$environmentMetaDir" "remote" "add" "origin" "$origin"
 	fi
 
@@ -564,7 +573,7 @@ function beginTransaction() {
 		if [ -L "$environmentMetaDir" ]; then
 			error "damaged symbolic link: $environmentMetaDir" < /dev/null
 		else
-			gitInit "$environmentMetaDir"
+			gitInitFloxmeta "$environmentMetaDir"
 		fi
 	fi
 
