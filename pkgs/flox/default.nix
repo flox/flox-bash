@@ -10,7 +10,6 @@
 , dasel
 , diffutils
 , entr
-, fetchpatch
 , findutils
 , gawk
 , gh
@@ -48,6 +47,7 @@ let
       ./nix-patches/CmdProfileBuild.patch
       ./nix-patches/CmdSearchAttributes.patch
       ./nix-patches/update-profile-list-warning.patch
+      ./nix-patches/multiple-github-tokens.patch
     ];
   });
 

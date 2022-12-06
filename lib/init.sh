@@ -155,6 +155,10 @@ EOF
 # Ensure file is secure before appending access token(s).
 $_chmod 600 $tmpNixConf
 
+# Static "floxbeta" token for closed beta.
+# XXX Remove after closed beta.
+betaToken="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"
+
 # Look for github tokens from multiple sources:
 #   1. the user's own .config/nix/nix.conf, else
 #   2. the user's gh client backing store, else
@@ -163,46 +167,56 @@ $_chmod 600 $tmpNixConf
 #
 # We need to do this because this nix.conf file is the one [1] place
 # where Nix will look to find access tokens for downloading URLs.
-declare -a accessTokens=()
+declare -a accessTokens=(
+	"github.com/flox/capacitor=$betaToken"
+	"github.com/flox/nixpkgs-flox=$betaToken"
+	"github.com/flox/nixpkgs-catalog=$betaToken"
+	"github.com/flox/catalog-ingest=$betaToken"
+	"github.com/flox/flox-extras=$betaToken"
+)
 declare -A accessTokensMap # to detect/eliminate duplicates
 
-declare userAccessTokens
 if [ -f "$XDG_CONFIG_HOME/nix/nix.conf" ]; then
-	userAccessTokens=$($_awk '($1 == "access-tokens" && $2 == "=") {print}' "$XDG_CONFIG_HOME/nix/nix.conf")
-fi
-if [ -z "$userAccessTokens" ]; then
-	if [ -f "$XDG_CONFIG_HOME/gh/hosts.yml" ]; then
-		for i in $($_dasel -r yml -w json < "$XDG_CONFIG_HOME/gh/hosts.yml" | $_jq -r '(
-				to_entries |
-				map(select(.value.oauth_token != null)) |
-				map("\(.key)=\(.value.oauth_token)") |
-				join(" ")
-			)'
-		); do
+	for i in $($_awk '
+		($1 == "access-tokens" && $2 == "=") {
+			for (n=3; n<=NF; n++) {print $(n)}
+		} ' "$HOME/.config/nix/nix.conf"); do
+		if [ -z "${accessTokensMap[$i]}" ]; then
 			accessTokens+=($i)
 			accessTokensMap[$i]=1
-		done
-	fi
-	if [ -f "$FLOX_CONFIG_HOME/flox/tokens" ]; then
-		if [ "$($_stat -c %a $FLOX_CONFIG_HOME/flox/tokens)" != "600" ]; then
-			warn "fixing mode of $FLOX_CONFIG_HOME/flox/tokens"
-			$_chmod 600 "$FLOX_CONFIG_HOME/flox/tokens"
 		fi
-		for i in $($_sed 's/#.*//' "$FLOX_CONFIG_HOME/flox/tokens"); do
-			# XXX add more syntax validation in golang rewrite
-			if [ -z "${accessTokensMap[$i]}" ]; then
-				accessTokens+=($i)
-				accessTokensMap[$i]=1
-			fi
-		done
-	fi
-	# Append all available tokens to nix.conf.
-	if [ ${#accessTokens[@]} -gt 0 ]; then
-		userAccessTokens="access-tokens = ${accessTokens[@]}"
-	fi
+	done
 fi
-if [ -n "$userAccessTokens" ]; then
-	echo "$userAccessTokens" >> $tmpNixConf
+if [ -f "$XDG_CONFIG_HOME/gh/hosts.yml" ]; then
+	for i in $($_dasel -r yml -w json < "$XDG_CONFIG_HOME/gh/hosts.yml" | $_jq -r '(
+			to_entries |
+			map(select(.value.oauth_token != null)) |
+			map("\(.key)=\(.value.oauth_token)") |
+			join(" ")
+		)'
+	); do
+		if [ -z "${accessTokensMap[$i]}" ]; then
+			accessTokens+=($i)
+			accessTokensMap[$i]=1
+		fi
+	done
+fi
+if [ -f "$FLOX_CONFIG_HOME/flox/tokens" ]; then
+	if [ "$($_stat -c %a $FLOX_CONFIG_HOME/flox/tokens)" != "600" ]; then
+		warn "fixing mode of $FLOX_CONFIG_HOME/flox/tokens"
+		$_chmod 600 "$FLOX_CONFIG_HOME/flox/tokens"
+	fi
+	for i in $($_sed 's/#.*//' "$FLOX_CONFIG_HOME/flox/tokens"); do
+		# XXX add more syntax validation in golang rewrite
+		if [ -z "${accessTokensMap[$i]}" ]; then
+			accessTokens+=($i)
+			accessTokensMap[$i]=1
+		fi
+	done
+fi
+# Append all available tokens to nix.conf.
+if [ ${#accessTokens[@]} -gt 0 ]; then
+	echo "access-tokens = ${accessTokens[@]}" >> $tmpNixConf
 fi
 
 if $_cmp --quiet $tmpNixConf $nixConf; then
@@ -219,10 +233,6 @@ export NIX_SSL_CERT_FILE="${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
 # we do it by way of this env variable because Nix doesn't provide a
 # passthru mechanism for passing options to git invocations. (?)
 gitConfig="$FLOX_CONFIG_HOME/gitconfig"
-
-# Static "floxbeta" token for closed beta.
-# XXX Remove after closed beta.
-betaToken="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"
 
 tmpGitConfig=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
 $_chmod 600 $tmpGitConfig
