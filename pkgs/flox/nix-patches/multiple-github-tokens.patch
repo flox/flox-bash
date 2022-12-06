@@ -1,17 +1,5 @@
-commit 2c3e3a4d84b02618d3feac9a4131bc613499a231
-Author: Michael Brantley <brantley@domain.name>
-Date:   Tue Dec 6 20:39:42 2022 +0000
-
-    Match multiple tokens for repositories on github.com only
-    
-    This patch allows the serving of different tokens for specific
-    repositories on github.com only. It could be generalized for use
-    on all repositories but serves the purpose for now.
-    
-    TODO: add tests and document before logging PR against upstream.
-
 diff --git a/src/libfetchers/github.cc b/src/libfetchers/github.cc
-index a491d82a6..045c443ea 100644
+index a491d82a6..694d1f5a4 100644
 --- a/src/libfetchers/github.cc
 +++ b/src/libfetchers/github.cc
 @@ -157,18 +157,26 @@ struct GitArchiveInputScheme : InputScheme
@@ -50,8 +38,8 @@ index a491d82a6..045c443ea 100644
  
 -        Headers headers = makeHeadersWithAuthTokens(host);
 +        auto urlGen = fmt(
-+            "%s/%s/%s/%s",
-+            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"), *input.getRef());
++            "%s/%s/%s",
++            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"));
 +        Headers headers = makeHeadersWithAuthTokens(host, urlGen);
  
          auto json = nlohmann::json::parse(
@@ -62,8 +50,8 @@ index a491d82a6..045c443ea 100644
  
 -        Headers headers = makeHeadersWithAuthTokens(host);
 +        auto urlGen = fmt(
-+            "%s/%s/%s/%s",
-+            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"), *input.getRef());
++            "%s/%s/%s",
++            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"));
 +        Headers headers = makeHeadersWithAuthTokens(host, urlGen);
          return DownloadUrl { url, headers };
      }
@@ -74,8 +62,8 @@ index a491d82a6..045c443ea 100644
  
 -        Headers headers = makeHeadersWithAuthTokens(host);
 +        auto urlGen = fmt(
-+            "%s/%s/%s/%s",
-+            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"), *input.getRef());
++            "%s/%s/%s",
++            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"));
 +        Headers headers = makeHeadersWithAuthTokens(host, urlGen);
  
          auto json = nlohmann::json::parse(
@@ -86,8 +74,8 @@ index a491d82a6..045c443ea 100644
  
 -        Headers headers = makeHeadersWithAuthTokens(host);
 +        auto urlGen = fmt(
-+            "%s/%s/%s/%s",
-+            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"), *input.getRef());
++            "%s/%s/%s",
++            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"));
 +        Headers headers = makeHeadersWithAuthTokens(host, urlGen);
          return DownloadUrl { url, headers };
      }
@@ -98,8 +86,8 @@ index a491d82a6..045c443ea 100644
  
 -        Headers headers = makeHeadersWithAuthTokens(host);
 +        auto urlGen = fmt(
-+            "%s/%s/%s/%s",
-+            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"), *input.getRef());
++            "%s/%s/%s",
++            host, getStrAttr(input.attrs, "owner"), getStrAttr(input.attrs, "repo"));
 +        Headers headers = makeHeadersWithAuthTokens(host, urlGen);
  
          std::string refUri;
