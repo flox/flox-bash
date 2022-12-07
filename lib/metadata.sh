@@ -630,6 +630,49 @@ function beginTransaction() {
 }
 
 #
+# cmpV1Environments(env1, env2)
+#
+# Examines two V1 environments to determine if they are different.
+# Like cmp(1) itself, will return nonzero when there are changes
+# or 0 when they are substantively the same.
+#
+function cmpV1Environments() {
+	local env1="$1"; shift
+	local env2="$1"; shift
+	# $env1 (the new gen) has been determined to be a V1, but $env2
+	# that it is replacing may be any version, which may or may not
+	# have a manifest.json file to inspect. First test that both
+	# environments have manifest.json files to be compared.
+	if [ -f "$env1/manifest.json" -a -f "$env2/manifest.json" ]; then
+		$invoke_jq -n -f $_lib/diff-manifests.jq \
+			--slurpfile m1 "$env1/manifest.json" \
+			--slurpfile m2 "$env2/manifest.json" || return 1
+	else
+		return 1
+	fi
+	return 0
+}
+
+#
+# cmpEnvironments(version, env1, env2)
+#
+function cmpEnvironments() {
+	local version="$1"; shift
+	local env1="$1"; shift
+	local env2="$1"; shift
+	[ "$env1" = "$env2" ] || case $version in
+		1)
+			cmpV1Environments "$env1" "$env2" || return 1
+			;;
+		2)
+			: not supported yet
+			return 1
+			;;
+		esac
+	return 0
+}
+
+#
 # commitTransaction($environment, $workDir, $logMessage)
 #
 # This function completes the process of committing updates to
@@ -655,7 +698,10 @@ function commitTransaction() {
 	if [ -e "$environment" ]; then
 		oldEnvPackage=$($_realpath $environment)
 	fi
-	if [ "$environmentPackage" = "$oldEnvPackage" ]; then
+
+	# FIXME: replace "1" in next line with the generation version with
+	# merge of unification2 branch.
+	if [ -n "$oldEnvPackage" ] && cmpEnvironments 1 "$environmentPackage" "$oldEnvPackage"; then
 		warn "No environment changes detected .. exiting"
 		return 0
 	fi

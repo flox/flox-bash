@@ -46,6 +46,7 @@ LIB = \
 	lib/commands/environment.sh \
 	lib/commands/general.sh \
 	lib/commands/publish.sh \
+	lib/diff-manifests.jq \
 	lib/init.sh \
 	lib/manifest.jq \
 	lib/manifestTOML.jq \
