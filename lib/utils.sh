@@ -419,9 +419,13 @@ function renderManifestTOML() {
 		# If we've gotten this far we have a profile. Follow the links to
 		# identify the package, then (carefully) discard the tmpdir.
 		environmentPackage=$(cd $tmpdir && readlink $(readlink profile))
-		$_rm $tmpdir/profile $tmpdir/profile-1-link
+		$_rm -f $tmpdir/profile $tmpdir/profile-1-link
 		$_rmdir $tmpdir
-		echo $environmentPackage
+		if [ -n "$environmentPackage" ]; then
+			echo $environmentPackage
+		else
+			error "failed to render new environment" </dev/null
+		fi
 	else
 		error "rendered empty environment" < /dev/null
 	fi

@@ -505,11 +505,19 @@ EOF
 			fi
 		fi
 	done
+
+	# Check that something changed with the edit.
+	if [ -n "$currentGen" ] && \
+		$_cmp --quiet "$workDir/$currentGen/manifest.toml" "$workDir/$nextGen/manifest.toml"; then
+		warn "No environment changes detected .. exiting"
+		exit 0
+	fi
 	$_git -C $workDir add $nextGen/manifest.toml
 
 	# Now render the environment package from the manifest.toml. This pulls
 	# from the latest catalog by design and will upgrade everything.
 	local envPackage=$(renderManifestTOML $workDir/$nextGen/manifest.toml)
+	[ -n "$envPackage" ] || error "failed to render new environment" </dev/null
 
 	# Copy the manifest.json (lock file) from the freshly-rendered
 	# package into the floxmeta repo.
@@ -545,6 +553,7 @@ function floxImport() {
 	# Now render the environment package from the manifest.toml. This pulls
 	# from the latest catalog by design and will upgrade everything.
 	local envPackage=$(renderManifestTOML $workDir/$nextGen/manifest.toml)
+	[ -n "$envPackage" ] || error "failed to render new environment" </dev/null
 
 	# Copy the manifest.json (lock file) from the freshly-rendered
 	# package into the floxmeta repo.
