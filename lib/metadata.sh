@@ -565,6 +565,7 @@ function beginTransaction() {
 	local environment="$1"; shift
 	local system="$1"; shift
 	local workDir="$1"; shift
+	local -i createBranch="$1"; shift
 	local environmentName=$($_basename $environment)
 	local environmentOwner=$($_basename $($_dirname $environment))
 	local environmentMetaDir="$FLOX_META/$environmentOwner"
@@ -594,13 +595,15 @@ function beginTransaction() {
 		$invoke_git -C "$workDir" checkout --quiet "$branch"
 	elif $invoke_git -C "$workDir" show-ref --quiet refs/remotes/origin/"$branch"; then
 		$invoke_git -C "$workDir" checkout --quiet --track origin/"$branch"
-	else
+	elif [ $createBranch -eq 1 ]; then
 		$invoke_git -C "$workDir" checkout --quiet --orphan "$branch"
 		$invoke_git -C "$workDir" ls-files | $_xargs --no-run-if-empty $_git -C "$workDir" rm --quiet -f
 		# A commit is needed in order to make the branch visible.
 		$invoke_git -C "$workDir" commit --quiet --allow-empty \
 			-m "$USER created environment"
 		$invoke_git -C "$workDir" push --quiet --set-upstream origin "$branch"
+	else
+		error "environment $environmentName does not exist" < /dev/null
 	fi
 
 	# XXX Temporary covering transition from 0.0.6 -> 0.0.7

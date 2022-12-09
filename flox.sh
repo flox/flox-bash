@@ -158,7 +158,6 @@ activate | history | install | list | remove | rollback | \
 	fi
 
 	environment=${environments[0]}
-	environmentName=$($_basename $environment)
 	environmentOwner=$($_basename $($_dirname $environment))
 	environmentMetaDir="$FLOX_META/$environmentOwner"
 	environmentStartGen=$(environmentGen "$environment")

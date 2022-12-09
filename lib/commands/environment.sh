@@ -128,7 +128,7 @@ function floxInstall() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir"
+	beginTransaction "$environment" "$system" "$workDir" 1
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current || :)
@@ -269,7 +269,7 @@ function floxRemove() {
 
 	# Create shared clone for modifying environment.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir"
+	beginTransaction "$environment" "$system" "$workDir" 0
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current || :)
@@ -374,7 +374,7 @@ function floxUpgrade() {
 
 	# Create shared clone for modifying environment.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir"
+	beginTransaction "$environment" "$system" "$workDir" 0
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current || :)
@@ -460,7 +460,7 @@ function floxEdit() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir"
+	beginTransaction "$environment" "$system" "$workDir" 1
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current || :)
@@ -541,7 +541,7 @@ function floxImport() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir"
+	beginTransaction "$environment" "$system" "$workDir" 1
 
 	# Glean next generation from clone.
 	local nextGen=$($_readlink $workDir/next)
@@ -644,7 +644,7 @@ function floxRollback() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir"
+	beginTransaction "$environment" "$system" "$workDir" 0
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current)

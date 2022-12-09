@@ -281,6 +281,33 @@ setup_file() {
   assert_output --partial "created environment"
 }
 
+@test "flox remove from nonexistent environment should fail" {
+  run $FLOX_CLI remove -e does-not-exist hello
+  assert_failure
+  assert_output --partial "ERROR: environment does-not-exist does not exist"
+  run sh -c "$FLOX_CLI git branch -a | grep -q does-not-exist"
+  assert_failure
+  assert_output - < /dev/null
+}
+
+@test "flox upgrade of nonexistent environment should fail" {
+  run $FLOX_CLI upgrade -e does-not-exist
+  assert_failure
+  assert_output --partial "ERROR: environment does-not-exist does not exist"
+  run sh -c "$FLOX_CLI git branch -a | grep -q does-not-exist"
+  assert_failure
+  assert_output - < /dev/null
+}
+
+@test "flox rollback of nonexistent environment should fail" {
+  run $FLOX_CLI rollback -e does-not-exist
+  assert_failure
+  assert_output --partial "ERROR: environment does-not-exist does not exist"
+  run sh -c "$FLOX_CLI git branch -a | grep -q does-not-exist"
+  assert_failure
+  assert_output - < /dev/null
+}
+
 @test "flox rollback" {
   run $FLOX_CLI rollback -e $TEST_ENVIRONMENT
   assert_success
