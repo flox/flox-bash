@@ -122,6 +122,56 @@ function floxBuild() {
 	$invoke_nix "${_nixArgs[@]}" build --impure "${buildArgs[@]}" "${installables[@]}" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY
 }
 
+# flox eval
+_development_commands+=("eval")
+_usage["eval"]="evaluate a Nix expression"
+function floxEval() {
+	trace "$@"
+	betaRefreshNixCache # XXX: remove with open beta
+	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
+
+	local -a evalArgs=()
+	local -a installables=()
+	while test $# -gt 0; do
+		case "$1" in
+		-A | --attr) # takes one arg
+			# legacy nix-build option; convert to flakeref
+			shift
+			installables+=(".#$1"); shift
+			;;
+
+		# All remaining options are `nix eval` args.
+
+		# Options taking one arg.
+		--apply|-write-to)
+			evalArgs+=("$1"); shift
+			evalArgs+=("$1"); shift
+			;;
+		# Options taking zero args.
+		--debugger|--json|--raw|--read-only)
+			evalArgs+=("$1"); shift
+			;;
+		# Assume all other options are installables.
+		*)
+			installables+=("$1"); shift
+			;;
+		esac
+
+	done
+
+	# If no installables specified then try identifying attrPath from
+	# capacitated flake.
+	if [ ${#installables[@]} -eq 0 ]; then
+		local attrPath="$(selectAttrPath . eval)"
+		installables=(".#$attrPath")
+	fi
+
+	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
+		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
+	fi
+	$invoke_nix "${_nixArgs[@]}" eval --impure "${evalArgs[@]}" "${installables[@]}" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY
+}
+
 # flox develop
 _development_commands+=("develop")
 _usage["develop"]="launch development shell for current project"

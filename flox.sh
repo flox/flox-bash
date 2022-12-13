@@ -212,13 +212,16 @@ activate | history | install | list | remove | rollback | \
 	;;
 
 # Flox commands which derive an attribute path from the current directory.
-build | develop | publish | run | shell)
+build | develop | eval | publish | run | shell)
 	case "$subcommand" in
 	build)
 		floxBuild "$@"
 		;;
 	develop)
 		floxDevelop "$@"
+		;;
+	eval)
+		floxEval "$@"
 		;;
 	publish)
 		floxPublish "$@"

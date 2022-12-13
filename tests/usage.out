@@ -51,6 +51,7 @@ development commands:
     ----
     flox init - initialize flox expressions for current project
     flox build - build package from current project
+    flox eval - evaluate a Nix expression
     flox develop - launch development shell for current project
     flox run - run app from current project
     flox shell - run a shell in which the current project is available

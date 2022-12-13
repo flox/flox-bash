@@ -43,6 +43,8 @@ setup_file() {
 	unset SSH_AUTH_SOCK
 	# Remove any vestiges of previous test runs.
 	$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
+	rm -f out/foo out/subdir/bla
+	rmdir out/subdir out
 	set +x
 }
 
@@ -82,6 +84,55 @@ setup_file() {
   run $FLOX_CLI --help
   assert_success
   assert_output - < tests/usage.out
+}
+
+@test "flox eval" {
+  # Evaluate a Nix expression given on the command line:
+  run $FLOX_CLI eval --expr '1 + 2'
+  assert_success
+  echo 3 | assert_output -
+
+  # Evaluate a Nix expression to JSON:
+  run $FLOX_CLI eval --json --expr '{ x = 1; }'
+  assert_success
+  echo '{"x":1}' | assert_output -
+
+  # Evaluate a Nix expression from a file:
+  # TODO: construct a file for which this would work.
+  run $FLOX_CLI eval -f ./tests tests.name
+  assert_success
+  echo '"tests-1.2.3"' | assert_output -
+
+  # Get the current version of the nixpkgs flake:
+  run $FLOX_CLI eval --raw 'nixpkgs#lib.version'
+  assert_success
+  # something like "23.05pre-git"
+  assert_output --regexp "[0-9][0-9].[0-9][0-9]"
+
+  # Print the store path of the Hello package:
+  run $FLOX_CLI eval --raw nixpkgs#hello
+  assert_success
+  assert_output --regexp "/nix/store/.*-hello-"
+
+  # Get a list of checks in the nix flake:
+  run $FLOX_CLI eval github:nixos/nix#checks.x86_64-linux --apply builtins.attrNames
+  assert_success
+  # Unfortunately we need to do a partial match because our attempt
+  # to override the nixpkgs input throws a warning on a non-capacitated
+  # flake.
+  assert_output --partial '[ "binaryTarball" "dockerImage" "installTests" "perlBindings" ]'
+
+  # Generate a directory with the specified contents:
+  run $FLOX_CLI eval --write-to ./out --expr '{ foo = "bar"; subdir.bla = "123"; }'
+  assert_success
+  run cat ./out/foo
+  assert_success
+  echo bar | assert_output -
+  run cat ./out/subdir/bla
+  assert_success
+  echo 123 | assert_output -
+  rm -f out/foo out/subdir/bla
+  rmdir out/subdir out
 }
 
 @test "flox subscribe public" {
