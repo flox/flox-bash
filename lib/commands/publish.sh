@@ -469,7 +469,7 @@ function floxPublish() {
 	local tmpstderr=$(mkTempFile)
 	evalAndBuild=$($invoke_nix "${_nixArgs[@]}" eval --json \
 		--override-input target "$canonicalFlakeRef" \
-		--override-input target/floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+		--override-input target/flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
 		"$analyzer#analysis.eval.packages.$publishSystem.$packageAttrPath" 2>$tmpstderr) || {
 		$_grep --no-filename -v \
 		  -e "^evaluating 'catalog\." \
