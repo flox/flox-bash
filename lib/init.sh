@@ -121,6 +121,7 @@ for i in "$FLOX_CACHE_HOME" "$FLOX_META" "$FLOX_DATA_HOME" "$FLOX_ENVIRONMENTS" 
 	[ -w "$i" ] || $_mkdir -p "$i" || \
 		error "directory '$i' not writable ... aborting" < /dev/null
 done
+export FLOX_VERSION="@@VERSION@@"
 
 # Prepend FLOX_DATA_HOME to XDG_DATA_DIRS. XXX Why? Probably delete ...
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}

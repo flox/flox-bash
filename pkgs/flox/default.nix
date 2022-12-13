@@ -48,6 +48,7 @@ let
       ./nix-patches/CmdSearchAttributes.patch
       ./nix-patches/update-profile-list-warning.patch
       ./nix-patches/multiple-github-tokens.patch
+      ./nix-patches/curl_flox_version.patch
     ];
   });
 
