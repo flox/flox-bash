@@ -43,8 +43,8 @@ setup_file() {
 	unset SSH_AUTH_SOCK
 	# Remove any vestiges of previous test runs.
 	$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
-	rm -f out/foo out/subdir/bla
-	rmdir out/subdir out
+	rm -f tests/out/foo tests/out/subdir/bla
+	rmdir tests/out/subdir tests/out || :
 	set +x
 }
 
@@ -123,16 +123,16 @@ setup_file() {
   assert_output --partial '[ "binaryTarball" "dockerImage" "installTests" "perlBindings" ]'
 
   # Generate a directory with the specified contents:
-  run $FLOX_CLI eval --write-to ./out --expr '{ foo = "bar"; subdir.bla = "123"; }'
+  run $FLOX_CLI eval --write-to ./tests/out --expr '{ foo = "bar"; subdir.bla = "123"; }'
   assert_success
-  run cat ./out/foo
+  run cat ./tests/out/foo
   assert_success
   echo bar | assert_output -
-  run cat ./out/subdir/bla
+  run cat ./tests/out/subdir/bla
   assert_success
   echo 123 | assert_output -
-  rm -f out/foo out/subdir/bla
-  rmdir out/subdir out
+  rm -f ./tests/out/foo ./tests/out/subdir/bla
+  rmdir ./tests/out/subdir ./tests/out
 }
 
 @test "flox subscribe public" {
