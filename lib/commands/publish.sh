@@ -454,7 +454,7 @@ function floxPublish() {
 	fi
 	if [ -n "$keyFile" ]; then
 		if [ -f "$keyFile" ]; then
-			$invoke_nix "${_nixArgs[@]}" store sign --key-file "$keyFile" $outpaths
+			$invoke_nix "${_nixArgs[@]}" store sign -r --key-file "$keyFile" $outpaths
 		else
 			error "could not read $keyFile: $!" < /dev/null
 		fi
