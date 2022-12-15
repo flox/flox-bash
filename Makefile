@@ -56,7 +56,14 @@ LIB = \
 	lib/environmentRegistry.jq \
 	lib/registry.jq \
 	lib/search.jq \
-	lib/utils.sh
+	lib/utils.sh \
+	lib/catalog-ingest/flake.nix \
+	lib/catalog-ingest/lib/analysis.nix \
+	lib/catalog-ingest/lib/inspectBuild.nix \
+	lib/catalog-ingest/lib/isValidDrv.nix \
+	lib/catalog-ingest/lib/readPackage.nix \
+	lib/catalog-ingest/placeholder/flake.nix \
+	lib/catalog-ingest/plugins/eval.nix
 LIBEXEC = libexec/flox/flox
 SHARE = share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here

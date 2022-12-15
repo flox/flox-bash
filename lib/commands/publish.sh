@@ -464,7 +464,7 @@ function floxPublish() {
 
 	# Analyze package.
 	# TODO: bundle lib/analysis.nix with flox CLI to avoid dependency on remote flake
-	local analyzer="github:flox/catalog-ingest"
+	local analyzer="path:$_lib/catalog-ingest"
 	# Nix eval command is noisy so filter out the expected output.
 	local tmpstderr=$(mkTempFile)
 	evalAndBuild=$($invoke_nix "${_nixArgs[@]}" eval --json \
