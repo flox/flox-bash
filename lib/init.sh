@@ -150,7 +150,8 @@ netrc-file = $HOME/.netrc
 flake-registry = $floxFlakeRegistry
 accept-flake-config = true
 warn-dirty = false
-extra-substituters = https://cache.floxdev.com?trusted=1
+extra-substituters = https://cache.floxdev.com
+extra-trusted-public-keys = flox-store-public-0:8c/B+kjIaQ+BloCmNkRUKwaVPFWkriSAd0JJvuDu4F0=
 EOF
 
 # Ensure file is secure before appending access token(s).

@@ -10,4 +10,4 @@
 
     gitBaseURL = "https://github.com/"
     organization = "flox"
-    defaultSubstituter = "https://cache.floxdev.com?trusted=1"
+    defaultSubstituter = "https://cache.floxdev.com"
