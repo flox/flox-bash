@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "currentGen": "2",
+  "generations": {
+    "1": {
+      "path": "/nix/store/s3z3fmwhkaz0xpxmjg73gpfia0ggah9q-floxShell",
+      "logMessage": [
+        "matthew installed stable.nixpkgs-flox-upgrade-test.curl"
+      ],
+      "created": 1671667768,
+      "lastActive": 1671667801,
+      "version": 2
+    },
+    "2": {
+      "path": "/nix/store/mz39mwj5zrprgymvxwm6d0cpkq3rlqgh-floxShell",
+      "logMessage": [
+        "matthew installed stable.nixpkgs-flox-upgrade-test.ripgrep"
+      ],
+      "created": 1671667801,
+      "lastActive": 1671667801,
+      "version": 2
+    }
+  }
+}

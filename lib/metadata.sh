@@ -210,6 +210,78 @@ function temporaryAssert007Schema {
 }
 # /XXX
 
+# XXX TEMPORARY function to convert nix-profile-style "1/manifest.toml" -> "1/pkgs/default/flox.nix"
+#     **Delete after 20230222**
+function temporaryAssert008Schema {
+	trace "$@"
+	local environment="$1"; shift
+	local repoDir="$1"; shift
+	local currentGen=$($_readlink $workDir/current || :)
+	local nextGen=$($_readlink $workDir/next)
+	local currentGenDir="$repoDir/$currentGen"
+	local nextGenDir="$repoDir/$nextGen"
+
+	# Use the presence of manifest.toml in the current generation as
+	# an indication that the repository has NOT been converted.
+	[ -e "$currentGenDir/manifest.toml" ] || return 0
+
+	# Prompt user to confirm they want to change the format.
+	warn "floxmeta repository ($currentGenDir) using deprecated (<=0.0.7) format."
+	$invoke_gum confirm "Convert to latest (>=0.0.8) format?"
+
+	# Copy the template flox environment into the next generation.
+	# Files in the Nix store are read-only.
+	$_cp --no-preserve=mode -rT $_lib/templateFloxEnv $nextGenDir
+	# otherwise Nix build won't be able to find any of the files
+	$_git -C $workDir add $nextGen
+
+	# Use nix-editor to transfer packages from the current manifest.json file.
+	local tmpScript=$(mkTempFile)
+	manifest $currentGenDir/manifest.json convert007to008 $_nix_editor $nextGenDir/pkgs/default/flox.nix > $tmpScript
+
+	# Similarly use nix-editor to transfer aliases and env vars from manifest.toml.
+	$invoke_dasel -w json -f $currentGenDir/manifest.toml | \
+		$invoke_jq -r --arg nixEditor $_nix_editor --arg file $nextGenDir/pkgs/default/flox.nix \
+			'(.aliases//{}) | to_entries | map("\($nixEditor) -i \($file) shell.aliases.\(.key) -v '\''\"\(.value)\"'\''")[]' >> $tmpScript
+	$invoke_dasel -w json -f $currentGenDir/manifest.toml | \
+		$invoke_jq -r --arg nixEditor $_nix_editor --arg file $nextGenDir/pkgs/default/flox.nix \
+			'(.environment//{}) | to_entries | map("\($nixEditor) -i \($file) shell.variables.\(.key) -v '\''\"\(.value)\"'\''")[]' >> $tmpScript
+
+	if [ $verbose -gt 0 ]; then
+		( set -x && source $tmpScript )
+	else
+		source $tmpScript
+	fi
+
+	# Hooks are different. Nix editor doesn't know how to poke those in-between '' blocks.
+	local hookScript=$(mkTempFile)
+	local tmpFloxNix=$(mkTempFile)
+	$invoke_dasel -w json -f $currentGenDir/manifest.toml | \
+		$invoke_jq -r '(.hooks//{}) | to_entries | map(.value | gsub("\n"; "; "))[]' > $hookScript
+	$invoke_awk "{print} /hook = / {system(\"cat $hookScript\")}" $nextGenDir/pkgs/default/flox.nix > $tmpFloxNix
+	$_mv -f $tmpFloxNix $nextGenDir/pkgs/default/flox.nix
+
+	$_git -C $repoDir add $nextGen/pkgs/default/flox.nix
+
+	local envPackage
+	if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$nextGenDir#floxEnvs.$system.default"); then
+		error "failed to install packages: ${pkgArgs[@]}" < /dev/null
+	fi
+
+	$_jq . --sort-keys $envPackage/catalog.json > $nextGenDir/pkgs/default/catalog.json
+	$_jq . --sort-keys $envPackage/manifest.json > $nextGenDir/manifest.json
+	$_git -C $repoDir add $nextGen/pkgs/default/catalog.json
+	$_git -C $repoDir add $nextGen/manifest.json
+
+	commitTransaction $environment $repoDir $envPackage \
+		"$USER converted to 0.0.8 floxmeta schema" 2 \
+		"$me automatic conversion"
+
+	warn "Conversion complete. Please re-run command."
+	exit 0
+}
+# /XXX
+
 #
 # gitCheckout($repoDir,$branch)
 #
@@ -507,7 +579,7 @@ function getSetOrigin() {
 				if ghAuthHandle=$($_gh auth status |& $_awk '/Logged in to github.com as/ {print $7}'); then
 					origin="${gitBaseURL/+ssh/}$ghAuthHandle/floxmeta"
 				else
-					error "cannot set default origin for $environmentMetaDir in noninteractive mode"
+					error "cannot set default origin for $environmentMetaDir in noninteractive mode" </dev/null
 				fi
 			else
 				origin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
@@ -555,7 +627,7 @@ function getSetOrigin() {
 }
 
 #
-# beginTransaction($environment, $system, $workDir)
+# beginTransaction($environment, $system, $workDir, $createBranch)
 #
 # This function creates an ephemeral clone for staging commits to
 # a floxmeta repository.
@@ -630,6 +702,10 @@ function beginTransaction() {
 	local -i nextGen=$(registry "$workDir/metadata.json" 1 nextGen)
 	$invoke_mkdir -p $workDir/$nextGen
 	$invoke_ln -s $nextGen $workDir/next
+
+	# XXX Temporary covering transition from 0.0.7 -> 0.0.8
+	temporaryAssert008Schema "$environment" "$workDir"
+	# /XXX
 }
 
 #
@@ -660,6 +736,7 @@ function cmpV1Environments() {
 # cmpEnvironments(version, env1, env2)
 #
 function cmpEnvironments() {
+	trace "$@"
 	local version="$1"; shift
 	local env1="$1"; shift
 	local env2="$1"; shift
@@ -668,8 +745,11 @@ function cmpEnvironments() {
 			cmpV1Environments "$env1" "$env2" || return 1
 			;;
 		2)
-			: not supported yet
-			return 1
+			# floxEnv environments are referenced by way of helper symlinks.
+			# Use realpath to follow those links and compare the packages.
+			local realpathEnv1=$($_realpath "$env1")
+			local realpathEnv2=$($_realpath "$env2")
+			[ "$realpathEnv1" = "$realpathEnv2" ] || return 1
 			;;
 		esac
 	return 0
@@ -687,6 +767,7 @@ function commitTransaction() {
 	local workDir="$1"; shift
 	local environmentPackage="$1"; shift
 	local logMessage="$1"; shift
+	local nextGenVersion="$1"; shift
 	local invocation="${@}"
 	local environmentName=$($_basename $environment)
 
@@ -702,9 +783,8 @@ function commitTransaction() {
 		oldEnvPackage=$($_realpath $environment)
 	fi
 
-	# FIXME: replace "1" in next line with the generation version with
-	# merge of unification2 branch.
-	if [ -n "$oldEnvPackage" ] && cmpEnvironments 1 "$environmentPackage" "$oldEnvPackage"; then
+	# Check to see if there has been a change.
+	if [ -n "$oldEnvPackage" ] && cmpEnvironments $nextGenVersion "$environmentPackage" "$oldEnvPackage"; then
 		warn "No environment changes detected .. exiting"
 		return 0
 	fi
@@ -726,6 +806,8 @@ function commitTransaction() {
 			${nextGen} created "$now"
 		registry "$workDir/metadata.json" 1 setNumber generations \
 			${nextGen} lastActive "$now"
+		registry "$workDir/metadata.json" 1 setNumber generations \
+			${nextGen} version $nextGenVersion
 	fi
 
 	# Also update lastActive time for current generation, if known.
@@ -745,12 +827,23 @@ function commitTransaction() {
 	$invoke_rm -f $environment
 	$invoke_ln -s "${environmentName}-${nextGen}-link" $environment
 
-	# Commit, reading commit message from STDIN.
-	commitMessage \
+	# Detect version and act accordingly.
+	local -i currentGenVersion
+	if ! currentGenVersion=$(registry $workDir/metadata.json 1 get generations "$currentGen" version); then
+		currentGenVersion=1
+	fi
+	# Unification TODO: use catalog.json instead of relying on manifest.json
+	local message=$(commitMessage \
 		"$environment" $currentGen $nextGen \
-		"$logMessage" "${invocation[@]}" | \
-		$invoke_git -C $workDir commit --quiet -F -
+		"$logMessage" "${invocation[@]}")
+
+	$invoke_git -C $workDir commit -m "$message" --quiet
 	$invoke_git -C $workDir push --quiet
+
+	# Tom's feature: teach a man to fish with (-v|--verbose)
+	if [ $verbose -ge 1 -a $currentGenVersion -eq 2 -a $nextGenVersion -eq 2 ]; then
+		$invoke_git -C $workDir diff HEAD:{$currentGen,$nextGen}/pkgs/default/flox.nix
+	fi
 
 	warn "$createdOrSwitchedTo generation $nextGen"
 }

@@ -1,0 +1,62 @@
+{
+  "nixpkgs-flox-upgrade-test": {
+    "aarch64-darwin": {
+      "stable": {
+        "curl": {
+          "latest": {
+            "element": {
+              "attrPath": [
+                "legacyPackages",
+                "aarch64-darwin",
+                "curl"
+              ],
+              "originalUrl": "flake:nixpkgs",
+              "outputs": null,
+              "storePaths": [
+                "/nix/store/7vswk3w7sqgsyk1c8mplrmwdads6ywjf-curl-7.85.0-bin",
+                "/nix/store/1zsmcw7q2hmvyjjwwydfn3hybj3idb1v-curl-7.85.0-man"
+              ],
+              "url": "github:flox/nixpkgs/f994293d1eb8812f032e8919e10a594567cf6ef7"
+            },
+            "eval": {
+              "meta": {
+                "description": "A command line tool for transferring files with URL syntax",
+                "outputsToInstall": [
+                  "bin",
+                  "man"
+                ],
+                "position": "/nix/store/9m8drnpifyl5qsx93g6ll2xw6wkps03z-source/pkgs/tools/networking/curl/default.nix:185",
+                "unfree": false
+              },
+              "name": "curl-7.85.0",
+              "outputs": {
+                "bin": "/nix/store/7vswk3w7sqgsyk1c8mplrmwdads6ywjf-curl-7.85.0-bin",
+                "dev": "/nix/store/vr4d4hdqj9jcwj6b338jb2d3caih2c6j-curl-7.85.0-dev",
+                "devdoc": "/nix/store/fjs5bkivsd4k1wn6krb3hi5jyb8m55hv-curl-7.85.0-devdoc",
+                "man": "/nix/store/1zsmcw7q2hmvyjjwwydfn3hybj3idb1v-curl-7.85.0-man",
+                "out": "/nix/store/q4xbbqzsf4dq941l58fx5mgfarqawaaj-curl-7.85.0"
+              },
+              "pname": "curl",
+              "system": "aarch64-darwin",
+              "version": "7.85.0"
+            },
+            "publish_element": {
+              "active": true,
+              "attrPath": [
+                "evalCatalog",
+                "aarch64-darwin",
+                "stable",
+                "curl"
+              ],
+              "originalUrl": "flake:nixpkgs-flox-upgrade-test",
+              "storePaths": [
+                "/nix/store/j4d52qz31jc2vgrykqfiydap56c24pwa-curl-7.85.0"
+              ],
+              "url": "flake:nixpkgs-flox-upgrade-test/bdbc8eb8d716ba74861b4aebf49a89a62b40a597"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -63,7 +63,11 @@ LIB = \
 	lib/catalog-ingest/lib/isValidDrv.nix \
 	lib/catalog-ingest/lib/readPackage.nix \
 	lib/catalog-ingest/placeholder/flake.nix \
-	lib/catalog-ingest/plugins/eval.nix
+	lib/catalog-ingest/plugins/eval.nix \
+	lib/templateFloxEnv/flake.lock \
+	lib/templateFloxEnv/flake.nix \
+	lib/templateFloxEnv/pkgs/default/default.nix \
+	lib/templateFloxEnv/pkgs/default/flox.nix
 LIBEXEC = libexec/flox/flox
 SHARE = share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here

@@ -1,0 +1,56 @@
+{
+  "nixpkgs-flox": {
+    "aarch64-darwin": {
+      "stable": {
+        "ripgrep": {
+          "latest": {
+            "element": {
+              "attrPath": [
+                "legacyPackages",
+                "aarch64-darwin",
+                "ripgrep"
+              ],
+              "originalUrl": "flake:nixpkgs",
+              "outputs": null,
+              "storePaths": [
+                "/nix/store/jdd9xqg7f4f0gcvkzs7ii3gmrf06rw55-ripgrep-13.0.0"
+              ],
+              "url": "github:flox/nixpkgs/d6490a0bd9dfb298fcd8382d3363b86870dc7340github:flox/nixpkgs/2788904d26dda6cfa1921c5abb7a2466ffe3cb8c"
+            },
+            "eval": {
+              "meta": {
+                "description": "A utility that combines the usability of The Silver Searcher with the raw speed of grep",
+                "outputsToInstall": [
+                  "out"
+                ],
+                "position": "/nix/store/lbf0kbc67zpm6xw6lia2fj1qskikaffz-source/pkgs/tools/text/ripgrep/default.nix:50",
+                "unfree": false
+              },
+              "name": "ripgrep-13.0.0",
+              "outputs": {
+                "out": "/nix/store/jdd9xqg7f4f0gcvkzs7ii3gmrf06rw55-ripgrep-13.0.0"
+              },
+              "pname": "ripgrep",
+              "system": "aarch64-darwin",
+              "version": "13.0.0"
+            },
+            "publish_element": {
+              "active": true,
+              "attrPath": [
+                "evalCatalog",
+                "aarch64-darwin",
+                "stable",
+                "ripgrep"
+              ],
+              "originalUrl": "flake:nixpkgs-flox",
+              "storePaths": [
+                "/nix/store/XXX-ripgrep-13.0.0"
+              ],
+              "url": "flake:nixpkgs-flox/XXX"
+            }
+          }
+        }
+      }
+    }
+  }
+}

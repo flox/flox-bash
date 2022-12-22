@@ -141,8 +141,9 @@ function hash_commands() {
 # TODO replace each use of $_cut and $_tr with shell equivalents.
 hash_commands \
 	ansifilter awk basename bash cat chmod cmp column cp curl cut dasel date dirname \
-	getent gh git grep gum id jq ln man mkdir mktemp mv nix nix-store parallel pwd \
-	readlink realpath rm rmdir sed sh sleep sort stat tail touch tr uname uuid xargs zgrep
+	getent gh git grep gum id jq ln man mkdir mktemp mv nix nix-editor nix-store \
+	parallel pwd readlink realpath rm rmdir sed sh sleep sort stat tail tar touch tr \
+	uname uuid xargs zgrep
 
 # Return full path of first command available in PATH.
 #
@@ -726,10 +727,10 @@ function environmentArg() {
 			# Path is a link - try again with the link value.
 			echo $(environmentArg $(readlink "$1"))
 		else
-			error "\"$1\" is not a flox profile path" >&2
+			error "\"$1\" is not a flox profile path" < /dev/null
 		fi
 	elif [[ "$1" =~ \	|\  ]]; then
-		error "profile \"$1\" cannot contain whitespace" >&2
+		error "profile \"$1\" cannot contain whitespace" < /dev/null
 	else
 		local old_ifs="$IFS"
 		local IFS=/
@@ -768,7 +769,7 @@ function environmentGen() {
 #    flake reference, e.g.
 #      stable.nixpkgs-flox.yq ->
 #        flake:nixpkgs-flox#catalog.aarch64-darwin.stable.yq
-function floxpkgArg() {
+function versionedFloxpkgArg() {
 	trace "$@"
 	if [[ "$1" == *#* ]]; then
 		echo "$1"
@@ -807,12 +808,6 @@ function floxpkgArg() {
 			;;
 		esac
 
-		# Convert "attrPath@x.y.z" to "attrPath.x_y_z" because that
-		# is how it appears in the flox catalog.
-		if [[ "$floxTuple" =~ ^(.*)@(.*)$ ]]; then
-			floxTuple="${BASH_REMATCH[1]}.${BASH_REMATCH[2]//[\.]/_}"
-		fi
-
 		# Convert fully-qualified floxTuple:
 		#   "<stability>.<channel>.<attrPath>"
 		# to flakeref:
@@ -824,6 +819,54 @@ function floxpkgArg() {
 		# Return flakeref.
 		echo "$flakeref"
 	fi
+}
+
+function floxpkgArg() {
+	trace "$@"
+	local flakeref=$(versionedFloxpkgArg "$@")
+
+	# Convert "attrPath@x.y.z" to "attrPath.x_y_z" because that
+	# is how it appears in the flox catalog.
+	if [[ "$flakeref" =~ ^(.*)@(.*)$ ]]; then
+		flakeref="${BASH_REMATCH[1]}.${BASH_REMATCH[2]//[\.]/_}"
+	fi
+
+	# Return flakeref.
+	echo "$flakeref"
+}
+
+#
+# nixEditor($environment, $floxNix, "(install|delete)", $versionedFloxpkgArg)
+#
+# Takes a path to a flox.nix file, the command "install" or "delete",
+# and a versioned floxpkg arg to look for in the flox.nix.
+#
+function nixEditor() {
+	trace "$@"
+	local environment="$1"; shift
+	local floxNix="$1"; shift
+	local action="$1"; shift
+	local versionedFloxpkgArg="$1"; shift
+	local -a nixEditorArgs
+	# FIXME: the use of read() below exits nonzero because of EOF.
+	IFS=$'\n' read -r -d '' -a nixEditorArgs < \
+		<(manifest $environment/manifest.json floxpkgToNixEditorArgs "$versionedFloxpkgArg") || :
+	# That's it; invoke the editor to add the package.
+	case "$action" in
+	install)
+		$invoke_nix_editor -i $workDir/$nextGen/pkgs/default/flox.nix "${nixEditorArgs[@]}"
+		;;
+	delete)
+		# TODO: if a user tries to remove a package with the version specified,
+		#       but the package was installed without the version specified,
+		#       this won't work
+		# TODO: this only removes the first instance of a package it finds.
+		#       We may need to enforce there's only one instance of a package
+		#       on the module side
+		# ignore args after the first one, since the rest are used for installation
+		$invoke_nix_editor -id $workDir/$nextGen/pkgs/default/flox.nix "${nixEditorArgs[0]}"
+		;;
+	esac
 }
 
 #

@@ -14,7 +14,7 @@ setup_file() {
 	if [ -L ./result ]; then
 		export FLOX_PACKAGE=$(readlink ./result)
 	else
-		export FLOX_PACKAGE=$(flox build --print-out-paths --substituters "")
+		export FLOX_PACKAGE=$(flox build -A flox --print-out-paths --substituters "")
 	fi
 	export FLOX_CLI=$FLOX_PACKAGE/bin/flox
 	export TEST_ENVIRONMENT=_testing_
@@ -39,12 +39,12 @@ setup_file() {
 	export REAL_GH_CONFIG_DIR=$REAL_XDG_CONFIG_HOME/gh
 	export GH_CONFIG_DIR=$XDG_CONFIG_HOME/gh
 	# Don't let ssh authentication confuse things.
-	export SSH_AUTH_SOCK=
-	unset SSH_AUTH_SOCK
 	# Remove any vestiges of previous test runs.
-	$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f
+	XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR \
+		$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f || :
 	rm -f tests/out/foo tests/out/subdir/bla
 	rmdir tests/out/subdir tests/out || :
+	rm -f $FLOX_CONFIG_HOME/{gitconfig,nix.conf}
 	set +x
 }
 
@@ -78,6 +78,13 @@ setup_file() {
   run $FLOX_CLI --prefix
   assert_success
   assert_output $FLOX_PACKAGE
+}
+
+@test "flox generate config files in $FLOX_CONFIG_HOME" {
+  run $FLOX_CLI --help
+  assert_success
+  assert_output --partial "Updating $FLOX_CONFIG_HOME/nix.conf"
+  assert_output --partial "Updating $FLOX_CONFIG_HOME/gitconfig"
 }
 
 @test "flox --help" {
@@ -193,6 +200,12 @@ setup_file() {
   assert_output --partial "created generation 1"
 }
 
+@test "flox export -> import is a no-op" {
+  run sh -c "$FLOX_CLI export -e $TEST_ENVIRONMENT | $FLOX_CLI --debug import -e $TEST_ENVIRONMENT"
+  assert_success
+  assert_output --partial "No environment changes detected"
+}
+
 @test "flox install nixpkgs-flox.hello" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT nixpkgs-flox.hello
   assert_success
@@ -214,8 +227,8 @@ setup_file() {
 
 @test "flox install stable.nixpkgs-flox-dup.hello" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT stable.nixpkgs-flox-dup.hello
-  assert_success
-  assert_output --partial "No environment changes detected"
+  assert_failure
+  assert_output --regexp ".*error: package nixpkgs-flox.$NIX_SYSTEM.stable.hello.latest is identical to package nixpkgs-flox-dup.$NIX_SYSTEM.stable.hello.latest"
 }
 
 @test "flox list after install should contain hello" {
@@ -263,13 +276,14 @@ setup_file() {
   assert_output --partial "2 stable.nixpkgs-flox.jq"
 }
 
-@test "verify flox edit removed hello from manifest.toml" {
-  run $FLOX_CLI export -e $TEST_ENVIRONMENT
+@test "verify flox edit removed hello from flox.nix" {
+  EDITOR=cat run $FLOX_CLI edit -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial '[packages."cowsay"]'
-  assert_output --partial '[packages."dasel"]'
-  ! assert_output --partial '[packages."hello"]'
-  assert_output --partial '[packages."jq"]'
+  assert_output --partial 'nixpkgs-flox.cowsay = {'
+  assert_output --partial 'nixpkgs-flox.dasel = {'
+  ! assert_output --partial 'nixpkgs-flox.hello = {'
+  assert_output --partial 'nixpkgs-flox.jq = {'
+  ! assert_output --partial "created generation"
 }
 
 @test "flox edit add hello" {
@@ -288,13 +302,14 @@ setup_file() {
   assert_output --partial "3 stable.nixpkgs-flox.jq"
 }
 
-@test "verify flox edit added hello to manifest.toml" {
-  run $FLOX_CLI export -e $TEST_ENVIRONMENT
+@test "verify flox edit added hello to flox.nix" {
+  EDITOR=cat run $FLOX_CLI edit -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial '[packages."cowsay"]'
-  assert_output --partial '[packages."dasel"]'
-  assert_output --partial '[packages."hello"]'
-  assert_output --partial '[packages."jq"]'
+  assert_output --partial 'nixpkgs-flox.cowsay = {'
+  assert_output --partial 'nixpkgs-flox.dasel = {'
+  assert_output --partial 'nixpkgs-flox.hello = {'
+  assert_output --partial 'nixpkgs-flox.jq = {'
+  ! assert_output --partial "created generation"
 }
 
 @test "flox remove hello" {
@@ -339,6 +354,67 @@ setup_file() {
   run sh -c "$FLOX_CLI git branch -a | grep -q does-not-exist"
   assert_failure
   assert_output - < /dev/null
+}
+
+# To generate the test cases in tests/upgrade, use the following commands:
+# flox subscribe nixpkgs-flox-upgrade-test github:flox/nixpkgs-flox/bdbc8eb8d716ba74861b4aebf49a89a62b40a597
+# flox install nixpkgs-flox-upgrade-test.curl -e _upgrade_test_
+# flox install nixpkgs-flox-upgrade-test.ripgrep -e _upgrade_test_
+# flox export -e _upgrade_test_ > upgrade.tar
+# mkdir tests/upgrade/$system
+# tar -xvf upgrade.tar -C tests/upgrade/$system
+# rm upgrade.tar
+# flox unsubscribe nixpkgs-flox-upgrade-test
+@test "flox upgrade" {
+  case $NIX_SYSTEM in
+  aarch64-darwin)
+    RG_PATH="/nix/store/6kn84d55zk4dqrchqlpvk48kqnd3k3zp-ripgrep-13.0.0/bin/rg"
+    CURL_PATH="/nix/store/j4d52qz31jc2vgrykqfiydap56c24pwa-curl-7.85.0/bin/curl"
+    ;;
+  x86_64-linux)
+    RG_PATH="/nix/store/yxwz89xhwvjfnkw89y26v220j3f7py22-ripgrep-13.0.0/bin/rg"
+    CURL_PATH="/nix/store/4wig68iqd08bzfdqhbyx9ddn25krpvnl-curl-7.85.0/bin/curl"
+    ;;
+  *)
+    echo "unsupported system for upgrade test"
+    exit 1
+    ;;
+  esac
+
+  # TODO move this later in the test. Right now floxEnvs fetch flakes even for catalog entries,
+  # which they shouldn't
+  run $FLOX_CLI subscribe nixpkgs-flox-upgrade-test github:flox/nixpkgs-flox/master
+  assert_success
+  run sh -c "tar cf - -C ./tests/upgrade/$NIX_SYSTEM . | $FLOX_CLI import -e _upgrade_testing_"
+  assert_success
+  run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
+  assert_output "$RG_PATH"
+  run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
+  assert_output "$CURL_PATH"
+
+  # upgrade ripgrep but not curl
+  run $FLOX_CLI upgrade -e _upgrade_testing_ ripgrep
+  assert_success
+  assert_output --partial "created generation 2"
+  run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
+  ! assert_output --partial "$RG_PATH"
+  run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
+  assert_output --partial "$CURL_PATH"
+  
+  # upgrade everything
+  run $FLOX_CLI upgrade -e _upgrade_testing_
+  assert_success
+  assert_output --partial "created generation 3"
+  run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
+  ! assert_output --partial "$RG_PATH"
+  run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
+  ! assert_output --partial "$CURL_PATH"
+
+  # teardown
+  run $FLOX_CLI unsubscribe nixpkgs-flox-upgrade-test
+  assert_success
+  run $FLOX_CLI destroy -e _upgrade_testing_ -f
+  assert_success
 }
 
 @test "flox upgrade of nonexistent environment should fail" {
@@ -517,8 +593,8 @@ setup_file() {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  6"
-  assert_output --partial "0 $FLOX_PACKAGE"
-  assert_output --partial "1 stable.nixpkgs-flox.hello"
+  assert_output --partial "0 stable.nixpkgs-flox.hello"
+  assert_output --partial "1 $FLOX_PACKAGE"
 }
 
 @test "flox remove hello again" {
@@ -537,17 +613,21 @@ setup_file() {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  8"
-  assert_output --partial "0 $FLOX_PACKAGE"
-  assert_output --partial "1 flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  assert_output --partial "0 nixpkgs#hello"
+  assert_output --partial "1 $FLOX_PACKAGE"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
-@test "flox export after installing by nixpkgs flake should contain package" {
-  run $FLOX_CLI export -e $TEST_ENVIRONMENT
+@test "flox export to $FLOX_TEST_HOME/floxExport.tar" {
+  run sh -c "$FLOX_CLI export -e $TEST_ENVIRONMENT > $FLOX_TEST_HOME/floxExport.tar"
   assert_success
-  assert_output --partial '[packages."legacyPackages.'$NIX_SYSTEM'.hello"]'
-  assert_output --partial 'originalUrl = "flake:nixpkgs"'
-  assert_output --partial 'attrPath = "legacyPackages.'$NIX_SYSTEM'.hello"'
+}
+
+@test "flox.nix after installing by nixpkgs flake should contain package" {
+  EDITOR=cat run $FLOX_CLI edit -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial 'packages.nixpkgs.hello = {};'
+  ! assert_output --partial "created generation"
 }
 
 @test "flox remove by nixpkgs flake 1" {
@@ -561,7 +641,7 @@ setup_file() {
   assert_success
   assert_output --partial "Curr Gen  9"
   assert_output --partial "0 $FLOX_PACKAGE"
-  ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  ! assert_output --partial "nixpkgs#hello"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
@@ -571,8 +651,23 @@ setup_file() {
   assert_output --partial "switched to generation 8"
 }
 
+# @test "flox remove by nixpkgs flake 2" {
+#   run $FLOX_CLI remove -e $TEST_ENVIRONMENT "legacyPackages.$NIX_SYSTEM.hello"
+#   assert_success
+#   assert_output --partial "created generation 10"
+# }
+#
+# @test "flox list after remove by nixpkgs flake 2 should not contain package" {
+#   run $FLOX_CLI list -e $TEST_ENVIRONMENT
+#   assert_success
+#   assert_output --partial "Curr Gen  10"
+#   assert_output --partial "0 $FLOX_PACKAGE"
+#   ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+#   ! assert_output --partial "stable.nixpkgs-flox.hello"
+# }
+
 @test "flox remove by nixpkgs flake 2" {
-  run $FLOX_CLI remove -e $TEST_ENVIRONMENT "legacyPackages.$NIX_SYSTEM.hello"
+  run $FLOX_CLI remove -e $TEST_ENVIRONMENT "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
   assert_success
   assert_output --partial "created generation 10"
 }
@@ -582,28 +677,28 @@ setup_file() {
   assert_success
   assert_output --partial "Curr Gen  10"
   assert_output --partial "0 $FLOX_PACKAGE"
-  ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  ! assert_output --partial "nixpkgs#hello"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
-@test "flox switch-generation after flake removal 2" {
-  run $FLOX_CLI rollback -e $TEST_ENVIRONMENT --to 8
-  assert_success
-  assert_output --partial "switched to generation 8"
-}
+# @test "flox switch-generation after flake removal 2" {
+#   run $FLOX_CLI rollback -e $TEST_ENVIRONMENT --to 8
+#   assert_success
+#   assert_output --partial "switched to generation 8"
+# }
 
-@test "flox remove by nixpkgs flake 3" {
-  run $FLOX_CLI remove -e $TEST_ENVIRONMENT "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+@test "flox import from $FLOX_TEST_HOME/floxExport.tar" {
+  run sh -c "$FLOX_CLI import -e $TEST_ENVIRONMENT < $FLOX_TEST_HOME/floxExport.tar"
   assert_success
   assert_output --partial "created generation 11"
 }
 
-@test "flox list after remove by nixpkgs flake 3 should not contain package" {
+@test "flox list to verify contents of generation 8 at generation 12" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  11"
-  assert_output --partial "0 $FLOX_PACKAGE"
-  ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
+  assert_output --partial "0 nixpkgs#hello"
+  assert_output --partial "1 $FLOX_PACKAGE"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 

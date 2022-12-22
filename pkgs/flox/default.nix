@@ -15,6 +15,7 @@
 , gh
 , gnugrep
 , gnused
+, gnutar
 , gum
 , gzip
 , hostPlatform
@@ -24,6 +25,7 @@
 , libossp_uuid
 , makeWrapper
 , man
+, nix-editor
 , nixStable
 , pandoc
 , parallel
@@ -101,8 +103,9 @@ in stdenv.mkDerivation rec {
   nativeBuildInputs = [ bats entr makeWrapper pandoc shfmt which ];
   buildInputs = [
     ansifilter bashInteractive coreutils curl dasel diffutils
-    findutils gawk getent git gh gnugrep gnused gum gzip jq
-    less libossp_uuid man nixPatched parallel util-linuxMinimal
+    findutils gawk getent git gh gnugrep gnused gnutar gum gzip jq
+    less libossp_uuid man nixPatched nix-editor parallel
+    util-linuxMinimal
   ];
   makeFlags = [
     "PREFIX=$(out)"

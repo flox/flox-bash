@@ -1,0 +1,15 @@
+{
+  "elements": [
+    {
+      "active": true,
+      "attrPath": "evalCatalog.aarch64-darwin.stable.ripgrep",
+      "originalUrl": "flake:nixpkgs-flox",
+      "outputs": null,
+      "storePaths": [
+        "/nix/store/xz68zii05vwaxjj3yi1njjhkrxdbsjk0-ripgrep-13.0.0"
+      ],
+      "url": "flake:nixpkgs-flox/6b1573bd94dc036a7c67c3c5b5fc35221e336025"
+    }
+  ],
+  "version": 2
+}

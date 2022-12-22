@@ -134,6 +134,8 @@ def _syncGeneration(args):
   .value.path as $path |
   .value.created as $created |
   .value.lastActive as $lastActive |
+  # v1 floxEnvs do not contain a version
+  (if .value.version then .value.version else 1 end) as $version |
   (($now-$lastActive)/(24*60*60)) as $daysSinceActive |
   "\($environmentDir)/\($environmentName)-\($generation)-link" as $targetLink |
   # Cannot embed newlines so best we can do is return array and flatten later.
@@ -144,17 +146,21 @@ def _syncGeneration(args):
       "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then " +
         ": verified existence of \($targetLink); " +
       "else " +
-        # Temporary XXX: Identify schema version in use, <=006 or >=007
-        "environmentManifestFile=$( [ -e $environmentMetaDir/\($generation).json ] && echo $environmentMetaDir/\($generation).json || echo $environmentMetaDir/\($generation)/manifest.json ) && " +
-        # Ensure all flakes referenced in environment are built.
-        "manifest $environmentManifestFile listFlakesInEnvironment | " +
-        " $_xargs --no-run-if-empty $( [ $verbose -eq 0 ] || echo '--verbose' ) -- $_nix build --impure --no-link && " +
-        # Ensure all anonymous store paths referenced in environment are copied.
-        "manifest $environmentManifestFile listStorePaths | " +
-        " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
-        " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
-        # Now we can attempt to build the environment and store in the bash $environmentPath variable.
-        "environmentPath=$($_nix profile build $environmentManifestFile) && " +
+        if ($version == 1) then
+          # Temporary XXX: Identify schema version in use, <=006 or >=007
+          "environmentManifestFile=$( [ -e $environmentMetaDir/\($generation).json ] && echo $environmentMetaDir/\($generation).json || echo $environmentMetaDir/\($generation)/manifest.json ) && " +
+          # Ensure all flakes referenced in environment are built.
+          "manifest $environmentManifestFile listFlakesInEnvironment | " +
+          " $_xargs --no-run-if-empty $( [ $verbose -eq 0 ] || echo '--verbose' ) -- $_nix build --impure --no-link && " +
+          # Ensure all anonymous store paths referenced in environment are copied.
+          "manifest $environmentManifestFile listStorePaths | " +
+          " $_xargs --no-run-if-empty -n 1 -- $_sh -c '[ -d $0 ] || echo $0' | " +
+          " $_xargs --no-run-if-empty --verbose -- $_nix_store -r && " +
+          # Now we can attempt to build the environment and store in the bash $environmentPath variable.
+          "environmentPath=$($_nix profile build $environmentManifestFile) && "
+        else
+          "environmentPath=$($invoke_nix build --impure --no-link --print-out-paths $environmentMetaDir/\($generation)#floxEnvs.$system.default) && "
+        end +
         # Now create the generation link using nix-store so that it creates a
         # GC root in the process. N.B. this command will silently overwrite a
         # symlink in situ.

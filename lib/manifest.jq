@@ -93,8 +93,53 @@ def flakerefToFloxpkg(args): expectedArgs(1; args) |
       $flakeAttrPathArray[2] as $stability |
       ( $flakeAttrPathArray[3:] | join(".") ) as $attrPath |
       "\($stability).\($channel).\($attrPath)"
+    ) elif ($flakeType == "legacyPackages") then (
+      ( $flakeAttrPathArray[2:] | join(".") ) as $attrPath |
+      "\($channel)#\($attrPath)"
     ) else $flakeref end
   end;
+
+def elementToFloxpkg:
+  . as $element |
+  ( $element["storePaths"] // [] ) as $storePaths |
+  ( $element["attrPath"] | split(".") ) as $attrPathArray |
+  ( $element["originalUrl"] | ltrimstr("flake:") ) as $channel |
+  # Current format starting 9/17/22: flake:<channel>#evalCatalog.<system>.<stability>.<name>
+  $attrPathArray[0] as $flakeType |
+  if ($flakeType == "evalCatalog") then (
+    $attrPathArray[2] as $stability |
+    $attrPathArray[-1] as $maybeVersion |
+    ($maybeVersion | split("_") | join(".")) as $maybeVersionWithDots |
+    # If any of the storePaths end with the dotted version then assume
+    # that is in fact a version string.
+    if (($storePaths | map(select(endswith("-\($maybeVersionWithDots)"))) | length) > 0) then (
+      ( $attrPathArray[3:-1] | join(".") ) as $attrPath |
+      "\($stability).\($channel).\($attrPath)@\($maybeVersionWithDots)"
+    ) else (
+      ( $attrPathArray[3:] | join(".") ) as $attrPath |
+      "\($stability).\($channel).\($attrPath)"
+    ) end
+  ) elif ($flakeType == "legacyPackages") then (
+    ( $attrPathArray[2:] | join(".") ) as $attrPath |
+    "\($channel)#\($attrPath)"
+  ) else (
+    # Punt? Just print the flake reference.
+    [ $element["originalUrl"], $element["attrPath"] ] | join("#")
+  ) end;
+
+def flakerefToCatalogPath(args): expectedArgs(1; args) |
+  args[0] as $flakeref |
+  ( $flakeref | split("#") | .[0] ) as $flakeOriginalUrl |
+  ( $flakeref | split("#") | .[1] ) as $flakeAttrPath |
+  ( $flakeAttrPath | split(".") ) as $flakeAttrPathArray |
+  ( $flakeOriginalUrl | ltrimstr("flake:") ) as $channel |
+  # Current format starting 9/17/22: flake:<channel>#evalCatalog.<system>.<stability>.<name>
+  $flakeAttrPathArray[0] as $flakeType |
+  if ($flakeType == "evalCatalog") then (
+    $flakeAttrPathArray[2] as $stability |
+    ( $flakeAttrPathArray[3:] | join(".") ) as $attrPath |
+    ".[\"\($channel)\"][\"\($system)\"][\"\($stability)\"][\"\($attrPath)\"]"
+  ) else empty end;
 
 # Pull pname attribute from flakeref (for sorting).
 def flakerefToPname(args): expectedArgs(1; args) |
@@ -162,7 +207,7 @@ def floxpkgFromElementV1:
   end;
 def floxpkgFromElementV2:
   if .attrPath then
-    flakerefToFloxpkg(["\(.originalUrl)#\(.attrPath)"])
+    elementToFloxpkg
   else
     .storePaths[]
   end;
@@ -177,6 +222,13 @@ def floxpkgFromElementWithRunPath:
   if .attrPath then
     flakerefToFloxpkg(["\(.originalUrl)#\(.attrPath)"]) + "\t" + (.storePaths | join(","))
   else .storePaths[] end;
+
+def catalogPathFromElement:
+  if .attrPath then
+    flakerefToCatalogPath(["\(.originalUrl)#\(.attrPath)"])
+  else
+    .storePaths[]
+  end;
 
 def TOMLFromElement:
   if .attrPath then
@@ -259,6 +311,9 @@ def storepathToPosition(args): expectedArgs(1; args) |
 def positionToFloxpkg(args): expectedArgs(1; args) |
   $elements[args[0] | tonumber] | floxpkgFromElement;
 
+def positionToCatalogPath(args): expectedArgs(1; args) |
+  $elements[args[0] | tonumber] | catalogPathFromElement;
+
 #
 # Functions which present output directly to users.
 #
@@ -282,7 +337,7 @@ def listEnvironment(args):
 
 def listEnvironmentTOML(args): expectedArgs(0; args) |
   $elements | sort_by(.packageName) | unique_by(.packageName) |
-    map( TOMLFromElement) as $TOMLelements |
+    map(TOMLFromElement) as $TOMLelements |
   (["[packages]"] + $TOMLelements) | join("\n");
 
 def listFlakesInEnvironment(args): expectedArgs(0; args) |
@@ -295,6 +350,64 @@ def listStorePaths(args): expectedArgs(0; args) |
   ( $elements | map(.storePaths) | flatten ) as $anonStorePaths |
   if ($anonStorePaths | length) == 0 then " " else ($anonStorePaths | .[]) end;
 
+# return an attrPath and any other args to pass for installation. Only the attrPath is used for removals
+def flakerefToNixEditorArgs(args): expectedArgs(1; args) |
+  args[0] as $flakeref |
+  ( $flakeref | split("#") | .[0] ) as $flakeOriginalUrl |
+  ( $flakeref | split("#") | .[1] ) as $flakeAttrPathWithVersion |
+  ( $flakeAttrPathWithVersion | split("@") | .[0] ) as $flakeAttrPath |
+  ( $flakeAttrPathWithVersion | split("@") | .[1] ) as $flakeAttrPathVersion |
+  ( $flakeAttrPath | split(".") ) as $flakeAttrPathArray |
+  ( $flakeOriginalUrl | ltrimstr("flake:") ) as $channel |
+  # Current format starting 9/17/22: flake:<channel>#evalCatalog.<system>.<stability>.<name>
+  $flakeAttrPathArray[0] as $flakeType |
+  if ($flakeType == "evalCatalog") then (
+    $flakeAttrPathArray[2] as $stability |
+    ( $flakeAttrPathArray[3:] | join(".") ) as $attrPath |
+    [ ( if ($stability != "stable") then "stability=\"\($stability)\";" else empty end ),
+      ( if $flakeAttrPathVersion then "version=\"\($flakeAttrPathVersion)\";" else empty end ) ]
+      | join(" ") as $editorAttributes |
+    ["packages.\($channel).\($attrPath)","-v","{\($editorAttributes)}"]
+  ) elif ($flakeType == "legacyPackages") then (
+    # Example flakeref:
+    #   flake:nixpkgs#legacyPackages.x86_64-linux.hello
+    # maps to: "packages.nixpkgs.hello","-v","{}"
+    # Challenge is getting this right:
+    #   flake:nixpkgs#legacyPackages.x86_64-linux.pythonPackages.foo.bar
+    ($flakeAttrPathWithVersion | split(".") | .[2:] | join(".")) as $attrPath |
+    ["packages.\($channel).\($attrPath)","-v","{}"]
+  ) else (
+    # Some random flake:<channel>#<attrPath>
+    ["packages.\($flakeOriginalUrl).\($flakeAttrPathWithVersion)","-v","{}"]
+  ) end;
+
+def _floxpkgToNixEditorArgs(args): expectedArgs(1; args) |
+  if ( args[0] | startswith("/nix/store/") ) then (
+    # Install by /nix/store path.
+    ["packages.\"\(args[0])\"","-v","{}"]
+  ) elif ( args[0] | startswith("flake:") ) then (
+    flakerefToNixEditorArgs(args)
+  ) elif ( args[0] | contains("#") ) then (
+    flakerefToNixEditorArgs(args)
+  ) else (
+    floxpkgToFlakeref([ args[0] ]) as $flakeref |
+    flakerefToNixEditorArgs([ $flakeref ])
+  ) end;
+
+# Convert array response from above to line-delimited output.
+def floxpkgToNixEditorArgs(args): expectedArgs(1; args) |
+  _floxpkgToNixEditorArgs(args)[];
+
+def convert007to008(args):
+  args[0] as $nixEditor |
+  args[1] as $floxNix |
+  (args | length) as $argc |
+  $elements | map(
+    floxpkgFromElement as $floxpkg |
+    _floxpkgToNixEditorArgs([$floxpkg]) as $nixEditorArgs |
+    "\($nixEditor) -i \($floxNix) '" + ($nixEditorArgs | join("' '")) + "'"
+  ) | join("\n");
+
 # For debugging.
 def dump(args): expectedArgs(0; args) |
   $manifest | .[];
@@ -305,16 +418,20 @@ def dump(args): expectedArgs(0; args) |
 #
 # XXX Convert to some better way using "jq -L"?
 #
-     if $function == "floxpkgToFlakeref"   then floxpkgToFlakeref($funcargs)
-else if $function == "flakerefToFloxpkg"   then flakerefToFloxpkg($funcargs)
-else if $function == "floxpkgToPosition"   then floxpkgToPosition($funcargs)
-else if $function == "flakerefToPosition"  then flakerefToPosition($funcargs)
-else if $function == "storepathToPosition" then storepathToPosition($funcargs)
-else if $function == "positionToFloxpkg"   then positionToFloxpkg($funcargs)
+     if $function == "floxpkgToFlakeref"       then floxpkgToFlakeref($funcargs)
+else if $function == "flakerefToFloxpkg"       then flakerefToFloxpkg($funcargs)
+else if $function == "floxpkgToPosition"       then floxpkgToPosition($funcargs)
+else if $function == "flakerefToPosition"      then flakerefToPosition($funcargs)
+else if $function == "storepathToPosition"     then storepathToPosition($funcargs)
+else if $function == "positionToFloxpkg"       then positionToFloxpkg($funcargs)
 else if $function == "listEnvironment"         then listEnvironment($funcargs)
 else if $function == "listEnvironmentTOML"     then listEnvironmentTOML($funcargs)
+else if $function == "convert007to008"         then convert007to008($funcargs)
 else if $function == "listFlakesInEnvironment" then listFlakesInEnvironment($funcargs)
-else if $function == "listStorePaths"      then listStorePaths($funcargs)
-else if $function == "dump"                then dump($funcargs)
+else if $function == "listStorePaths"          then listStorePaths($funcargs)
+else if $function == "flakerefToNixEditorArgs" then flakerefToNixEditorArgs($funcargs)
+else if $function == "floxpkgToNixEditorArgs"  then floxpkgToNixEditorArgs($funcargs)
+else if $function == "positionToCatalogPath"   then positionToCatalogPath($funcargs)
+else if $function == "dump"                    then dump($funcargs)
 else error("unknown function: \"\($function)\"")
-end end end end end end end end end end end
+end end end end end end end end end end end end end end end

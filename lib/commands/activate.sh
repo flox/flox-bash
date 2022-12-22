@@ -45,7 +45,7 @@ function floxActivate() {
 		elif [ "$i" != "$defaultEnv" ]; then
 			# Only throw an error if in an interactive session, and don't
 			# throw an error when attempting to activate the default env.
-			if [ -t 1 ]; then
+			if [ $interactive -eq 1 ]; then
 				error "$i environment already active" < /dev/null
 			fi
 		fi
@@ -68,16 +68,29 @@ function floxActivate() {
 	for i in "${_environments_to_activate[@]}"; do
 		FLOX_PATH_PREPEND="${FLOX_PATH_PREPEND:+$FLOX_PATH_PREPEND:}$i/bin"
 		_flox_active_environments_prepend="${_flox_active_environments_prepend:+$_flox_active_environments_prepend:}${i}"
-		# Use 'git show' to grab the correct manifest.toml without checkout
-		# out the branch, and if the branch or manifest.toml file does not
-		# exist then carry on.
-		(metaGitShow $i $NIX_CONFIG_system manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
+		# Activate environment using version-specific logic.
+		if [ -f "$i/catalog.json" ]; then
+			# New v2 format.
+			# Just append the pre-compiled activation script. Lest you be
+			# tempted to simply copy this script (as I was) recall that we
+			# are appending to a single script containing initialization
+			# actions for _all_ environments to be activated.
+			$invoke_cat $i/activate >> $FLOX_BASH_INIT_SCRIPT || :
+		else
+			# Original v1 format.
+			# Use 'git show' to grab the correct manifest.toml without checking
+			# out the branch, and if the branch or manifest.toml file does not
+			# exist then carry on.
+			(metaGitShow $i $NIX_CONFIG_system manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
+		fi
 	done
 	FLOX_ACTIVE_ENVIRONMENTS=${_flox_active_environments_prepend}${FLOX_ACTIVE_ENVIRONMENTS:+:}${FLOX_ACTIVE_ENVIRONMENTS}
 	unset _flox_active_environments_prepend
 
-	# Set the init script to self-destruct upon activation. Very James Bond.
-	echo "$_rm $FLOX_BASH_INIT_SCRIPT" >> $FLOX_BASH_INIT_SCRIPT
+	# Set the init script to self-destruct upon activation (unless debugging).
+	# Very James Bond.
+	[ $debug -gt 0 ] || \
+		echo "$_rm $FLOX_BASH_INIT_SCRIPT" >> $FLOX_BASH_INIT_SCRIPT
 
 	# FLOX_PROMPT_ENVIRONMENTS is a space-separated list of the
 	# abbreviated "alias" names of activated environments for
@@ -99,7 +112,7 @@ function floxActivate() {
 	if [ ${#_environments_to_activate[@]} -eq 0 ]; then
 		# Only throw an error if an interactive session, otherwise
 		# exit quietly.
-		if [[ -t 1 || $verbose -gt 0 ]]; then
+		if [ $interactive -eq 1 -o $verbose -gt 0 ]; then
 			warn "no new environments to activate (active environments: $FLOX_PROMPT_ENVIRONMENTS)"
 		fi
 		exit 0
@@ -128,12 +141,15 @@ function floxActivate() {
 
 	if [ ${#cmdArgs[@]} -gt 0 ]; then
 		export PATH="$FLOX_PATH_PREPEND:$PATH"
+		export FLOX_PATH_PREPEND FLOX_BASH_INIT_SCRIPT \
+			FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS
+		source "$_etc/flox.profile"
 		[ $verbose -eq 0 ] || pprint "+$colorBold" exec "${cmdArgs[@]}" "$colorReset" 1>&2
 		exec "${cmdArgs[@]}"
 	else
 		case "$SHELL" in
 		*bash)
-			if [ -t 1 ]; then
+			if [ $interactive -eq 1 ]; then
 				# TODO: export variable for setting flox env from within flox.profile,
 				# *after* the PATH has been set.
 				[ $verbose -eq 0 ] || pprint "+$colorBold" exec "$SHELL" "--rcfile" "$_etc/flox.bashrc" "$colorReset" 1>&2
@@ -148,7 +164,7 @@ function floxActivate() {
 			fi
 			;;
 		*zsh)
-			if [ -t 1 ]; then
+			if [ $interactive -eq 1 ]; then
 				# TODO: export variable for setting flox env from within flox.profile,
 				# *after* the PATH has been set.
 				if [ -n "$ZDOTDIR" ]; then
@@ -169,7 +185,7 @@ function floxActivate() {
 			fi
 			;;
 		*)
-			if [ -t 1 ]; then
+			if [ $interactive -eq 1 ]; then
 				warn "unsupported shell: \"$SHELL\""
 				warn "Launching bash instead"
 				export SHELL="$_bash"

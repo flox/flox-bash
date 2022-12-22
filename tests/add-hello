@@ -1,8 +1,4 @@
 #!/bin/sh
 # A non-interactive editor which will add the hello package to
 # a declarative manifest. Used for testing and nothing else.
-cat >> $* <<EOF
-  [packages."hello"]
-  channel = "nixpkgs-flox"
-  stability = "stable"
-EOF
+exec nix-editor -i $* packages.nixpkgs-flox.hello -v '{}'
