@@ -356,6 +356,52 @@ setup_file() {
   assert_output - < /dev/null
 }
 
+@test "flox remove channel package by index" {
+  TEST_CASE_ENVIRONMENT=$(uuid)
+
+  run $FLOX_CLI install -e $TEST_CASE_ENVIRONMENT hello
+  assert_success
+
+  run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
+  assert_success
+  assert_output --partial "0 stable.nixpkgs-flox.hello"
+
+  run $FLOX_CLI remove -e $TEST_CASE_ENVIRONMENT 0
+  assert_success
+  assert_output --partial "created generation 2"
+
+  run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
+  assert_success
+  ! assert_output --partial "stable.nixpkgs-flox.hello"
+
+  # teardown
+  run $FLOX_CLI destroy -e $TEST_CASE_ENVIRONMENT -f
+  assert_success
+}
+
+@test "flox remove flake package by index" {
+  TEST_CASE_ENVIRONMENT=$(uuid)
+
+  run $FLOX_CLI install -e $TEST_CASE_ENVIRONMENT nixpkgs#hello
+  assert_success
+
+  run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
+  assert_success
+  assert_output --partial "0 nixpkgs#hello"
+
+  run $FLOX_CLI remove -e $TEST_CASE_ENVIRONMENT 0
+  assert_success
+  assert_output --partial "created generation 2"
+
+  run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
+  assert_success
+  ! assert_output --partial "nixpkgs#hello"
+
+  # teardown
+  run $FLOX_CLI destroy -e $TEST_CASE_ENVIRONMENT -f
+  assert_success
+}
+
 # To generate the test cases in tests/upgrade, use the following commands:
 # flox subscribe nixpkgs-flox-upgrade-test github:flox/nixpkgs-flox/bdbc8eb8d716ba74861b4aebf49a89a62b40a597
 # flox install nixpkgs-flox-upgrade-test.curl -e _upgrade_test_

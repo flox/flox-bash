@@ -402,9 +402,9 @@ EOF
 		$_git -C $workDir add $nextGen
 
 		# Step through floxtuples removing packages.
-		for pkgArg in ${pkgArgs[@]}; do
+		for pkgName in ${pkgNames[@]}; do
 			# That's it; invoke the editor to remove the package.
-			nixEditor $environment $workDir/$nextGen/pkgs/default/flox.nix delete "$pkgArg"
+			nixEditor $environment $workDir/$nextGen/pkgs/default/flox.nix delete "$pkgName"
 		done
 		$_git -C $workDir add $nextGen/pkgs/default/flox.nix
 
