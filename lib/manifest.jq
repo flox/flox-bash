@@ -358,7 +358,9 @@ def flakerefToNixEditorArgs(args): expectedArgs(1; args) |
   ( $flakeAttrPathWithVersion | split("@") | .[0] ) as $flakeAttrPath |
   ( $flakeAttrPathWithVersion | split("@") | .[1] ) as $flakeAttrPathVersion |
   ( $flakeAttrPath | split(".") ) as $flakeAttrPathArray |
-  ( $flakeOriginalUrl | ltrimstr("flake:") ) as $channel |
+  ( $flakeOriginalUrl | ltrimstr("flake:") ) as $rawChannel |
+  ( "\"" + $rawChannel + "\"" ) as $quotedChannel |
+  ( if ($rawChannel | test(":|/|\\.")) then $quotedChannel else $rawChannel end ) as $channel |
   # Current format starting 9/17/22: flake:<channel>#evalCatalog.<system>.<stability>.<name>
   $flakeAttrPathArray[0] as $flakeType |
   if ($flakeType == "evalCatalog") then (
@@ -376,9 +378,12 @@ def flakerefToNixEditorArgs(args): expectedArgs(1; args) |
     #   flake:nixpkgs#legacyPackages.x86_64-linux.pythonPackages.foo.bar
     ($flakeAttrPathWithVersion | split(".") | .[2:] | join(".")) as $attrPath |
     ["packages.\($channel).\($attrPath)","-v","{}"]
-  ) else (
+  ) elif ($flakeType == "packages") then (
     # Some random flake:<channel>#<attrPath>
-    ["packages.\($flakeOriginalUrl).\($flakeAttrPathWithVersion)","-v","{}"]
+    ($flakeAttrPathWithVersion | split(".") | .[2:] | join(".")) as $attrPath |
+    ["packages.\($channel).\($attrPath)","-v","{}"]
+  ) else (
+    ["packages.\($channel).\($flakeAttrPathWithVersion)","-v","{}"]
   ) end;
 
 def _floxpkgToNixEditorArgs(args): expectedArgs(1; args) |

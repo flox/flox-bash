@@ -245,7 +245,7 @@ function temporaryAssert008Schema {
 			'(.aliases//{}) | to_entries | map("\($nixEditor) -i \($file) shell.aliases.\(.key) -v '\''\"\(.value)\"'\''")[]' >> $tmpScript
 	$invoke_dasel -w json -f $currentGenDir/manifest.toml | \
 		$invoke_jq -r --arg nixEditor $_nix_editor --arg file $nextGenDir/pkgs/default/flox.nix \
-			'(.environment//{}) | to_entries | map("\($nixEditor) -i \($file) shell.variables.\(.key) -v '\''\"\(.value)\"'\''")[]' >> $tmpScript
+			'(.environment//{}) | to_entries | map("\($nixEditor) -i \($file) environmentVariables.\(.key) -v '\''\"\(.value)\"'\''")[]' >> $tmpScript
 
 	if [ $verbose -gt 0 ]; then
 		( set -x && source $tmpScript )
