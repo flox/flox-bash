@@ -6,11 +6,11 @@ echo "**** PERFORMING BUILD OF FLOX AGAINST LATEST REVISION ****"
 export TERM="xterm-256color"
 mkdir -p "$FLOXPATH" && cd "$FLOXPATH"
 #here we used latest installed verison of flox via package to build flox
-flox build github:flox/floxpkgs#stable.flox --override-input flox github:flox/flox-internal?rev="$1"
+flox build github:flox/floxpkgs#stable.flox --override-input flox github:flox/flox-bash-private?rev="$1"
 echo "**** PERFORMING FLOX DEFAULT TEMPLATE INTEGRATION TEST ****"
 #now we use the built version of flox wrapper from the PR or commit on gh to perform tests
 
-curl -O https://raw.githubusercontent.com/flox/flox-internal/"$1"/test.bats
+curl -O https://raw.githubusercontent.com/flox/flox-bash-private/"$1"/test.bats
 bats test.bats
 #du -hDd0 /nix
 rm -rf myproj
