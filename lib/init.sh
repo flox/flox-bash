@@ -160,7 +160,7 @@ $_chmod 600 $tmpNixConf
 
 # Static "floxbeta" token for closed beta.
 # XXX Remove after closed beta.
-betaToken="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"
+betaToken="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"
 
 # Look for github tokens from multiple sources:
 #   1. the user's own .config/nix/nix.conf, else
