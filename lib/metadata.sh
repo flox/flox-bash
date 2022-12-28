@@ -240,12 +240,14 @@ function temporaryAssert008Schema {
 	manifest $currentGenDir/manifest.json convert007to008 $_nix_editor $nextGenDir/pkgs/default/flox.nix > $tmpScript
 
 	# Similarly use nix-editor to transfer aliases and env vars from manifest.toml.
+	# jq outputs something like 'value'. Arguments to nix-editor have to be double quoted, so wrap with
+	# '"', resulting in '"''value''"'
 	$invoke_dasel -w json -f $currentGenDir/manifest.toml | \
-		$invoke_jq -r --arg nixEditor $_nix_editor --arg file $nextGenDir/pkgs/default/flox.nix \
-			'(.aliases//{}) | to_entries | map("\($nixEditor) -i \($file) shell.aliases.\(.key) -v '\''\"\(.value)\"'\''")[]' >> $tmpScript
+		$invoke_jq -r --arg dq "'\"'" --arg nixEditor $_nix_editor --arg file $nextGenDir/pkgs/default/flox.nix \
+			'(.aliases//{}) | to_entries | map(($dq+(.value|@sh)+$dq) as $quotedValue | "\($nixEditor) -i \($file) shell.aliases.\(.key) -v \($quotedValue)")[]' >> $tmpScript
 	$invoke_dasel -w json -f $currentGenDir/manifest.toml | \
-		$invoke_jq -r --arg nixEditor $_nix_editor --arg file $nextGenDir/pkgs/default/flox.nix \
-			'(.environment//{}) | to_entries | map("\($nixEditor) -i \($file) environmentVariables.\(.key) -v '\''\"\(.value)\"'\''")[]' >> $tmpScript
+		$invoke_jq -r --arg dq "'\"'" --arg nixEditor $_nix_editor --arg file $nextGenDir/pkgs/default/flox.nix \
+			'(.environment//{}) | to_entries | map(($dq+(.value|@sh)+$dq) as $quotedValue | "\($nixEditor) -i \($file) environmentVariables.\(.key) -v \($quotedValue)")[]' >> $tmpScript
 
 	if [ $verbose -gt 0 ]; then
 		( set -x && source $tmpScript )
