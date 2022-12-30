@@ -1,15 +1,3 @@
-diff --git a/src/libfetchers/git.cc b/src/libfetchers/git.cc
-index c1a21e764..82f443eed 100644
---- a/src/libfetchers/git.cc
-+++ b/src/libfetchers/git.cc
-@@ -44,6 +44,7 @@ bool touchCacheFile(const Path& path, const time_t& touch_time)
- 
- Path getCachePath(std::string key)
- {
-+    warn("%s",key);
-     return getCacheDir() + "/nix/gitv3/" +
-         hashString(htSHA256, key).to_string(Base32, false);
- }
 diff --git a/src/libfetchers/github.cc b/src/libfetchers/github.cc
 index a491d82a6..a8943b0ee 100644
 --- a/src/libfetchers/github.cc
