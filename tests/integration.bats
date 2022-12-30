@@ -8,45 +8,7 @@ bats_load_library bats-support
 bats_load_library bats-assert
 bats_require_minimum_version 1.5.0
 
-# setup_file() function run once for a given bats test file.
-setup_file() {
-	set -x
-	if [ -L ./result ]; then
-		export FLOX_PACKAGE=$(readlink ./result)
-	else
-		export FLOX_PACKAGE=$(flox build -A flox --print-out-paths --substituters "")
-	fi
-	export FLOX_CLI=$FLOX_PACKAGE/bin/flox
-	export TEST_ENVIRONMENT=_testing_
-	export NIX_SYSTEM=$($FLOX_CLI nix --extra-experimental-features nix-command show-config | awk '/system = / {print $NF}')
-	# Simulate pure bootstrapping environment. It is challenging to get
-	# the nix, gh, and flox tools to all use the same set of defaults.
-	export REAL_XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
-	export FLOX_TEST_HOME=$(mktemp -d)
-	export XDG_CACHE_HOME=$FLOX_TEST_HOME/.cache
-	export XDG_DATA_HOME=$FLOX_TEST_HOME/.local/share
-	export XDG_CONFIG_HOME=$FLOX_TEST_HOME/.config
-	export FLOX_CACHE_HOME=$XDG_CACHE_HOME/flox
-	export FLOX_META=$FLOX_CACHE_HOME/meta
-	export FLOX_DATA_HOME=$XDG_DATA_HOME/flox
-	export FLOX_ENVIRONMENTS=$FLOX_DATA_HOME/environments
-	export FLOX_CONFIG_HOME=$XDG_CONFIG_HOME/flox
-	# Weirdest thing, gh will *move* your gh creds to the XDG_CONFIG_HOME
-	# if it finds them in your home directory. Doesn't ask permission, just
-	# does it. That is *so* not the right thing to do. (visible with strace)
-	# 1121700 renameat(AT_FDCWD, "/home/brantley/.config/gh", AT_FDCWD, "/tmp/nix-shell.dtE4l4/tmp.JD4ki0ZezY/.config/gh") = 0
-	# The way to defeat this behavior is by defining GH_CONFIG_DIR.
-	export REAL_GH_CONFIG_DIR=$REAL_XDG_CONFIG_HOME/gh
-	export GH_CONFIG_DIR=$XDG_CONFIG_HOME/gh
-	# Don't let ssh authentication confuse things.
-	# Remove any vestiges of previous test runs.
-	XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR \
-		$FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f || :
-	rm -f tests/out/foo tests/out/subdir/bla
-	rmdir tests/out/subdir tests/out || :
-	rm -f $FLOX_CONFIG_HOME/{gitconfig,nix.conf}
-	set +x
-}
+load test_support.bash
 
 @test "flox package sanity check" {
   # directories
@@ -81,7 +43,15 @@ setup_file() {
 }
 
 @test "flox generate config files in $FLOX_CONFIG_HOME" {
-  run $FLOX_CLI --help
+  # The rust wrapper will not forward all commands to flox (bash)
+  # Help messages for instance are generated entirely by the argument parsing step,
+  # that precedes any command processing.
+  # As such this tests fails to see the "Updating ..." messages if used with `--help`.
+  # The first test forwarding to flox (subscribe, below) will and fails as well.
+  #
+  # This test will work until channels will be implemented in rust.
+  # At which point the messaging may change as well.
+  run $FLOX_CLI channels
   assert_success
   assert_output --partial "Updating $FLOX_CONFIG_HOME/nix.conf"
   assert_output --partial "Updating $FLOX_CONFIG_HOME/gitconfig"
@@ -90,7 +60,10 @@ setup_file() {
 @test "flox --help" {
   run $FLOX_CLI --help
   assert_success
-  assert_output - < tests/usage.out
+  # the rust implementation generates its USAGE/help internally
+  if [ "$FLOX_IMPLEMENTATION" != "rust" ]; then
+    assert_output - <tests/usage.out
+  fi
 }
 
 @test "flox eval" {
@@ -431,7 +404,7 @@ setup_file() {
   # which they shouldn't
   run $FLOX_CLI subscribe nixpkgs-flox-upgrade-test github:flox/nixpkgs-flox/master
   assert_success
-  run sh -c "tar cf - -C ./tests/upgrade/$NIX_SYSTEM . | $FLOX_CLI import -e _upgrade_testing_"
+  run sh -c "tar -cf - --mode u+w -C ./tests/upgrade/$NIX_SYSTEM . | $FLOX_CLI import -e _upgrade_testing_"
   assert_success
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
   assert_output "$RG_PATH"
@@ -446,7 +419,7 @@ setup_file() {
   ! assert_output --partial "$RG_PATH"
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
   assert_output --partial "$CURL_PATH"
-  
+
   # upgrade everything
   run $FLOX_CLI upgrade -e _upgrade_testing_
   assert_success
@@ -569,7 +542,11 @@ setup_file() {
 @test "flox environments takes no arguments" {
   run $FLOX_CLI environments -e $TEST_ENVIRONMENT
   assert_failure
-  assert_output --partial "ERROR: the 'flox environments' command takes no arguments"
+  if [ "$FLOX_IMPLEMENTATION" != "rust" ]; then
+    assert_output --partial "ERROR: the 'flox environments' command takes no arguments"
+  else
+    assert_output "-e is not expected in this context"
+  fi
 }
 
 @test "flox environments should at least contain $TEST_ENVIRONMENT" {
@@ -624,7 +601,7 @@ setup_file() {
   assert_output --partial "staging.nixpkgs-flox.hello"
   assert_output --partial "unstable.nixpkgs-flox.hello"
   # Assert we spent less than 15 seconds in the process.
-  local -i elapsed=$(( $end - $start ))
+  local -i elapsed=$(($end - $start))
   echo spent $elapsed seconds
   [ $elapsed -lt 15 ]
 }

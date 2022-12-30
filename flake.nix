@@ -5,7 +5,6 @@
 
   # Declaration of external resources
   # =================================
-
   # =================================
 
   outputs = args @ {flox-floxpkgs, ...}: flox-floxpkgs.project args (_: {});
