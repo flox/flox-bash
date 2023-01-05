@@ -1087,7 +1087,7 @@ function floxPushPull() {
 		githubHelperGit -C $tmpDir push $forceArg upstream origin/"$branch":refs/heads/"$branch" ||
 			error "repeat command with '--force' to overwrite" < /dev/null
 		# Push succeeded, ensure that $environmentMetaDir has remote ref for this branch.
-		$invoke_git -C "$environmentMetaDir" fetch --quiet origin
+		githubHelperGit -C "$environmentMetaDir" fetch --quiet origin
 	elif [ "$action" = "pull" ]; then
 		# Slightly different here; we first attempt to rebase and do
 		# a hard reset if invoked with --force.
