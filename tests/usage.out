@@ -31,7 +31,7 @@ environment commands:
     flox edit - edit declarative environment manifest
     flox import - import declarative environment manifest as new generation
     flox export - export declarative environment manifest of current generation
-    flox history [--oneline]
+    flox history [--oneline] [--json]
          - show all versions of an environment
     flox generations - list environment generations with contents
     flox rollback - roll back to the previous generation of an environment
