@@ -2,7 +2,7 @@
 
 _environment_commands+=("list")
 _usage["list"]="list installed packages"
-_usage_options["list"]="[--out-path]"
+_usage_options["list"]="[--out-path] [--json]"
 function floxList() {
 	trace "$@"
 	local environment="$1"; shift
@@ -16,11 +16,16 @@ function floxList() {
 
 	local -a listArgs=()
 	local -i displayOutPath=0
+	local -i displayJSON=0
 	while test $# -gt 0; do
 		# 'flox list' args.
 		case "$1" in
 		--out-path) # takes zero args
 			displayOutPath=1
+			shift
+			;;
+		--json) # takes zero args
+			displayJSON=1
 			shift
 			;;
 		# Any other options are unrecognised.
@@ -33,6 +38,10 @@ function floxList() {
 			;;
 		esac
 	done
+
+	if [ $displayOutPath -gt 0 -a $displayJSON -gt 0 ]; then
+		usage | error "only one of '--out-path' and '--json' options may be provided"
+	fi
 
 	if [ ${#listArgs[@]} -gt 0 ]; then
 		# First argument to list can be generation number.
@@ -55,7 +64,21 @@ function floxList() {
 			_environmentAlias="$environmentName"
 		fi
 	fi
-	$_cat <<EOF
+
+	if [ $verbose -eq 1 ]; then
+		# Increase verbosity when invoking list command.
+		let ++verbose
+	fi
+
+	if [ $displayJSON -gt 0 ]; then
+		manifest $environment/manifest.json listEnvironment --json | $_jq -r \
+			--arg a "$_environmentAlias" \
+			--arg s "$NIX_CONFIG_system" \
+			--arg p "$FLOX_ENVIRONMENTS/$environmentOwner/$environmentName" \
+			--arg c "$environmentStartGen" \
+			'{"alias":$a,"system":$s,"path":$p,"currentGeneration":$c} * .'
+	else
+		$_cat <<EOF
 $environmentOwner/$environmentName
     Alias     $_environmentAlias
     System    $NIX_CONFIG_system
@@ -64,14 +87,11 @@ $environmentOwner/$environmentName
 
 Packages
 EOF
-	if [ $verbose -eq 1 ]; then
-		# Increase verbosity when invoking list command.
-		let ++verbose
-	fi
-	if [ $displayOutPath -gt 0 ]; then
-		manifest $environment/manifest.json listEnvironment --out-path | $_sed 's/^/    /'
-	else
-		manifest $environment/manifest.json listEnvironment | $_sed 's/^/    /'
+		if [ $displayOutPath -gt 0 ]; then
+			manifest $environment/manifest.json listEnvironment --out-path | $_sed 's/^/    /'
+		else
+			manifest $environment/manifest.json listEnvironment | $_sed 's/^/    /'
+		fi
 	fi
 }
 

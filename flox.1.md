@@ -126,7 +126,7 @@ The following option is supported by the commands below.
 **generations**
 :   List generations of selected environment.
 
-**list** [ `<generation>` ]
+**list** [ \--out-path ] [ \--json ] [ `<generation>` ]
 :   List contents of selected environment. Provide optional generation
     argument to list the contents of a specific generation.
 

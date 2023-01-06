@@ -331,7 +331,17 @@ def listEnvironment(args):
     $elements | map(
       (.position | tostring) + " " + floxpkgFromElementWithRunPath
     ) | join("\n")
-  else
+  elif args[0] == "--json" then (
+    $elements | sort_by(.packageName) | unique_by(.packageName) | map(
+      . as $datum |
+      ($datum | floxpkgFromElement) as $floxpkgArg |
+      {"floxpkgArg": $floxpkgArg} * $datum
+    ) as $elementData |
+    {
+      "elements": $elementData,
+      "version": $manifest[].version
+    }
+  ) else
     error("unknown option: " + args[0])
   end;
 
