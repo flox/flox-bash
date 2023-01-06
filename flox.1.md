@@ -130,7 +130,7 @@ The following option is supported by the commands below.
 :   List contents of selected environment. Provide optional generation
     argument to list the contents of a specific generation.
 
-**history** [ \--oneline ]
+**history** [ \--oneline ] [ \--json ]
 :   List history of selected environment. With `--oneline` arg, display concise
     format including only the subject line for history log entries.
 

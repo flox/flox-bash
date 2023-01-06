@@ -831,7 +831,7 @@ function floxExport() {
 
 _environment_commands+=("history")
 _usage["history"]="show all versions of an environment"
-_usage_options["history"]="[--oneline]"
+_usage_options["history"]="[--oneline] [--json]"
 function floxHistory() {
 	trace "$@"
 	local environment="$1"; shift
@@ -845,11 +845,17 @@ function floxHistory() {
 	logFormat="format:%cd %C(cyan)%B%Creset"
 
 	# Step through args looking for (--oneline).
+	local -i displayJSON=0
 	while test $# -gt 0; do
 		case "$1" in
 		--oneline)
 			# If --oneline then just include log subjects.
 			logFormat="format:%cd %C(cyan)%s%Creset"
+			shift
+			;;
+		--json) # takes zero args
+			displayJSON=1
+			logFormat='format:{"time":%ct, "msg":"%s"}'
 			shift
 			;;
 		-*)
@@ -860,7 +866,11 @@ function floxHistory() {
 			;;
 		esac
 	done
-	$invoke_git -C $environmentMetaDir log $branch --pretty="$logFormat"
+	if [ $displayJSON -gt 0 ]; then
+		$invoke_git -C $environmentMetaDir log $branch --pretty="$logFormat" | $_jq -s .
+	else
+		$invoke_git -C $environmentMetaDir log $branch --pretty="$logFormat"
+	fi
 }
 
 _environment_commands+=("generations")
