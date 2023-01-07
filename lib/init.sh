@@ -47,7 +47,7 @@ read_flox_conf()
 				# Use the `jq` `tojson()` function to escape quotes contained in
 				# values.
 				$_cat "$f" | \
-				$_dasel -p toml -w json | \
+				$_dasel -r toml -w json | \
 				$_jq -r --arg var $i '
 					select(has($var)) | .[$var] | to_entries | map(
 						"FLOX_CONF_\($var)_\(.key)=\(.value | tojson)"

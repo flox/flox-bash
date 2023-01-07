@@ -947,7 +947,7 @@ function validateTOML() {
 	local path="$1"; shift
 	# XXX do more here to highlight what the problem is.
 	tmpstderr=$(mkTempFile)
-	if $_cat $path | $_dasel -p toml >/dev/null 2>$tmpstderr; then
+	if $_cat $path | $_dasel -r toml -w toml >/dev/null 2>$tmpstderr; then
 		: confirmed valid TOML
 		$_rm -f $tmpstderr
 		return 0
