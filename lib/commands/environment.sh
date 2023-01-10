@@ -70,6 +70,12 @@ function floxList() {
 		let ++verbose
 	fi
 
+	# Before going any further, make sure environment actually exists.
+	[ -d $environment ] || \
+		error "environment $_environmentAlias does not exist" < /dev/null
+	[ -f $environment/manifest.json ] || \
+		error "environment manifest not found - run 'flox destroy -e $_environmentAlias' to clean up" </dev/null
+
 	if [ $displayJSON -gt 0 ]; then
 		manifest $environment/manifest.json listEnvironment --json | $_jq -r \
 			--arg a "$_environmentAlias" \
@@ -984,6 +990,15 @@ function floxDestroy() {
 		fi
 	done
 
+	# Look for directories to delete.
+	local -a directories=()
+	for i in $environmentDir/$environmentName; do
+		if [ -d "$i" ]; then
+			directories+=("$i")
+			warnings+=(" - $i")
+		fi
+	done
+
 	# Look for a local branch.
 	local localBranch=
 	if $invoke_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branch" >/dev/null; then
@@ -1036,6 +1051,9 @@ function floxDestroy() {
 			githubHelperGit -C "$environmentMetaDir" push origin --delete "$branch" || true
 		fi
 		$invoke_rm --verbose -f ${links[@]}
+		if [ ${#directories[@]} -gt 0 ]; then
+			$invoke_rmdir --verbose ${directories[@]}
+		fi
 	else
 		warn "aborted"
 		exit 1

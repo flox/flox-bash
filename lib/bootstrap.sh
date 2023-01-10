@@ -62,7 +62,7 @@ EOF
 # definitely be improved upon.
 function bootstrap() {
 	[ -f $floxUserMeta ] || _initial_bootstrap=1
-	registry $floxUserMeta 1 get floxClientUUID 2>&1 >/dev/null || \
+	registry $floxUserMeta 1 get floxClientUUID >/dev/null 2>&1 || \
 		registry $floxUserMeta 1 set floxClientUUID $($_uuid)
 	floxClientUUID=$(registry $floxUserMeta 1 get floxClientUUID)
 	if [ -t 1 ]; then
