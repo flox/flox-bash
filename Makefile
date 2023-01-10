@@ -160,4 +160,4 @@ clean:
 
 .PHONY: test
 test:
-	for i in $(SRC); do echo $$i; done | entr -s 'echo Building ...; rm -f ./result; bats tests'
+	for i in $(SRC); do echo $$i; done | entr -s 'echo Building ...; rm -f ./result; bats $(if $(MATCH),-f ".*$(MATCH).*") tests'

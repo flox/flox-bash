@@ -87,13 +87,13 @@ function floxBuild() {
 		# All remaining options are `nix build` args.
 
 		# Options taking two args.
-		--out-link|-o|--profile|--override-flake|--override-input)
+		-o|--profile|--override-flake|--override-input)
 			buildArgs+=("$1"); shift
 			buildArgs+=("$1"); shift
 			buildArgs+=("$1"); shift
 			;;
 		# Options taking one arg.
-		--eval-store|--include|-I|--inputs-from|--update-input|--expr|--file|-f)
+		--out-link|--eval-store|--include|-I|--inputs-from|--update-input|--expr|--file|-f)
 			buildArgs+=("$1"); shift
 			buildArgs+=("$1"); shift
 			;;
@@ -172,9 +172,75 @@ function floxEval() {
 	$invoke_nix "${_nixArgs[@]}" eval --impure "${evalArgs[@]}" "${installables[@]}" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY
 }
 
-# flox develop
+#
+# flakeTopLevel()
+#
+# Analogous to "git rev-parse --show-toplevel", this subroutine will
+# identify the "toplevel" directory of the flake being evaluated, even
+# if it's a subflake of a monorepo.
+#
+function flakeTopLevel() {
+	trace "$@"
+	local flakeRef=$1; shift
+	local url
+	if url=$($invoke_nix "${_nixArgs[@]}" flake metadata "$flakeRef" --json "$@" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY 2>/dev/null | $_jq -r .resolvedUrl); then
+		# strip git+file://
+		url="${url/git+file:\/\//}"
+		# strip path:
+		url="${url/path:/}"
+		# extract dir for subflakes if it exists
+		dir="$(echo "$url" | sed -rn 's/.*\?dir=([^&]*).*/\1/p')"
+		# strip ?*
+		url="${url/\?*/}"
+		if [ -n "$dir" ]; then
+			echo "$url/$dir"
+		else
+			echo "$url"
+		fi
+	else
+		exit 1
+	fi
+}
+
+#
+# floxProjectMetaDir()
+#
+# Returns the path of the ".flox" subdirectory at the "toplevel" of
+# a given flake, which can be any of:
+#
+# 1. the root directory of a git clone (most common)
+# 2. a "subflake" subdirectory of a git clone
+# 3. an arbitrary directory not within a git clone
+#
+# In the first two cases we prompt to add the directory to .gitignore.
+#
+function flakeMetaDir {
+	trace "$@"
+	local topLevel=$1; shift
+	local metaDir="$topLevel/.flox"
+	[ -d $metaDir ] || $invoke_mkdir -p "$metaDir"
+
+	local gitCloneToplevel
+	if false && gitCloneToplevel="$($_git -C $topLevel rev-parse --show-toplevel 2>/dev/null)"; then
+		local metaSubDir=${metaDir/$gitCloneToplevel\///}
+		# TODO: re-enable following more extensive testing
+		if [ $interactive -eq 1 ]; then
+			if ! $_grep -q "^$metaSubDir$" "$gitCloneToplevel/.gitignore" && \
+				$invoke_gum confirm "add $metaSubDir to toplevel .gitignore file?"; then
+				echo "$metaSubDir" >> "$gitCloneToplevel/.gitignore"
+				$invoke_git -C "$gitCloneToplevel" add .gitignore
+				warn "updated $gitCloneToplevel/.gitignore"
+			fi
+		fi
+	fi
+	echo $metaDir
+}
+
+# flox develop, aka flox print-dev-env when run non-interactively
 _development_commands+=("develop")
 _usage["develop"]="launch development shell for current project"
+_development_commands+=("print-dev-env")
+_usage["print-dev-env"]="print shell code that can be sourced by bash to reproduce the development environment"
 function floxDevelop() {
 	trace "$@"
 	betaRefreshNixCache # XXX: remove with open beta
@@ -232,10 +298,102 @@ function floxDevelop() {
 		installables=(".#$attrPath")
 	fi
 
-	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
-		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
+	# There can only be one installable with flox develop.
+	local installable
+	if [ ${#installables[@]} -gt 1 ]; then
+		error "flox develop only accepts 1 installable" </dev/null
+	else
+		installable="${installables[0]}"
 	fi
-	$invoke_nix "${_nixArgs[@]}" develop --impure "${developArgs[@]}" "${installables[@]}" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
+
+	# Start by parsing installable into its flakeref and attrpath parts.
+
+	# If the user has provided the fully-qualified attrPath then remove
+	# the "packages.$system." part as we'll add it back when constructing
+	# the canonical flake URLs.
+	local installableAttrPath=${installable//*#/}
+	installableAttrPath="${installableAttrPath//packages.$NIX_CONFIG_system./}"
+
+	# If the user didn't provide the url part of the flakeref then use ".".
+	local installableFlakeRef=${installable//#*/}
+	if [ "$installableFlakeRef" == "$installable" ]; then
+		installableFlakeRef="."
+	fi
+
+	# Compute the canonical build and floxEnv flakerefs for the installable.
+	local floxEnvFlakeURL="${installableFlakeRef}#floxEnvs.$NIX_CONFIG_system.$installableAttrPath"
+	local packageFlakeURL="${installableFlakeRef}#packages.$NIX_CONFIG_system.$installableAttrPath"
+
+	# Compute the GCRoot path to be created/activated.
+	local topLevel=$(flakeTopLevel "$installableFlakeRef" "${developArgs[@]}")
+	[ -n "$topLevel" ] || \
+		error "could not determine toplevel directory from '$installableFlakeRef' (syntax error?)" < /dev/null
+	local metaDir=$(flakeMetaDir "$topLevel")
+	local floxEnvGCRoot="$metaDir/envs/$installableAttrPath"
+	local protoPkgDir="$topLevel/pkgs/$installableAttrPath"
+
+	# Figure out whether we're operating in a floxified project.
+	if [ -e "$protoPkgDir/flox.nix" ]; then
+		# The flox "happy path" is to stick to only the package derivations
+		# and associated floxEnvs, so take this opportunity to rewrite the
+		# installable to be the specific package derivation only and hide
+		# anything else (devShells, etc.) that is apt to confuse and distract.
+		installable="$packageFlakeURL"
+	fi
+
+	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
+		# Dispatch nix to perform the work of looking up matches for $installable.
+		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
+		verboseExec $_nix "${_nixArgs[@]}" develop "$installable" "${developArgs[@]}" \
+			--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+			"${remainingArgs[@]}"
+	else
+		# Next steps:
+		# 1. build floxEnv for the installable (if there is one), creating a
+		#    GCRoot for that package in the process
+		# 2. activate the newly-rendered floxEnv by way of the GCRoot path
+		# 3. finish by exec'ing "nix develop" or "nix print-dev-env" for the
+		#    installable's package flakeref
+
+		# Try to build the floxEnv if there is one.
+		if [ -e "$protoPkgDir/flox.nix" ]; then
+			# The following build could fail; let it.
+			floxBuild "${_nixArgs[@]}" --out-link "$floxEnvGCRoot" "$floxEnvFlakeURL" "${developArgs[@]}" || \
+				error "failed to build floxEnv from $protoPkgDir/flox.nix" < /dev/null
+
+			# The build was successful so copy the newly rendered catalog and
+			# manifest data into the installable directory.
+			$_jq . --sort-keys "$floxEnvGCRoot/catalog.json" > "$protoPkgDir/catalog.json"
+			$_jq . --sort-keys "$floxEnvGCRoot/manifest.json" > "$protoPkgDir/manifest.json"
+
+			# That's all there is to it - just hand over control to flox activate
+			# to take it from here.
+			# flox develop
+			if [ $interactive -eq 1 ]; then
+				floxActivate "$floxEnvGCRoot" "$NIX_CONFIG_system" -- \
+					$_nix "${_nixArgs[@]}" develop "$installable" "${developArgs[@]}" \
+						--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+						"${remainingArgs[@]}"
+			# print-dev-env
+			else
+				floxActivate "$floxEnvGCRoot" "$NIX_CONFIG_system"
+				verboseExec $_nix "${_nixArgs[@]}" print-dev-env "$installable" "${developArgs[@]}" \
+					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+					"${remainingArgs[@]}"
+			fi
+		else
+			# Otherwise we just proceed with 'nix (develop|print-dev-env)'.
+			if [ $interactive -eq 1 ]; then
+				verboseExec $_nix "${_nixArgs[@]}" develop "$installable" "${developArgs[@]}"
+					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+					"${remainingArgs[@]}"
+			else
+				verboseExec $_nix "${_nixArgs[@]}" print-dev-env "$installable" "${developArgs[@]}"
+					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+					"${remainingArgs[@]}"
+			fi
+		fi
+	fi
 }
 
 # flox run

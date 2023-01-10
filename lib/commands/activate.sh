@@ -81,7 +81,7 @@ function floxActivate() {
 			# Use 'git show' to grab the correct manifest.toml without checking
 			# out the branch, and if the branch or manifest.toml file does not
 			# exist then carry on.
-			(metaGitShow $i $NIX_CONFIG_system manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
+			(metaGitShow $i $system manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
 		fi
 	done
 	FLOX_ACTIVE_ENVIRONMENTS=${_flox_active_environments_prepend}${FLOX_ACTIVE_ENVIRONMENTS:+:}${FLOX_ACTIVE_ENVIRONMENTS}
@@ -124,7 +124,7 @@ function floxActivate() {
 
 	cmdArgs=()
 	inCmdArgs=0
-	for arg in "${args[@]}"; do
+	for arg in "${invocation[@]}"; do
 		case "$arg" in
 		--)
 			inCmdArgs=1

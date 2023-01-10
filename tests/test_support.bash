@@ -15,6 +15,7 @@ setup_file() {
     export FLOX_PACKAGE
     export FLOX_CLI=$FLOX_PACKAGE/bin/flox
   fi
+  export FLOX_DISABLE_METRICS=1
   export TEST_ENVIRONMENT=_testing_
   export NIX_SYSTEM=$($FLOX_CLI nix --extra-experimental-features nix-command show-config | awk '/system = / {print $NF}')
   # Simulate pure bootstrapping environment. It is challenging to get
@@ -43,5 +44,7 @@ setup_file() {
   rm -f tests/out/foo tests/out/subdir/bla
   rmdir tests/out/subdir tests/out || :
   rm -f $FLOX_CONFIG_HOME/{gitconfig,nix.conf}
+  export TESTS_DIR=$(realpath ./tests)
+  export DEVELOP_TEST_DIR=$(mktemp -d)
   set +x
 }

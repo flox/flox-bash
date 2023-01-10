@@ -48,6 +48,7 @@ EOF
 #
 declare gitCloneRegistry
 function initProjectRegistry() {
+	trace "$@"
 	local gitCloneToplevel="$($_git rev-parse --show-toplevel || :)"
 	local floxProjectMetaDir=".flox"
 	if [ -n "$gitCloneToplevel" ]; then

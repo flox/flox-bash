@@ -10,6 +10,7 @@
 , dasel
 , diffutils
 , entr
+, expect
 , findutils
 , gawk
 , gh
@@ -100,7 +101,7 @@ in stdenv.mkDerivation rec {
   pname = "flox";
   version = "0.0.8-${getRev src}";
   src = self;
-  nativeBuildInputs = [ bats entr makeWrapper pandoc shfmt which ];
+  nativeBuildInputs = [ bats entr expect makeWrapper pandoc shfmt which ];
   buildInputs = [
     ansifilter bashInteractive coreutils curl dasel diffutils
     findutils gawk getent git gh gnugrep gnused gnutar gum gzip jq

@@ -725,6 +725,75 @@ load test_support.bash
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
+@test "flox develop setup" {
+  # since develop tests use expect, flox thinks it's being used interactively and asks about metrics
+  sed -i '2i\  "floxMetricsConsent": 0,' "$XDG_CONFIG_HOME/flox/floxUserMeta.json"
+  cp -r "$TESTS_DIR/develop" "$DEVELOP_TEST_DIR"
+  # note the develop flake may have an out of date lock
+}
+
+function assertAndRemoveFiles {
+  pushd "$DEVELOP_TEST_DIR/develop"
+    assert [ -h .flox/envs/my-pkg ]
+    rm -r .flox
+    assert [ -f $DEVELOP_TEST_DIR/develop/pkgs/my-pkg/catalog.json ]
+    rm pkgs/my-pkg/catalog.json
+    assert [ -f pkgs/my-pkg/manifest.json ]
+    rm pkgs/my-pkg/manifest.json
+  popd
+}
+
+@test "flox develop no installable" {
+  pushd "$DEVELOP_TEST_DIR/develop"
+    expect "$TESTS_DIR/develop.exp" ""
+    assert_success
+    assertAndRemoveFiles
+  popd
+}
+
+@test "flox develop from flake root" {
+  pushd "$DEVELOP_TEST_DIR/develop"
+    for attr in "" my-pkg .#my-pkg .#packages.$NIX_SYSTEM.my-pkg "$DEVELOP_TEST_DIR/develop#my-pkg"; do
+      expect "$TESTS_DIR/develop.exp" "$attr"
+      assert_success
+      assertAndRemoveFiles
+    done
+  popd
+}
+
+@test "flox develop from flake subdirectory" {
+  pushd "$DEVELOP_TEST_DIR/develop/pkgs"
+    for attr in .#my-pkg "$DEVELOP_TEST_DIR/develop#my-pkg"; do
+      expect "$TESTS_DIR/develop.exp" "$attr"
+      assert_success
+      assertAndRemoveFiles
+    done
+  popd
+}
+
+@test "flox develop from different directory" {
+  pushd "$DEVELOP_TEST_DIR"
+    expect "$TESTS_DIR/develop.exp" ./develop#my-pkg
+    assert_success
+  popd
+}
+
+@test "flox develop after git init" {
+  pushd "$DEVELOP_TEST_DIR/develop"
+    git init
+    git add .
+    for attr in .#my-pkg "$DEVELOP_TEST_DIR/develop#my-pkg"; do
+      expect "$TESTS_DIR/develop.exp" "$attr"
+      assert_success
+      assertAndRemoveFiles
+    done
+  popd
+}
+
+@test "flox develop fails with remote flake" {
+  expect "$TESTS_DIR/develop-fail.exp" "git+ssh://git@github.com/flox/flox-bash-private?dir=tests/develop#my-pkg"
+}
+
 @test "tear down install test state" {
   run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f"
   assert_output --partial "WARNING: you are about to delete the following"

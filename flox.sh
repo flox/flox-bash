@@ -118,6 +118,7 @@ declare -a invocation_args=("$@")
 declare invocation_string=$(pprint "$me" "$subcommand" "$@")
 
 # Flox environment path(s).
+declare defaultEnv=$(environmentArg "default")
 declare -a environments=()
 
 # Build log message as we go.
@@ -147,7 +148,6 @@ activate | history | install | list | remove | rollback | \
 			;;
 		esac
 	done
-	defaultEnv=$(environmentArg "default")
 	if [ ${#environments[@]} -eq 0 ]; then
 		environments+=($defaultEnv)
 	fi
@@ -217,7 +217,18 @@ build | develop | eval | publish | run | shell)
 	build)
 		floxBuild "$@"
 		;;
-	develop)
+	develop|print-dev-env)
+		if [ "$subcommand" == "develop" -a $interactive -eq 0 ]; then
+			usage | error "'flox develop' must be invoked interactively"
+		fi
+		if [ "$subcommand" == "print-dev-env" ]; then
+			# Force non-interactive mode
+			interactive=0
+			# Also make sure to print bash syntax compatible with that
+			# coming out of 'nix develop', regardless of what shell the
+			# user may be using.
+			export SHELL=bash
+		fi
 		floxDevelop "$@"
 		;;
 	eval)

@@ -193,9 +193,14 @@ The following option is supported by the commands below.
     will prompt for you to select from the list of known packages.
 
 **develop**
-:   Launch subshell configured for development environment using the
-    `flox.toml` or Nix expression file as found in the current directory.
+:   Activate a project flox environment (if it exists) and enter a bash subshell
+    with the build environment for the corresponding package.
 
+**print-dev-env**
+:   Print a shell script that can be sourced by bash to both activate a project
+    flox environment (if it exists) and the build environment for the
+    corresponding package. This allows you to enter a development environment in
+    your current shell rather than in a subshell (as with flox develop).
 
 **publish**
 :   Perform a build, (optionally) copy to cache substituter,
