@@ -993,7 +993,7 @@ function floxDestroy() {
 	# Look for directories to delete.
 	local -a directories=()
 	for i in $environmentDir/$environmentName; do
-		if [ -d "$i" ]; then
+		if [ ! -L "$i" -a -d "$i" ]; then
 			directories+=("$i")
 			warnings+=(" - $i")
 		fi

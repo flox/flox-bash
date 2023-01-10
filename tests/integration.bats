@@ -78,7 +78,6 @@ load test_support.bash
   echo '{"x":1}' | assert_output -
 
   # Evaluate a Nix expression from a file:
-  # TODO: construct a file for which this would work.
   run $FLOX_CLI eval -f ./tests tests.name
   assert_success
   echo '"tests-1.2.3"' | assert_output -
