@@ -166,6 +166,18 @@ load test_support.bash
   assert_output - < /dev/null
 }
 
+@test "flox create -e $TEST_ENVIRONMENT" {
+  run $FLOX_CLI create -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "created environment $TEST_ENVIRONMENT"
+}
+
+@test "flox create -e $TEST_ENVIRONMENT fails when run again" {
+  run $FLOX_CLI create -e $TEST_ENVIRONMENT
+  assert_failure
+  assert_output --partial "ERROR: environment $TEST_ENVIRONMENT ($NIX_SYSTEM) already exists"
+}
+
 @test "flox install hello" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT hello
   assert_success

@@ -130,7 +130,7 @@ submitMetric "$subcommand" &
 case "$subcommand" in
 
 # Flox commands which take an (-e|--environment) environment argument.
-activate | history | install | list | remove | rollback | \
+activate | history | create | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
 	import | export | edit | generations | git | push | pull | destroy)
 
@@ -170,6 +170,8 @@ activate | history | install | list | remove | rollback | \
 	# Reminder: "${args[@]}" has the environment arg removed.
 	activate)
 		floxActivate "${environments[*]}" "$NIX_CONFIG_system" "${args[@]}";;
+	create)
+		floxCreate "$environment" "$NIX_CONFIG_system" "${args[@]}";;
 	destroy)
 		floxDestroy "$environment" "$NIX_CONFIG_system" "${args[@]}";;
 	edit)

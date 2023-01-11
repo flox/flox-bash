@@ -24,6 +24,7 @@ environment commands:
         for command: flox activate -- <command> <args>
     flox list [--out-path] [--json]
          - list installed packages
+    flox create - create environment
     flox install - install a package into an environment
     flox (rm|remove) - remove packages from an environment
     flox upgrade [--force]

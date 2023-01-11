@@ -98,6 +98,10 @@ The following option is supported by the commands below.
 
 *Commands*
 
+**create**
+:   Create environment. Environments are also automatically created with any of
+    `flox (install|import|edit)`.
+
 **install** `<package>` [ `<package>` ... ]
 :   Install package(s) to environment.
     See *PACKAGE ARGUMENTS* below for a description of flox package arguments.

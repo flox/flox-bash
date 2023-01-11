@@ -674,8 +674,7 @@ function beginTransaction() {
 		$invoke_git -C "$workDir" ls-files | $_xargs --no-run-if-empty $_git -C "$workDir" rm --quiet -f
 		# A commit is needed in order to make the branch visible.
 		$invoke_git -C "$workDir" commit --quiet --allow-empty \
-			-m "$USER created environment"
-		$invoke_git -C "$workDir" push --quiet --set-upstream origin "$branch"
+			-m "$USER created environment $environmentName ($system)"
 	else
 		error "environment $environmentName does not exist" < /dev/null
 	fi
@@ -772,6 +771,7 @@ function commitTransaction() {
 	local nextGenVersion="$1"; shift
 	local invocation="${@}"
 	local environmentName=$($_basename $environment)
+	local branch="${system}.${environmentName}"
 
 	# Glean current and next generations from clone.
 	local -i currentGen=$($_readlink $workDir/current || echo 0)
@@ -840,7 +840,7 @@ function commitTransaction() {
 		"$logMessage" "${invocation[@]}")
 
 	$invoke_git -C $workDir commit -m "$message" --quiet
-	$invoke_git -C $workDir push --quiet
+	$invoke_git -C $workDir push --quiet --set-upstream origin $branch
 
 	# Tom's feature: teach a man to fish with (-v|--verbose)
 	if [ $verbose -ge 1 -a $currentGenVersion -eq 2 -a $nextGenVersion -eq 2 ]; then

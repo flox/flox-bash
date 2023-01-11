@@ -101,6 +101,32 @@ EOF
 	fi
 }
 
+_environment_commands+=("create")
+_usage["create"]="create environment"
+function floxCreate() {
+	trace "$@"
+	local environment="$1"; shift
+	local system="$1"; shift
+	local -a invocation=("$@")
+	local environmentName=$($_basename $environment)
+	local branch="${system}.${environmentName}"
+
+	# Create shared clone for creating new environment.
+	local workDir=$(mkTempDir)
+	beginTransaction "$environment" "$system" "$workDir" 1
+
+	# To see if it already exists simply assert that the workdir doesn't
+	# already have an "origin" reference for the branch.
+	if $invoke_git -C $workDir show-ref --quiet refs/remotes/origin/"$branch" >/dev/null; then
+		error "environment $environmentName ($system) already exists" < /dev/null
+	fi
+
+	# We don't commit any transaction in this case, just push.
+	$invoke_git -C $workDir push --quiet --set-upstream origin $branch
+
+	warn "created environment $environmentName ($system)"
+}
+
 _environment_commands+=("install")
 _usage["install"]="install a package into an environment"
 function floxInstall() {
