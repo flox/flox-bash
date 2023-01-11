@@ -292,7 +292,7 @@ EOF
 		$_git -C $workDir add $nextGen/pkgs/default/flox.nix
 
 		local envPackage
-		if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#floxEnvs.$system.default"); then
+		if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#.floxEnvs.$system.default"); then
 			error "failed to install packages: ${pkgArgs[@]}" < /dev/null
 		fi
 
@@ -435,7 +435,7 @@ EOF
 		$_git -C $workDir add $nextGen/pkgs/default/flox.nix
 
 		local envPackage
-		if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#floxEnvs.$system.default"); then
+		if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#.floxEnvs.$system.default"); then
 			error "failed to remove ${pkgNames[@]}" </dev/null
 		fi
 
@@ -596,7 +596,7 @@ EOF
 		fi
 
 		local envPackage
-		if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#floxEnvs.$system.default"); then
+		if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#.floxEnvs.$system.default"); then
 			# TODO: be more specific?
 			error "failed to upgrade packages" < /dev/null
 		fi
@@ -719,7 +719,7 @@ EOF
 			)
 
 			# TODO: return early if no changes have been made instead of rebuilding?
-			if envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#floxEnvs.$system.default"); then
+			if envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#.floxEnvs.$system.default"); then
 				: confirmed valid config
 				break
 			else
@@ -804,7 +804,7 @@ function floxImport() {
 		[ -n "$envPackage" ] || error "failed to render new environment" </dev/null
 		;;
 	2)
-		envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#floxEnvs.$system.default")
+		envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#.floxEnvs.$system.default")
 		;;
 	*)
 		error "unknown version: $currentGenVersion" </dev/null

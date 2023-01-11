@@ -1055,7 +1055,7 @@ function searchChannels() {
 		  for _j in stable staging unstable; do
 			pprint "+$colorBold" "${vars[@]}" \
 				$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
-				"flake:${_i}#$catalogSearchAttrPathPrefix.${_j}" \'"$packageregexp"\' \
+				"flake:${_i}#.$catalogSearchAttrPathPrefix.${_j}" \'"$packageregexp"\' \
 				"$colorReset" 1>&2
 		  done
 		done
@@ -1078,7 +1078,7 @@ function searchChannels() {
 		--title="Searching channels: ${channels[*]}" 1>&2 -- \
 		$_parallel --no-notice --results $_tmpdir -- \
 			$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
-			"flake:{1}#${catalogSearchAttrPathPrefix}.{2}" \'"$packageregexp"\' \
+			"flake:{1}#.${catalogSearchAttrPathPrefix}.{2}" \'"$packageregexp"\' \
 			::: ${channels[@]} ::: stable staging unstable
 
 	# The results directory is composed of files of the form:
@@ -1105,7 +1105,7 @@ function searchChannels() {
 function lookupAttrPaths() {
 	trace "$@"
 	local flakeRef=$1; shift
-	minverbosity=2 $invoke_nix eval "$flakeRef#packages.$NIX_CONFIG_system" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
+	minverbosity=2 $invoke_nix eval "$flakeRef#.packages.$NIX_CONFIG_system" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
 }
 
 function selectAttrPath() {

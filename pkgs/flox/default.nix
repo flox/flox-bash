@@ -52,6 +52,7 @@ let
       ./nix-patches/update-profile-list-warning.patch
       ./nix-patches/multiple-github-tokens.patch
       ./nix-patches/curl_flox_version.patch
+      ./nix-patches/no-default-prefixes-hash.patch
     ];
   });
 
