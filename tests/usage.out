@@ -42,8 +42,8 @@ environment commands:
          - remove all data pertaining to an environment
     flox push [--force]
          - send environment metadata to remote registry
-    flox pull [--force]
-         - pull environment metadata from remote registry
+    flox pull [--force] [--no-render]
+         - pull and render environment from remote registry
     flox git - access to the git CLI for floxmeta repository
 
 development commands:

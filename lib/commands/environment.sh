@@ -894,7 +894,7 @@ function floxHistory() {
 			usage | error "unknown option '$1'"
 			;;
 		*)
-			usage | error "extra argument '$arg'"
+			usage | error "extra argument '$1'"
 			;;
 		esac
 	done
@@ -1091,8 +1091,8 @@ _usage["push"]="send environment metadata to remote registry"
 _usage_options["push"]="[--force]"
 
 _environment_commands+=("pull")
-_usage["pull"]="pull environment metadata from remote registry"
-_usage_options["pull"]="[--force]"
+_usage["pull"]="pull and render environment from remote registry"
+_usage_options["pull"]="[--force] [--no-render]"
 
 #
 # floxPushPull("(push|pull)",$environment,$system)
@@ -1110,14 +1110,30 @@ function floxPushPull() {
 	local environmentName=$($_basename $environment)
 	local environmentOwner=$($_basename $($_dirname $environment))
 	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	local environmentFQName="$environmentOwner/$environmentName"
 	local branch="${system}.${environmentName}"
 	local forceArg=
-	for i in "$@"; do
-		if [ "$i" = "--force" ]; then
+	local -i noRender=0
+	while test $# -gt 0; do
+		case "$1" in
+		--force)
 			forceArg="--force"
-		else
-			usage | error "unknown argument: '$i'"
-		fi
+			shift
+			;;
+		--no-render)
+			[ $action = "pull" ] ||
+				error "'$1' argument only valid with 'flox pull'" </dev/null
+			noRender=1
+			logFormat='format:{"time":%ct, "msg":"%s"}'
+			shift
+			;;
+		-*)
+			usage | error "unknown argument '$1'"
+			;;
+		*)
+			usage | error "extra argument '$1'"
+			;;
+		esac
 	done
 
 	[ $action = "push" -o $action = "pull" ] ||
@@ -1176,7 +1192,14 @@ function floxPushPull() {
 			# to update both the bare repository and the checked out branch.
 			$invoke_git -C "$environmentMetaDir" config receive.denyCurrentBranch updateInstead
 			$invoke_git -C $tmpDir push $forceArg origin
-			syncEnvironment "$environment" "$system"
+			if [ $noRender -gt 0 ]; then
+				warn "successfully pulled metadata for $environmentFQName ($system)"
+				if [ "$system" == "$NIX_CONFIG_system" ]; then
+					warn "REMINDER: invoke '$me pull -e $environmentFQName' before activating environment"
+				fi
+			else
+				syncEnvironment "$environment" "$system"
+			fi
 		else
 			error "branch '$branch' does not exist on $origin upstream" < /dev/null
 		fi
