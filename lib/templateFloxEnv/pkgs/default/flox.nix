@@ -1,14 +1,15 @@
-{...}: {
+{
   packages = {
     nixpkgs-flox = {
-      # hello = {version = "2.12.1";};
+      # ripgrep = {version = "13.0.0";};
     };
   };
   shell = {
     aliases = {
       # gg = "git grep";
     };
-    # POSIX shell hook, except curly braces have to be escaped like ``${
+    # POSIX shell hook run by flox activate, except curly braces have to be
+    # escaped like ``${
     hook = ''
       # echo "Supercharged by flox!" 1>&2
     '';
