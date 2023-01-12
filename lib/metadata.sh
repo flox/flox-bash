@@ -559,7 +559,10 @@ function getSetOrigin() {
 	if [ -z "$origin" ]; then
 
 		# Infer/set origin using a variety of information.
-		if [ $interactive -eq 1 ]; then
+		if [ "$environmentOwner" == "flox" -o "$environmentOwner" == "flox-examples" ]; then
+			# We got this.
+			origin="https://github.com/$environmentOwner/floxmeta"
+		elif [ $interactive -eq 1 ]; then
 			local defaultOrigin
 			if [ "$environmentOwner" == "local" ]; then
 				defaultOrigin=$(promptMetaOrigin)
