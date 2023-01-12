@@ -394,11 +394,7 @@ function commitMessage() {
 	local logMessage="$1"; shift
 	local invocation="${@}"
 	local environmentName=$($_basename $environment)
-	cat <<EOF
-$logMessage
 
-${invocation[@]}
-EOF
 	#
 	# Now we'd like to include a "diff" of the closures for the log.
 	# Nix has rich functionality in this regard but with awkward usage:
@@ -444,12 +440,29 @@ EOF
 			local detail=$(echo "$_cline" | $_cut -d: -f3-)
 			local floxpkg=$(manifest $environment/manifest.json flakerefToFloxpkg "$flakeref")
 			echo "  ${floxpkg}:${detail}"
-		done
+		done > $tmpDir/commitMessageBody
 
+	if [[ "$logMessage" =~ " upgraded "$ ]]; then
+		# When doing an upgrade of everything we don't know what we're
+		# upgrading until after its finished. Take this opportunity to
+		# replace that message.
+		logMessage="${logMessage}$($_cut -d: -f1 $tmpDir/commitMessageBody | $_xargs)"
+	fi
+
+	# Actually print log message out to STDOUT.
+	cat <<EOF
+$logMessage
+
+${invocation[@]}
+EOF
+	$_cat $tmpDir/commitMessageBody
+
+	# Clean up.
 	$_rm -f \
 		$tmpDir/"${environmentName}-1-link" \
 		$tmpDir/"${environmentName}-2-link" \
-		$tmpDir/"${environmentName}"
+		$tmpDir/"${environmentName}" \
+		$tmpDir/commitMessageBody
 	$_rmdir $tmpDir
 }
 
