@@ -63,10 +63,12 @@ function floxActivate() {
 	# Also similarly configure the FLOX_ACTIVE_ENVIRONMENTS variables
 	# for each environment to be activated.
 	FLOX_PATH_PREPEND=
+	FLOX_XDG_DATA_DIRS_PREPEND=
 	_flox_active_environments_prepend=
 	FLOX_BASH_INIT_SCRIPT=$(mkTempFile)
 	for i in "${_environments_to_activate[@]}"; do
 		FLOX_PATH_PREPEND="${FLOX_PATH_PREPEND:+$FLOX_PATH_PREPEND:}$i/bin"
+		FLOX_XDG_DATA_DIRS_PREPEND="${FLOX_XDG_DATA_DIRS_PREPEND:+$FLOX_XDG_DATA_DIRS_PREPEND:}$i/share"
 		_flox_active_environments_prepend="${_flox_active_environments_prepend:+$_flox_active_environments_prepend:}${i}"
 		# Activate environment using version-specific logic.
 		if [ -f "$i/catalog.json" ]; then
@@ -118,7 +120,7 @@ function floxActivate() {
 		exit 0
 	fi
 
-	export FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PATH_PREPEND FLOX_BASH_INIT_SCRIPT
+	export FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PATH_PREPEND FLOX_XDG_DATA_DIRS_PREPEND FLOX_BASH_INIT_SCRIPT
 	# Export FLOX_ACTIVATE_VERBOSE for use within flox.profile.
 	[ $verbose -eq 0 ] || export FLOX_ACTIVATE_VERBOSE=$verbose
 
@@ -141,8 +143,11 @@ function floxActivate() {
 
 	if [ ${#cmdArgs[@]} -gt 0 ]; then
 		export PATH="$FLOX_PATH_PREPEND:$PATH"
+		export XDG_DATA_DIRS="$FLOX_XDG_DATA_DIRS_PREPEND:$XDG_DATA_DIRS"
+
 		export FLOX_PATH_PREPEND FLOX_BASH_INIT_SCRIPT \
-			FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS
+			FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS \
+			FLOX_XDG_DATA_DIRS_PREPEND
 		source "$_etc/flox.profile"
 		[ $verbose -eq 0 ] || pprint "+$colorBold" exec "${cmdArgs[@]}" "$colorReset" 1>&2
 		exec "${cmdArgs[@]}"
@@ -156,6 +161,7 @@ function floxActivate() {
 				exec "$SHELL" "--rcfile" "$_etc/flox.bashrc"
 			else
 				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\""
+				echo "export FLOX_XDG_DATA_DIRS_PREPEND=\"$FLOX_XDG_DATA_DIRS_PREPEND\""
 				echo "export FLOX_BASH_INIT_SCRIPT=\"$FLOX_BASH_INIT_SCRIPT\""
 				echo "export FLOX_ACTIVE_ENVIRONMENTS=\"$FLOX_ACTIVE_ENVIRONMENTS\""
 				echo "export FLOX_PROMPT_ENVIRONMENTS=\"$FLOX_PROMPT_ENVIRONMENTS\""
@@ -177,6 +183,7 @@ function floxActivate() {
 				exec "$SHELL"
 			else
 				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\""
+				echo "export FLOX_XDG_DATA_DIRS_PREPEND=\"$FLOX_XDG_DATA_DIRS_PREPEND\""
 				echo "export FLOX_BASH_INIT_SCRIPT=\"$FLOX_BASH_INIT_SCRIPT\""
 				echo "export FLOX_ACTIVE_ENVIRONMENTS=\"$FLOX_ACTIVE_ENVIRONMENTS\""
 				echo "export FLOX_PROMPT_ENVIRONMENTS=\"$FLOX_PROMPT_ENVIRONMENTS\""

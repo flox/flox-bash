@@ -77,8 +77,10 @@ let
     if [ -n "$FLOX_ACTIVATE_VERBOSE" ]; then
         _flox_activate_verbose=/dev/stderr
         echo "prepending \"$FLOX_PATH_PREPEND\" to \$PATH" 1>&2
+        echo "prepending \"$FLOX_XDG_DATA_DIRS_PREPEND\" to \$XDG_DATA_DIRS" 1>&2
     fi
     export PATH="$FLOX_PATH_PREPEND":"$PATH"
+    export XDG_DATA_DIRS="$FLOX_XDG_DATA_DIRS_PREPEND":"$XDG_DATA_DIRS"
     source <(${coreutils}/bin/tee $_flox_activate_verbose <<EOF
     export SSL_CERT_FILE="''${SSL_CERT_FILE:-${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt}"
     export NIX_SSL_CERT_FILE="''${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"

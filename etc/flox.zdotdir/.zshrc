@@ -20,6 +20,18 @@ fi
 # Bring in the set of default environment variables.
 source @@PREFIX@@/etc/flox.profile
 
+for dir in ${(s.:.)FLOX_XDG_DATA_DIRS_PREPEND-}; do
+    if [ -d "$dir/zsh/site-functions" ]; then
+      fpath=("$dir/zsh/site-functions" $fpath)
+    fi
+    if [ -d "$dir/zsh/vendor-completions" ]; then
+      fpath=("$dir/zsh/vendor-completions" $fpath)
+    fi
+done
+
+autoload -U compinit
+compinit
+
 # Tweak the (already customized) prompt: add a flox indicator.
 if [ -z "$FLOX_PROMPT_DISABLE" ]; then
     _floxPrompt1="%F{${FLOX_PROMPT_COLOR_1}}flox"
