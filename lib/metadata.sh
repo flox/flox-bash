@@ -293,17 +293,25 @@ function temporaryAssert009LinkLayout() {
 	local environment="$1"; shift
 	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
 	eval $(decodeEnvironment "$environment")
-	for i in ${environmentDir}/${environmentAlias} ${environmentDir}/${environmentAlias}-*-link; do
+	# The alias is either "owner/name" or "name" based on the owner, so
+	# we can't use that. Instead construct our own fully-qualified
+	# name by removing the system from environmentName.
+	local environmentBasename="${environmentName/$environmentSystem\./}"
+	for i in ${environmentDir}/${environmentBasename} ${environmentDir}/${environmentBasename}-*-link; do
 		if [ -L "$i" ]; then
 			local x=$($_readlink "$i")
 			case "$x" in
-			$environmentSystem.$environmentAlias*)
+			$environmentSystem.$environmentBasename*)
 				# Already renamed, all good.
 				: ;;
-			$environmentAlias-*-link|/nix/store/*)
+			$environmentBasename-*-link|/nix/store/*)
 				# Old link - rename and leave forwarding link in its place.
 				local y="${environmentSystem}.$($_basename $i)"
-				$_mv "$i" "${environmentDir}/$y"
+				if [ -L "${environmentDir}/$y" ]; then
+					$_rm "$i"
+				else
+					$_mv "$i" "${environmentDir}/$y"
+				fi
 				$_ln -s "$y" "$i"
 				;;
 			*)
