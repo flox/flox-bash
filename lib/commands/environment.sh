@@ -120,10 +120,10 @@ Packages
 EOF
 		if [ $displayOutPath -gt 0 ]; then
 			manifest $manifestJSON listEnvironment --out-path |
-				$_column --table | $_sed 's/^/    /'
+				$_column -t | $_sed 's/^/    /'
 		else
 			manifest $manifestJSON listEnvironment |
-				$_column --table | $_sed 's/^/    /'
+				$_column -t | $_sed 's/^/    /'
 		fi
 	fi
 }
