@@ -96,7 +96,7 @@ function floxPublish() {
 	local tmpdir=$(mkTempDir)
 	local gitClone # separate from tmpdir out of abundance of caution
 	local keyFile
-	local publishSystem=$NIX_CONFIG_system
+	local publishSystem=$FLOX_SYSTEM
 	while test $# -gt 0; do
 		case "$1" in
 		# Required

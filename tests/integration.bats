@@ -169,7 +169,7 @@ load test_support.bash
 @test "flox create -e $TEST_ENVIRONMENT" {
   run $FLOX_CLI create -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "created environment $TEST_ENVIRONMENT"
+  assert_output --partial "created environment $TEST_ENVIRONMENT ($NIX_SYSTEM)"
 }
 
 @test "flox create -e $TEST_ENVIRONMENT fails when run again" {
@@ -334,7 +334,7 @@ load test_support.bash
 @test "flox remove from nonexistent environment should fail" {
   run $FLOX_CLI remove -e does-not-exist hello
   assert_failure
-  assert_output --partial "ERROR: environment does-not-exist does not exist"
+  assert_output --partial "ERROR: environment does-not-exist ($NIX_SYSTEM) does not exist"
   run sh -c "$FLOX_CLI git branch -a | grep -q does-not-exist"
   assert_failure
   assert_output - < /dev/null
@@ -450,7 +450,7 @@ load test_support.bash
 @test "flox upgrade of nonexistent environment should fail" {
   run $FLOX_CLI upgrade -e does-not-exist
   assert_failure
-  assert_output --partial "ERROR: environment does-not-exist does not exist"
+  assert_output --partial "ERROR: environment does-not-exist ($NIX_SYSTEM) does not exist"
   run sh -c "$FLOX_CLI git branch -a | grep -q does-not-exist"
   assert_failure
   assert_output - < /dev/null
@@ -459,7 +459,7 @@ load test_support.bash
 @test "flox rollback of nonexistent environment should fail" {
   run $FLOX_CLI rollback -e does-not-exist
   assert_failure
-  assert_output --partial "ERROR: environment does-not-exist does not exist"
+  assert_output --partial "ERROR: environment does-not-exist ($NIX_SYSTEM) does not exist"
   run sh -c "$FLOX_CLI git branch -a | grep -q does-not-exist"
   assert_failure
   assert_output - < /dev/null

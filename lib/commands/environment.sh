@@ -7,10 +7,8 @@ function floxList() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	local environmentStartGen=$(environmentGen "$environment")
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 	local -a invocation=("$@")
 
@@ -43,60 +41,87 @@ function floxList() {
 		usage | error "only one of '--out-path' and '--json' options may be provided"
 	fi
 
-	if [ ${#listArgs[@]} -gt 0 ]; then
-		# First argument to list can be generation number.
+	# First argument to list can be generation number. Parse args to see
+	# if a specific generation has been requested.
+	local listGeneration=
+	while test ${#listArgs[@]} -gt 0; do
 		if [[ ${listArgs[0]} =~ ^[0-9]*$ ]]; then
-			if [ -e "$environment-${listArgs[0]}-link" ]; then
-				environmentStartGen=${listArgs[0]}
-				listArgs=(${listArgs[@]:1}) # aka shift
-				environment="$environment-$environmentStartGen-link"
+			if [ -z "$listGeneration" ]; then
+				listGeneration=${listArgs[0]}
+			else
+				usage | error "multiple generation arguments provided to list command"
 			fi
+		else
+			usage | error "extra arguments provided '${listargs[*]}'"
 		fi
-	fi
-	if [ ${#listArgs[@]} -gt 0 ]; then
-		usage | error "extra arguments provided '${listargs[*]}'"
+		listArgs=(${listArgs[@]:1}) # aka shift
+	done
+
+	local currentGeneration
+	if [ -z "$listGeneration" ]; then
+		# Identify currentGeneration of environment.
+		currentGeneration=$(metaGitShow $environment metadata.json | $_jq -r .currentGen)
+		[ -n "$currentGeneration" ] || \
+			error "environment $environmentAlias does not exist" < /dev/null
+		# List contents of current generation.
+		listGeneration="$currentGeneration"
 	fi
 
-	_environmentPath="$FLOX_ENVIRONMENTS/$environmentOwner/$environmentName"
-	_environmentAlias="$environmentOwner/$environmentName"
-	if [ -e "$_environmentPath" ]; then
-		if [ "$($_realpath $_environmentPath)" = "$($_realpath $FLOX_ENVIRONMENTS/local/$environmentName)" ]; then
-			_environmentAlias="$environmentName"
+	# Extract manifest.json for inspection and flag if environment is
+	# corrupt or not found.
+	local manifestJSON=$(mkTempFile)
+	metaGitShow $environment $listGeneration/manifest.json > $manifestJSON
+	if [ ! -s $manifestJSON ]; then
+		if [ "$listGeneration" == "$currentGeneration" ]; then
+			# If current generation does not exist then environment is corrupt.
+			error "environment manifest not found for generation $listGeneration - run 'flox destroy -e $environmentAlias' to clean up" </dev/null
+		else
+			error "generation '$listGeneration' not found" </dev/null
 		fi
 	fi
 
+	# Increase verbosity when invoking list command.
 	if [ $verbose -eq 1 ]; then
-		# Increase verbosity when invoking list command.
 		let ++verbose
 	fi
 
-	# Before going any further, make sure environment actually exists.
-	[ -d $environment ] || \
-		error "environment $_environmentAlias does not exist" < /dev/null
-	[ -f $environment/manifest.json ] || \
-		error "environment manifest not found - run 'flox destroy -e $_environmentAlias' to clean up" </dev/null
+	# Before going any further, warn if environment is of current system
+	# type and has not been locally rendered.
+	if [ "$FLOX_SYSTEM" == "$NIX_CONFIG_system" ]; then
+		if [ -d $environment ]; then
+			[ -f $environment/manifest.json ] || \
+				error "$environment/manifest.json not found - run 'flox destroy -e $environmentAlias' to clean up" </dev/null
+		else
+			warn "environment '$environmentAlias' not present - run 'flox pull -e $environmentAlias' before activating"
+		fi
+	fi
 
+	# Display data.
+	# XXX "currentGeneration" is probably the wrong label to be using here
+	# because we may have selected to display a different generation number
+	# by way of a commandline argument. Should revisit based on needs of
+	# SaaS/environment manager project.
 	if [ $displayJSON -gt 0 ]; then
-		manifest $environment/manifest.json listEnvironment --json | $_jq -r \
-			--arg a "$_environmentAlias" \
-			--arg s "$NIX_CONFIG_system" \
-			--arg p "$FLOX_ENVIRONMENTS/$environmentOwner/$environmentName" \
-			--arg c "$environmentStartGen" \
+		manifest $manifestJSON listEnvironment --json | $_jq -r \
+			--arg a "$environmentAlias" \
+			--arg s "$environmentSystem" \
+			--arg p "$environmentDir/$environmentName" \
+			--arg c "$listGeneration" \
 			'{"alias":$a,"system":$s,"path":$p,"currentGeneration":$c} * .'
 	else
 		$_cat <<EOF
 $environmentOwner/$environmentName
-    Alias     $_environmentAlias
-    System    $NIX_CONFIG_system
-    Path      $FLOX_ENVIRONMENTS/$environmentOwner/$environmentName
-    Curr Gen  $environmentStartGen
+    Alias     $environmentAlias
+    System    $environmentSystem
+    Path      $environmentDir/$environmentName
+    Curr Gen  $listGeneration
 
 Packages
 EOF
 		if [ $displayOutPath -gt 0 ]; then
-			manifest $environment/manifest.json listEnvironment --out-path | $_sed 's/^/    /'
+			manifest $manifestJSON listEnvironment --out-path | $_sed 's/^/    /'
 		else
-			manifest $environment/manifest.json listEnvironment | $_sed 's/^/    /'
+			manifest $manifestJSON listEnvironment | $_sed 's/^/    /'
 		fi
 	fi
 }
@@ -108,23 +133,23 @@ function floxCreate() {
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
-	local environmentName=$($_basename $environment)
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	# Create shared clone for creating new environment.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir" 1
+	beginTransaction "$environment" "$workDir" 1
 
 	# To see if it already exists simply assert that the workdir doesn't
 	# already have an "origin" reference for the branch.
-	if $invoke_git -C $workDir show-ref --quiet refs/remotes/origin/"$branch" >/dev/null; then
-		error "environment $environmentName ($system) already exists" < /dev/null
+	if $invoke_git -C $workDir show-ref --quiet refs/remotes/origin/"$branchName" >/dev/null; then
+		error "environment $environmentAlias ($system) already exists" < /dev/null
 	fi
 
 	# We don't commit any transaction in this case, just push.
-	$invoke_git -C $workDir push --quiet --set-upstream origin $branch
+	$invoke_git -C $workDir push --quiet --set-upstream origin $branchName
 
-	warn "created environment $environmentName ($system)"
+	warn "created environment $environmentAlias ($system)"
 }
 
 _environment_commands+=("install")
@@ -180,7 +205,7 @@ function floxInstall() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir" 1
+	beginTransaction "$environment" "$workDir" 1
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current || :)
@@ -189,13 +214,13 @@ function floxInstall() {
 	# Step through installables deriving floxpkg equivalents.
 	local -a pkgArgs=()
 	for pkg in ${installables[@]}; do
-		pkgArgs+=($(floxpkgArg "$pkg"))
+		pkgArgs+=("$(floxpkgArg "$pkg")")
 	done
 	# Step through installables deriving versioned floxpkg flakerefs.
 	# A versioned flakeref is one that ends with "@1.2.3".
 	local -a versionedPkgArgs=()
 	for versionedPkg in ${installables[@]}; do
-		versionedPkgArgs+=($(versionedFloxpkgArg "$versionedPkg"))
+		versionedPkgArgs+=("$(versionedFloxpkgArg "$versionedPkg")")
 	done
 	# Infer floxpkg name(s) from floxpkgs flakerefs.
 	local -a pkgNames=()
@@ -203,7 +228,7 @@ function floxInstall() {
 		case "$pkgArg" in
 		flake:*)
 			# Look up floxpkg name from flox flake prefix.
-			pkgNames+=($(manifest $environment/manifest.json flakerefToFloxpkg "$pkgArg")) ||
+			pkgNames+=("$(manifest $environment/manifest.json flakerefToFloxpkg "$pkgArg")") ||
 				error "failed to look up floxpkg reference for flake \"$pkgArg\"" </dev/null
 			;;
 		*)
@@ -237,7 +262,7 @@ function floxInstall() {
 					local pkgName
 					case "$pkgArg" in
 					flake:*\#)
-						pkgName=($(manifest $environment/manifest.json flakerefToFloxpkg "$pkgArg"))
+						pkgName=("$(manifest $environment/manifest.json flakerefToFloxpkg "$pkgArg")")
 						;;
 					*)
 						pkgName="$pkgArg"
@@ -372,7 +397,7 @@ function floxRemove() {
 
 	# Create shared clone for modifying environment.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir" 0
+	beginTransaction "$environment" "$workDir" 0
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current || :)
@@ -413,7 +438,7 @@ function floxRemove() {
 	# Look up floxpkg name(s) from position.
 	local -a pkgNames=()
 	for position in ${pkgPositionArgs[@]}; do
-		pkgNames+=($(manifest $profileWorkDir/x/manifest.json positionToFloxpkg "$position")) ||
+		pkgNames+=("$(manifest $profileWorkDir/x/manifest.json positionToFloxpkg "$position")") ||
 			error "failed to look up package name for position \"$position\" in environment $environment" </dev/null
 	done
 
@@ -516,7 +541,7 @@ function floxUpgrade() {
 
 	# Create shared clone for modifying environment.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir" 0
+	beginTransaction "$environment" "$workDir" 0
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current)
@@ -537,12 +562,12 @@ function floxUpgrade() {
 		pkgArg=$(floxpkgArg "$pkg")
 		position=
 		if [[ "$pkgArg" == *#* ]]; then
-			position=$(manifest $profileWorkDir/x/manifest.json flakerefToPosition "$pkgArg") ||
+			position="$(manifest $profileWorkDir/x/manifest.json flakerefToPosition "$pkgArg")" ||
 				error "package \"$pkg\" not found in environment $environment" </dev/null
 		elif [[ "$pkgArg" =~ ^[0-9]+$ ]]; then
 			position="$pkgArg"
 		else
-			position=$(manifest $profileWorkDir/x/manifest.json storepathToPosition "$pkgArg") ||
+			position="$(manifest $profileWorkDir/x/manifest.json storepathToPosition "$pkgArg")" ||
 				error "package \"$pkg\" not found in environment $environment" </dev/null
 		fi
 		pkgArgs+=($position)
@@ -550,13 +575,13 @@ function floxUpgrade() {
 	# Look up floxpkg name(s) from position.
 	local -a pkgNames=()
 	for position in ${pkgArgs[@]}; do
-		pkgNames+=($(manifest $profileWorkDir/x/manifest.json positionToFloxpkg "$position")) ||
+		pkgNames+=("$(manifest $profileWorkDir/x/manifest.json positionToFloxpkg "$position")") ||
 			error "failed to look up package name for position \"$position\" in environment $environment" </dev/null
 	done
 	# Look up catalog deletion paths from position.
 	local -a pkgCatalogPaths=()
 	for position in ${pkgArgs[@]}; do
-		pkgCatalogPaths+=($(manifest $profileWorkDir/x/manifest.json positionToCatalogPath "$position")) ||
+		pkgCatalogPaths+=("$(manifest $profileWorkDir/x/manifest.json positionToCatalogPath "$position")") ||
 			error "failed to look up package catalog path for position \"$position\" in environment $environment" </dev/null
 	done
 
@@ -655,7 +680,7 @@ function floxEdit() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir" 1
+	beginTransaction "$environment" "$workDir" 1
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current || :)
@@ -794,7 +819,7 @@ function floxImport() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir" 1
+	beginTransaction "$environment" "$workDir" 1
 
 	# Glean next generation from clone.
 	local nextGen=$($_readlink $workDir/next)
@@ -855,10 +880,11 @@ function floxExport() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	local envName="$(basename $environment)"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	# This is the easy one; just export all the generations. It's up to the
 	# import function to weed out and renumber the current generation.
-	metaGit $environment $system archive --format=tar "$system.$envName"
+	metaGit $environment archive --format=tar "$branchName"
 }
 
 _environment_commands+=("history")
@@ -868,10 +894,8 @@ function floxHistory() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	# Default to verbose log format (like git).
 	logFormat="format:%cd %C(cyan)%B%Creset"
@@ -899,9 +923,9 @@ function floxHistory() {
 		esac
 	done
 	if [ $displayJSON -gt 0 ]; then
-		$invoke_git -C $environmentMetaDir log $branch --pretty="$logFormat" | $_jq -s .
+		$invoke_git -C $environmentMetaDir log $branchName --pretty="$logFormat" | $_jq -s .
 	else
-		$invoke_git -C $environmentMetaDir log $branch --pretty="$logFormat"
+		$invoke_git -C $environmentMetaDir log $branchName --pretty="$logFormat"
 	fi
 }
 
@@ -916,7 +940,7 @@ function floxGenerations() {
 	# rather than the symlinks on disk so that we can have a history of all
 	# generations long after they've been deleted for the purposes of GC.
 	tmpfile=$(mkTempFile)
-	metaGitShow $environment $system metadata.json > $tmpfile
+	metaGitShow $environment metadata.json > $tmpfile
 	registry $tmpfile 1 listGenerations
 }
 
@@ -932,7 +956,7 @@ function floxRollback() {
 
 	# Create shared clone for importing new generation.
 	local workDir=$(mkTempDir)
-	beginTransaction "$environment" "$system" "$workDir" 0
+	beginTransaction "$environment" "$workDir" 0
 
 	# Glean current and next generations from clone.
 	local currentGen=$($_readlink $workDir/current)
@@ -987,11 +1011,8 @@ function floxDestroy() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	local environmentDir=$($_dirname $environment)
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	local originArg=
 	local -i force=0
 	for i in "$@"; do
@@ -1027,19 +1048,19 @@ function floxDestroy() {
 
 	# Look for a local branch.
 	local localBranch=
-	if $invoke_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branch" >/dev/null; then
-		localBranch="$branch"
-		warnings+=(" - the $branch branch in $environmentMetaDir")
+	if $invoke_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName" >/dev/null; then
+		localBranch="$branchName"
+		warnings+=(" - the $branchName branch in $environmentMetaDir")
 	fi
 
 	# Look for an origin branch.
 	local origin=
-	if $invoke_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branch" >/dev/null; then
+	if $invoke_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branchName" >/dev/null; then
 		local -i deleteOrigin=0
 		if [ -n "$originArg" ]; then
 			deleteOrigin=1
 		else
-			if [ -t 1 ] && $invoke_gum confirm --default="false" "delete '$branch' on origin as well?"; then
+			if [ -t 1 ] && $invoke_gum confirm --default="false" "delete '$branchName' on origin as well?"; then
 				deleteOrigin=1
 				warn "hint: invoke with '--origin' flag to avoid this prompt in future"
 			fi
@@ -1047,8 +1068,8 @@ function floxDestroy() {
 		if [ $deleteOrigin -gt 0 ]; then
 			# XXX: BUG no idea why, but this is reporting origin twice
 			#      when first creating the repository; hack with sort.
-			origin=$(getSetOrigin "$environment" "$system" | $_sort -u)
-			warnings+=(" - the $branch branch in $origin")
+			origin=$(getSetOrigin "$environment" | $_sort -u)
+			warnings+=(" - the $branchName branch in $origin")
 		fi
 	fi
 
@@ -1069,12 +1090,12 @@ function floxDestroy() {
 			if $invoke_git -C "$environmentMetaDir" checkout --quiet "$defaultBranch" 2>/dev/null; then
 				# Ensure following commands always succeed so that subsequent
 				# invocations can reach the --origin remote removal below.
-				$invoke_git -C "$environmentMetaDir" branch -D "$branch" || true
+				$invoke_git -C "$environmentMetaDir" branch -D "$branchName" || true
 			fi
 		fi
 		if [ -n "$origin" ]; then
-			$invoke_git -C "$environmentMetaDir" branch -rd origin/"$branch" || true
-			githubHelperGit -C "$environmentMetaDir" push origin --delete "$branch" || true
+			$invoke_git -C "$environmentMetaDir" branch -rd origin/"$branchName" || true
+			githubHelperGit -C "$environmentMetaDir" push origin --delete "$branchName" || true
 		fi
 		$invoke_rm --verbose -f ${links[@]}
 		if [ ${#directories[@]} -gt 0 ]; then
@@ -1107,11 +1128,8 @@ function floxPushPull() {
 	local action="$1"; shift
 	local environment="$1"; shift
 	local system="$1"; shift
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	local environmentFQName="$environmentOwner/$environmentName"
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	local forceArg=
 	local -i noRender=0
 	while test $# -gt 0; do
@@ -1142,7 +1160,7 @@ function floxPushPull() {
 	# First verify that the clone has an origin defined.
 	# XXX: BUG no idea why, but this is reporting origin twice
 	#      when first creating the repository; hack with sort.
-	local origin=$(getSetOrigin "$environment" "$system" | $_sort -u)
+	local origin=$(getSetOrigin "$environment" | $_sort -u)
 
 	# Perform a fetch to get remote data into sync.
 	githubHelperGit -C "$environmentMetaDir" fetch origin
@@ -1157,51 +1175,55 @@ function floxPushPull() {
 
 	# Check out the relevant branch. Can be complicated in the event
 	# that this is the first pull of a brand-new branch.
-	if $invoke_git -C "$tmpDir" show-ref --quiet refs/heads/"$branch"; then
-		$invoke_git -C "$tmpDir" checkout "$branch"
-	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/origin/"$branch"; then
-		$invoke_git -C "$tmpDir" checkout --quiet --track origin/"$branch"
-	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branch"; then
-		$invoke_git -C "$tmpDir" checkout --quiet --track upstream/"$branch"
+	if $invoke_git -C "$tmpDir" show-ref --quiet refs/heads/"$branchName"; then
+		$invoke_git -C "$tmpDir" checkout "$branchName"
+	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/origin/"$branchName"; then
+		$invoke_git -C "$tmpDir" checkout --quiet --track origin/"$branchName"
+	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branchName"; then
+		$invoke_git -C "$tmpDir" checkout --quiet --track upstream/"$branchName"
 	else
-		$invoke_git -C "$tmpDir" checkout --orphan "$branch"
+		$invoke_git -C "$tmpDir" checkout --orphan "$branchName"
 		$invoke_git -C "$tmpDir" ls-files | $_xargs --no-run-if-empty $_git -C "$tmpDir" rm --quiet -f
 		# A commit is needed in order to make the branch visible.
 		$invoke_git -C "$tmpDir" commit --quiet --allow-empty \
 			-m "$USER created profile"
-		$invoke_git -C "$tmpDir" push --quiet --set-upstream origin "$branch"
+		$invoke_git -C "$tmpDir" push --quiet --set-upstream origin "$branchName"
 	fi
 
 	# Then push or pull.
 	if [ "$action" = "push" ]; then
-		githubHelperGit -C $tmpDir push $forceArg upstream origin/"$branch":refs/heads/"$branch" ||
+		githubHelperGit -C $tmpDir push $forceArg upstream origin/"$branchName":refs/heads/"$branchName" ||
 			error "repeat command with '--force' to overwrite" < /dev/null
 		# Push succeeded, ensure that $environmentMetaDir has remote ref for this branch.
 		githubHelperGit -C "$environmentMetaDir" fetch --quiet origin
 	elif [ "$action" = "pull" ]; then
 		# Slightly different here; we first attempt to rebase and do
 		# a hard reset if invoked with --force.
-		if $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branch"; then
+		if $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branchName"; then
 			if [ -z "$forceArg" ]; then
-				$invoke_git -C $tmpDir rebase --quiet upstream/"$branch" ||
+				$invoke_git -C $tmpDir rebase --quiet upstream/"$branchName" ||
 					error "repeat command with '--force' to overwrite" < /dev/null
 			else
-				$invoke_git -C $tmpDir reset --quiet --hard upstream/"$branch"
+				$invoke_git -C $tmpDir reset --quiet --hard upstream/"$branchName"
 			fi
 			# Set receive.denyCurrentBranch=updateInstead before pushing
 			# to update both the bare repository and the checked out branch.
 			$invoke_git -C "$environmentMetaDir" config receive.denyCurrentBranch updateInstead
 			$invoke_git -C $tmpDir push $forceArg origin
 			if [ $noRender -gt 0 ]; then
-				warn "successfully pulled metadata for $environmentFQName ($system)"
+				warn "successfully pulled metadata for $environmentName ($system)"
 				if [ "$system" == "$NIX_CONFIG_system" ]; then
-					warn "REMINDER: invoke '$me pull -e $environmentFQName' before activating environment"
+					warn "REMINDER: invoke '$me pull -e $environmentName' before activating environment"
 				fi
 			else
-				syncEnvironment "$environment" "$system"
+				# XXX temporary: as we change to version 0.0.9 the layout of environment
+				# links changes to embed the system type. Take this opportunity to rename
+				# those links if they exist.
+				temporaryAssert009LinkLayout "$environment"
+				syncEnvironment "$environment"
 			fi
 		else
-			error "branch '$branch' does not exist on $origin upstream" < /dev/null
+			error "branch '$branchName' does not exist on $origin upstream" < /dev/null
 		fi
 	fi
 }
@@ -1212,10 +1234,8 @@ function floxGit() {
 	trace "$@"
 	local environment="$1"; shift
 	local -a invocation=("$@")
-	local environmentDir=$($_dirname $environment)
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	githubHelperGit -C $environmentMetaDir ${args[@]}
 }
 

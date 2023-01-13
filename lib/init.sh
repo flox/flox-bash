@@ -7,6 +7,9 @@ _etc=$_prefix/etc
 # Use extended glob functionality throughout.
 shopt -s extglob
 
+# Allow globs to return the empty list.
+shopt -s nullglob
+
 # Pull in utility functions early.
 . $_lib/utils.sh
 
@@ -127,9 +130,9 @@ export FLOX_VERSION="@@VERSION@@"
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 
 # Default profile "owner" directory, i.e. ~/.local/share/flox/environments/local/default/bin
-environmentOwner="local" # as in "/usr/local"
-if [ -L "$FLOX_ENVIRONMENTS/$environmentOwner" ]; then
-	environmentOwner=$($_readlink "$FLOX_ENVIRONMENTS/$environmentOwner")
+defaultEnvironmentOwner="local" # as in "/usr/local"
+if [ -L "$FLOX_ENVIRONMENTS/$defaultEnvironmentOwner" ]; then
+	defaultEnvironmentOwner=$($_readlink "$FLOX_ENVIRONMENTS/$defaultEnvironmentOwner")
 fi
 
 # Define place to store user-specific metadata separate
@@ -319,6 +322,10 @@ fi
 # Load nix configuration (must happen after setting NIX_USER_CONF_FILES)
 eval $(nix_show_config)
 
+# Set FLOX_SYSTEM for this invocation. Be sure to inherit FLOX_SYSTEM
+# from the environment if defined.
+export FLOX_SYSTEM="${FLOX_SYSTEM:-$NIX_CONFIG_system}"
+
 # Load configuration from [potentially multiple] flox.toml config file(s).
 eval $(read_flox_conf npfs floxpkgs)
 
@@ -328,10 +335,6 @@ eval $(read_flox_conf npfs floxpkgs)
 # Populate user-specific flake registry.
 declare -A validChannels=()
 updateFloxFlakeRegistry
-
-# String to be prepended to flake attrPath (before channel).
-catalogSearchAttrPathPrefix="catalog.$NIX_CONFIG_system"
-catalogEvalAttrPathPrefix="evalCatalog.$NIX_CONFIG_system"
 
 # Leave it to Bob to figure out that Nix 2.3 has the bug that it invokes
 # `tar` without the `-f` flag and will therefore honor the `TAPE` variable

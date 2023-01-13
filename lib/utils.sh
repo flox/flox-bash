@@ -75,6 +75,9 @@ export FLOX_PROMPT_COLOR_1=${FLOX_PROMPT_COLOR_1:-$LIGHTBLUE256}
 export FLOX_PROMPT_COLOR_2=${FLOX_PROMPT_COLOR_2:-$DARKPEACH256}
 
 function pprint() {
+	# Redirect the output of set -x to /dev/null
+	exec 9>/dev/null
+	local BASH_XTRACEFD=9
 	# Step through args and encase with single-quotes those which need it.
 	local space=""
 	for i in "$@"; do
@@ -106,6 +109,9 @@ filecolor=$colorBold
 funccolor=$colorCyan
 argscolor=$floxLightPeach
 function trace() {
+	# Redirect the output of set -x to /dev/null
+	exec 9>/dev/null
+	local BASH_XTRACEFD=9
 	[ $debug -gt 0 ] || return 0
 	echo -e "trace:${filecolor}${BASH_SOURCE[2]}:${BASH_LINENO[1]}${colorReset} ${funccolor}${FUNCNAME[1]}${colorReset}( ${argscolor}"$(pprint "$@")"${colorReset} )" 1>&2
 }
@@ -309,6 +315,9 @@ EOF
 #
 declare -i minverbosity=1
 function invoke() {
+	# Redirect the output of set -x to /dev/null
+	exec 9>/dev/null
+	local BASH_XTRACEFD=9
 	trace "$@"
 	local vars=()
 	if [ $verbose -ge $minverbosity ]; then
@@ -347,10 +356,7 @@ function manifest() {
 	fi
 
 	# Append arg which defines $system.
-	jqargs+=("--arg" "system" "$NIX_CONFIG_system")
-
-	# Append arg which defines $catalogEvalAttrPathPrefix.
-	jqargs+=("--arg" "catalogEvalAttrPathPrefix" "$catalogEvalAttrPathPrefix")
+	jqargs+=("--arg" "system" "$FLOX_SYSTEM")
 
 	# Append remaining args using jq "--args" flag and "--" to
 	# prevent jq from interpreting provided args as options.
@@ -379,7 +385,7 @@ function manifestTOML() {
 	jqargs+=("-s")
 
 	# Append various args.
-	jqargs+=("--arg" "system" "$NIX_CONFIG_system")
+	jqargs+=("--arg" "system" "$FLOX_SYSTEM")
 	jqargs+=("--argjson" "verbose" "$verbose")
 	jqargs+=("--arg" "environmentOwner" "$environmentOwner")
 	jqargs+=("--arg" "environmentName" "$environmentName")
@@ -409,7 +415,7 @@ function renderManifestTOML() {
 	# Convert this list of installables to a list of floxpkgArgs.
 	local -a floxpkgArgs
 	for i in "${installables[@]}"; do
-		floxpkgArgs+=($(floxpkgArg "$i"))
+		floxpkgArgs+=("$(floxpkgArg "$i")")
 	done
 
 	if [ ${#floxpkgArgs[@]} -gt 0 ]; then
@@ -601,18 +607,12 @@ function registry() {
 #
 function environmentRegistry() {
 	trace "$@"
-	local registry="$1"; shift
+	local workDir="$1"; shift
 	local environment="$1"; shift
-	local environmentDir=$($_dirname $environment)
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	local registry="$workDir/metadata.json"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	local version=1
-
-	# First verify that the clone is not out of date and check
-	# out requested branch.
-	# XXX refactor: migrate this to lib/metadata.sh?
-	gitCheckout "$environmentMetaDir" "${NIX_CONFIG_system}.${environmentName}"
 
 	# jq args:
 	#   -n \                        # null input
@@ -627,7 +627,8 @@ function environmentRegistry() {
 		"--arg" "version" "$version"
 		"--arg" "environmentDir" "$environmentDir"
 		"--arg" "environmentName" "$environmentName"
-		"--arg" "environmentMetaDir" "$environmentMetaDir"
+		"--arg" "environmentSystem" "$environmentSystem"
+		"--arg" "environmentMetaDir" "$workDir"
 	)
 
 	# N.B jq invocation aborts if it cannot slurp a file, so if the registry
@@ -712,53 +713,130 @@ function multChoice {
 	# Not reached
 }
 
+#
+# environmentArg($arg)
+#
+# Returns path to flox-managed link to be included in PATH.
+#
 function environmentArg() {
 	trace "$@"
-	# flox profiles must resolve to fully-qualified paths within
+	# flox environments must resolve to fully-qualified paths within
 	# $FLOX_ENVIRONMENTS. Resolve paths in a variety of ways:
 	if [[ ${1:0:1} = "/" ]]; then
 		if [[ "$1" =~ ^$FLOX_ENVIRONMENTS ]]; then
 			# Path already a floxpm profile - use it.
 			echo "$1"
-		elif [[ "$1" =~ ^/nix/var/nix/profiles/ ]]; then
-			# Path already a nix profile - use it.
-			echo "$1"
 		elif [[ -L "$1" ]]; then
 			# Path is a link - try again with the link value.
-			echo $(environmentArg $(readlink "$1"))
+			echo $(environmentArg "$(readlink "$1")")
 		else
-			error "\"$1\" is not a flox profile path" < /dev/null
+			error "\"$1\" is not a flox environment path" < /dev/null
 		fi
 	elif [[ "$1" =~ \	|\  ]]; then
-		error "profile \"$1\" cannot contain whitespace" < /dev/null
+		error "environment \"$1\" cannot contain whitespace" < /dev/null
 	else
 		local old_ifs="$IFS"
 		local IFS=/
-		declare -a _parts=($1)
+		local -a _parts=($1)
 		IFS="$old_ifs"
 		if [ ${#_parts[@]} -eq 1 ]; then
-			# Return default path for the profile directory.
-			echo "$FLOX_ENVIRONMENTS/$environmentOwner/$1"
+			# Return default path for the environment directory.
+			echo "$FLOX_ENVIRONMENTS/$defaultEnvironmentOwner/$FLOX_SYSTEM.${_parts[0]}"
 		elif [ ${#_parts[@]} -eq 2 ]; then
-			# Return default path for the profile directory.
-			echo "$FLOX_ENVIRONMENTS/$1"
+			# Return default path for the environment directory.
+			echo "$FLOX_ENVIRONMENTS/${_parts[0]}/$FLOX_SYSTEM.${_parts[1]}"
 		else
-			usage | error "invalid profile \"$1\""
+			usage | error "invalid environment \"$1\""
 		fi
 	fi
 }
 
-# Parses generation from environment path.
-function environmentGen() {
+function checkValidSystem() {
+	case "$1" in
+	aarch64-linux|aarch64-darwin|i686-linux|x86_64-linux|x86_64-darwin)
+		return 0
+		;;
+	esac
+	return 1
+}
+
+#
+# decodeEnvironment($environment)
+#
+# Parses environment path and returns code to define:
+#   $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+#
+# Called with: eval $(decodeEnvironment $environment)
+#
+function decodeEnvironment() {
 	trace "$@"
-	local environment="$1"
-	local environmentName=$($_basename $environment)
-	if [   -L "$environment" ]; then
-		if [[ $($_readlink "$environment") =~ ^${environmentName}-([0-9]+)-link$ ]]; then
-			echo ${BASH_REMATCH[1]}
-			return
-		fi
+
+	# First parse the straightforward "/"-delimited values.
+	local _old_ifs="$IFS"
+	local IFS=/
+	local -a _parts=($1)
+	local _numParts=${#_parts[@]}
+	local environmentDir="${_parts[*]:0:$(($_numParts-1))}" # == dirname $environment
+	local environmentName="${_parts[$(($_numParts-1))]}" # == basename $environment
+	local environmentOwner="${_parts[$(($_numParts-2))]}" # == basename $environmentDir
+	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	IFS="$_old_ifs"
+
+	# The first part of environmentName is the system.
+	local environmentSystem="${environmentName/\.*/}"
+	if ! checkValidSystem "$environmentSystem"; then
+		# Assume we're only on a single system while we transition to the
+		# new directory layout (with system included in the PATH).
+		# echo "could not decode '$environment', invalid system type: '$environmentSystem'" </dev/null
+		environmentSystem=$NIX_CONFIG_system
 	fi
+
+	# What remains is the alias (can contain dots). If this environment
+	# is not owned by $defaultEnvironmentOwner then also prepend the
+	# owner to the alias.
+	local environmentAlias="${environmentName/$environmentSystem\./}"
+	if [ "$environmentOwner" != "$defaultEnvironmentOwner" ]; then
+		environmentAlias="$environmentOwner/$environmentAlias"
+	fi
+
+	# $branchName was previously a calculated field but is now the same
+	# as $environmentName. Nevertheless we'll keep it as it's useful
+	# to know in what context we're using the string.
+	local branchName="$environmentName"
+	for i in branchName environment{Dir,Name,Alias,Owner,System,MetaDir}; do
+		echo "local $i='${!i}'"
+	done
+}
+
+#
+# environmentPromptAlias($environment)
+#
+# This function differentiates between project and named environments
+# inorder to return the shortest possible alias for inclusion in the
+# PS1 prompt.
+#
+function environmentPromptAlias() {
+	trace "$@"
+	local environment="$1"; shift
+	case "$environment" in
+	$FLOX_ENVIRONMENTS/*)
+		# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+		eval $(decodeEnvironment "$environment")
+		echo "$environmentAlias"
+		;;
+	*)
+		# Redact $FLOX_ENVIRONMENTS from the path for named environments.
+		environment=${environment/$FLOX_ENVIRONMENTS\//}
+		# Redact "$defaultEnvironmentOwner/" from the beginning.
+		environment=${environment/$defaultEnvironmentOwner\//}
+		# Anything else containing more than one "/" must be a project env.
+		# Replace everything up to the last "/" with "...".
+		if [[ "$environment" == */*/?* ]]; then
+			environment=.../${environment//*\//}
+		fi
+		echo "$environment"
+		;;
+	esac
 }
 
 # Package args can take one of the following formats:
@@ -811,10 +889,10 @@ function versionedFloxpkgArg() {
 		# Convert fully-qualified floxTuple:
 		#   "<stability>.<channel>.<attrPath>"
 		# to flakeref:
-		#   "flake:<channel>#${catalogEvalAttrPathPrefix}.<stability>.<attrPath>".
+		#   "flake:<channel>#evalCatalog.${FLOX_SYSTEM}.<stability>.<attrPath>".
 		local flakeref=
 		local -a _floxTuple=($floxTuple)
-		flakeref="flake:${_floxTuple[1]}#${catalogEvalAttrPathPrefix}.${_floxTuple[0]}.${_floxTuple[@]:2}"
+		flakeref="flake:${_floxTuple[1]}#evalCatalog.${FLOX_SYSTEM}.${_floxTuple[0]}.${_floxTuple[@]:2}"
 
 		# Return flakeref.
 		echo "$flakeref"
@@ -1055,7 +1133,7 @@ function searchChannels() {
 		  for _j in stable staging unstable; do
 			pprint "+$colorBold" "${vars[@]}" \
 				$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
-				"flake:${_i}#.$catalogSearchAttrPathPrefix.${_j}" \'"$packageregexp"\' \
+				"flake:${_i}#.catalog.${FLOX_SYSTEM}.${_j}" \'"$packageregexp"\' \
 				"$colorReset" 1>&2
 		  done
 		done
@@ -1078,7 +1156,7 @@ function searchChannels() {
 		--title="Searching channels: ${channels[*]}" 1>&2 -- \
 		$_parallel --no-notice --results $_tmpdir -- \
 			$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
-			"flake:{1}#.${catalogSearchAttrPathPrefix}.{2}" \'"$packageregexp"\' \
+			"flake:{1}#.catalog.${FLOX_SYSTEM}.{2}" \'"$packageregexp"\' \
 			::: ${channels[@]} ::: stable staging unstable
 
 	# The results directory is composed of files of the form:
@@ -1105,7 +1183,7 @@ function searchChannels() {
 function lookupAttrPaths() {
 	trace "$@"
 	local flakeRef=$1; shift
-	minverbosity=2 $invoke_nix eval "$flakeRef#.packages.$NIX_CONFIG_system" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
+	minverbosity=2 $invoke_nix eval "$flakeRef#.packages.$FLOX_SYSTEM" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
 }
 
 function selectAttrPath() {
@@ -1273,7 +1351,7 @@ function betaRefreshNixCache() {
 	local -a privateFlakes=(
 		github:flox/capacitor/v0
 		github:flox/nixpkgs-flox/master
-		github:flox/nixpkgs-catalog/$NIX_CONFIG_system
+		github:flox/nixpkgs-catalog/$FLOX_SYSTEM
 		github:flox/catalog-ingest/main
 		github:flox/flox-extras/master
 		github:flox/flox/main

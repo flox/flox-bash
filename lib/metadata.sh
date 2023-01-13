@@ -216,6 +216,8 @@ function temporaryAssert008Schema {
 	trace "$@"
 	local environment="$1"; shift
 	local repoDir="$1"; shift
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	local currentGen=$($_readlink $workDir/current || :)
 	local nextGen=$($_readlink $workDir/next)
 	local currentGenDir="$repoDir/$currentGen"
@@ -266,7 +268,7 @@ function temporaryAssert008Schema {
 	$_git -C $repoDir add $nextGen/pkgs/default/flox.nix
 
 	local envPackage
-	if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$nextGenDir#floxEnvs.$system.default"); then
+	if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$nextGenDir#floxEnvs.$environmentSystem.default"); then
 		error "failed to install packages: ${pkgArgs[@]}" < /dev/null
 	fi
 
@@ -281,6 +283,35 @@ function temporaryAssert008Schema {
 
 	warn "Conversion complete. Please re-run command."
 	exit 0
+}
+# /XXX
+
+# XXX TEMPORARY function to rename "$name{,-*-link}" -> "$system.$name{,-*-link}"
+#     **Delete after 20230222**
+function temporaryAssert009LinkLayout() {
+	trace "$@"
+	local environment="$1"; shift
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
+	for i in ${environmentDir}/${environmentAlias} ${environmentDir}/${environmentAlias}-*-link; do
+		if [ -L "$i" ]; then
+			local x=$($_readlink "$i")
+			case "$x" in
+			$environmentSystem.$environmentAlias*)
+				# Already renamed, all good.
+				: ;;
+			$environmentAlias-*-link|/nix/store/*)
+				# Old link - rename and leave forwarding link in its place.
+				local y="${environmentSystem}.$($_basename $i)"
+				$_mv "$i" "${environmentDir}/$y"
+				$_ln -s "$y" "$i"
+				;;
+			*)
+				warn "cruft detected - please remove: '$i'"
+				;;
+			esac
+		fi
+	done
 }
 # /XXX
 
@@ -324,14 +355,12 @@ function githubHelperGit() {
 function metaGit() {
 	trace "$@"
 	local environment="$1"; shift
-	local system="$1"; shift
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	# First verify that the clone is not out of date and check
 	# out requested branch.
-	gitCheckout "$environmentMetaDir" "${system}.${environmentName}"
+	gitCheckout "$environmentMetaDir" "$branchName"
 
 	githubHelperGit -C "$environmentMetaDir" "$@"
 }
@@ -341,36 +370,31 @@ function metaGit() {
 function metaGitShow() {
 	trace "$@"
 	local environment="$1"; shift
-	local system="$1"; shift
 	local filename="$1"; shift
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	# First assert the relevant branch exists.
-	if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branch"; then
-		$invoke_git -C "$environmentMetaDir" show "${branch}:${filename}"
+	if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName"; then
+		$invoke_git -C "$environmentMetaDir" show "${branchName}:${filename}"
 	else
-		error "environment '$environmentOwner/$environmentName' not found for system '$system'" < /dev/null
+		error "environment '$environmentOwner/$environmentName' not found for system '$environmentSystem'" < /dev/null
 	fi
 }
 
 #
-# syncEnvironment($environment,$system)
+# syncEnvironment($environment)
 #
 function syncEnvironment() {
 	trace "$@"
 	local environment="$1"; shift
-	local system="$1"; shift
-	local environmentDir=$($_dirname $environment)
-	local environmentName=$($_basename $environment)
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 	local environmentRealDir=$($_readlink -f $environmentDir)
-	local environmentOwner=$($_basename $environmentRealDir)
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
 
-	# Ensure metadata repo is checked out to correct branch.
-	gitCheckout "$environmentMetaDir" "${system}.${environmentName}"
+	# Create shared clone for performing work.
+	local workDir=$(mkTempDir)
+	beginTransaction "$environment" "$workDir" 0
 
 	# Run snippet to generate links using data from metadata repo.
 	$_mkdir -v -p "$environmentRealDir" 2>&1 | $_sed -e "s/[^:]*:/${me}:/"
@@ -379,11 +403,11 @@ function syncEnvironment() {
 	# 1. build all the packages in a [nix] profile
 	# 2. build the [nix] profile package itself
 	# 3. create the GCroot symlinks and top generational symlink
-	local snippet=$(environmentRegistry "$environmentMetaDir"/metadata.json "$environment" syncGenerations)
+	local snippet=$(environmentRegistry "$workDir" "$environment" syncGenerations)
 	eval "$snippet" || true
 
 	# FIXME REFACTOR based on detecting actual change.
-	[ -z "$_cline" ] || metaGit "$environment" "$system" add "metadata.json"
+	[ -z "$_cline" ] || metaGit "$environment" add "metadata.json"
 }
 
 function commitMessage() {
@@ -393,7 +417,8 @@ function commitMessage() {
 	local -i endGen=$1; shift
 	local logMessage="$1"; shift
 	local invocation="${@}"
-	local environmentName=$($_basename $environment)
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	#
 	# Now we'd like to include a "diff" of the closures for the log.
@@ -560,11 +585,8 @@ function rewriteURLs() {
 function getSetOrigin() {
 	trace "$@"
 	local environment="$1"; shift
-	local system="$1"; shift
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	# Check to see if the origin is already set.
 	local origin=$([ -d "$environmentMetaDir" ] && $_git -C "$environmentMetaDir" \
@@ -645,7 +667,7 @@ function getSetOrigin() {
 }
 
 #
-# beginTransaction($environment, $system, $workDir, $createBranch)
+# beginTransaction($environment, $workDir, $createBranch)
 #
 # This function creates an ephemeral clone for staging commits to
 # a floxmeta repository.
@@ -653,13 +675,10 @@ function getSetOrigin() {
 function beginTransaction() {
 	trace "$@"
 	local environment="$1"; shift
-	local system="$1"; shift
 	local workDir="$1"; shift
 	local -i createBranch="$1"; shift
-	local environmentName=$($_basename $environment)
-	local environmentOwner=$($_basename $($_dirname $environment))
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	# Verify that $environmentMetaDir/local exists either as a directory
 	# or as a symlink to another directory.
@@ -681,18 +700,18 @@ function beginTransaction() {
 
 	# Check out the relevant branch. Can be complicated in the event
 	# that this is the first pull of a brand-new branch.
-	if $invoke_git -C "$workDir" show-ref --quiet refs/heads/"$branch"; then
-		$invoke_git -C "$workDir" checkout --quiet "$branch"
-	elif $invoke_git -C "$workDir" show-ref --quiet refs/remotes/origin/"$branch"; then
-		$invoke_git -C "$workDir" checkout --quiet --track origin/"$branch"
+	if $invoke_git -C "$workDir" show-ref --quiet refs/heads/"$branchName"; then
+		$invoke_git -C "$workDir" checkout --quiet "$branchName"
+	elif $invoke_git -C "$workDir" show-ref --quiet refs/remotes/origin/"$branchName"; then
+		$invoke_git -C "$workDir" checkout --quiet --track origin/"$branchName"
 	elif [ $createBranch -eq 1 ]; then
-		$invoke_git -C "$workDir" checkout --quiet --orphan "$branch"
+		$invoke_git -C "$workDir" checkout --quiet --orphan "$branchName"
 		$invoke_git -C "$workDir" ls-files | $_xargs --no-run-if-empty $_git -C "$workDir" rm --quiet -f
 		# A commit is needed in order to make the branch visible.
 		$invoke_git -C "$workDir" commit --quiet --allow-empty \
-			-m "$USER created environment $environmentName ($system)"
+			-m "$USER created environment $environmentName ($environmentSystem)"
 	else
-		error "environment $environmentName does not exist" < /dev/null
+		error "environment $environmentAlias ($environmentSystem) does not exist" < /dev/null
 	fi
 
 	# XXX Temporary covering transition from 0.0.6 -> 0.0.7
@@ -786,12 +805,17 @@ function commitTransaction() {
 	local logMessage="$1"; shift
 	local nextGenVersion="$1"; shift
 	local invocation="${@}"
-	local environmentName=$($_basename $environment)
-	local branch="${system}.${environmentName}"
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
 
 	# Glean current and next generations from clone.
 	local -i currentGen=$($_readlink $workDir/current || echo 0)
 	local -i nextGen=$($_readlink $workDir/next)
+
+	# XXX temporary: as we change to version 0.0.9 the layout of environment
+	# links changes to embed the system type. Take this opportunity to rename
+	# those links if they exist.
+	temporaryAssert009LinkLayout "$environment"
 
 	# Activate the new generation just as Nix would have done.
 	# First check to see if the environment has actually changed,
@@ -856,7 +880,7 @@ function commitTransaction() {
 		"$logMessage" "${invocation[@]}")
 
 	$invoke_git -C $workDir commit -m "$message" --quiet
-	$invoke_git -C $workDir push --quiet --set-upstream origin $branch
+	$invoke_git -C $workDir push --quiet --set-upstream origin $branchName
 
 	# Tom's feature: teach a man to fish with (-v|--verbose)
 	if [ $verbose -ge 1 -a $currentGenVersion -eq 2 -a $nextGenVersion -eq 2 ]; then
@@ -976,7 +1000,7 @@ function subscribeFlake() {
 	local flakeUrl
 	if [ $# -gt 0 ]; then
 		flakeUrl="$1"; shift
-		validateFlakeURL $flakeUrl || \
+		validateFlakeURL "$flakeUrl" || \
 			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
 		registry $floxUserMeta 1 set channels "$flakeName" "$flakeUrl"
 	else
@@ -984,7 +1008,7 @@ function subscribeFlake() {
 			"Enter URL for '$flakeName' channel: " \
 			$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master) \
 			channels "$flakeName")
-		validateFlakeURL $flakeUrl || {
+		validateFlakeURL "$flakeUrl" || {
 			registry $floxUserMeta 1 delete channels "$flakeName"
 			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
 		}

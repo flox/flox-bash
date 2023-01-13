@@ -89,7 +89,7 @@ function bootstrap() {
 			registry $floxUserMeta 1 set defaultFlake "$defaultFlake"
 		fi
 		if [ "$_previous" != "$defaultFlake" ]; then
-			validateFlakeURL $defaultFlake || {
+			validateFlakeURL "$defaultFlake" || {
 				registry $floxUserMeta 1 delete defaultFlake
 				error "could not verify defaultFlake URL: \"$defaultFlake\"" < /dev/null
 			}

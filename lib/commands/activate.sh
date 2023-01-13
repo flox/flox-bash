@@ -83,7 +83,7 @@ function floxActivate() {
 			# Use 'git show' to grab the correct manifest.toml without checking
 			# out the branch, and if the branch or manifest.toml file does not
 			# exist then carry on.
-			(metaGitShow $i $system manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
+			(metaGitShow $i manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
 		fi
 	done
 	FLOX_ACTIVE_ENVIRONMENTS=${_flox_active_environments_prepend}${FLOX_ACTIVE_ENVIRONMENTS:+:}${FLOX_ACTIVE_ENVIRONMENTS}
@@ -99,16 +99,8 @@ function floxActivate() {
 	# inclusion in the prompt.
 	FLOX_PROMPT_ENVIRONMENTS=
 	for i in $(IFS=:; echo $FLOX_ACTIVE_ENVIRONMENTS); do
-		# Redact $FLOX_ENVIRONMENTS from the path for named environments.
-		i=${i/$FLOX_ENVIRONMENTS\//}
-		# Redact "$environmentOwner/" from the beginning.
-		i=${i/$environmentOwner\//}
-		# Anything else containing more than one "/" must be a project env.
-		# Replace everything up to the last "/" with "...".
-		if [[ "$i" == */*/?* ]]; then
-			i=.../${i//*\//}
-		fi
-		FLOX_PROMPT_ENVIRONMENTS="${FLOX_PROMPT_ENVIRONMENTS:+$FLOX_PROMPT_ENVIRONMENTS }${i}"
+		j=$(environmentPromptAlias "$i")
+		FLOX_PROMPT_ENVIRONMENTS="${FLOX_PROMPT_ENVIRONMENTS:+$FLOX_PROMPT_ENVIRONMENTS }${j}"
 	done
 
 	if [ ${#_environments_to_activate[@]} -eq 0 ]; then

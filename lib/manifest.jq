@@ -40,7 +40,7 @@ def expectedArgs(count; args):
 # Sample element:
 # {
 #   "active": true,
-#   "attrPath": "$catalogEvalAttrPathPrefix.stable.vim",
+#   "attrPath": "evalCatalog.$system.stable.vim",
 #   "originalUrl": "flake:nixpkgs-flox",
 #   "storePaths": [
 #     "/nix/store/ivwgm9bdsvhnx8y7ac169cx2z82rwcla-vim-8.2.4350"
@@ -57,7 +57,7 @@ def floxpkgToFlakeref(args): expectedArgs(1; args) |
   $floxpkgArray[0] as $stability |
   $floxpkgArray[1] as $channel |
   ( $floxpkgArray[2:] | join(".") ) as $attrPath |
-  "flake:\($channel)#\($catalogEvalAttrPathPrefix).\($stability).\($attrPath)";
+  "flake:\($channel)#evalCatalog.\($system).\($stability).\($attrPath)";
 
 def flakerefToFloxpkg(args): expectedArgs(1; args) |
   args[0] as $flakeref |

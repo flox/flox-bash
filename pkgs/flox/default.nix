@@ -102,7 +102,7 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.8-${getRev src}";
+  version = "0.0.9-${getRev src}";
   src = self;
   nativeBuildInputs = [ bats entr expect makeWrapper pandoc shfmt which ];
   buildInputs = [

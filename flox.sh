@@ -134,13 +134,21 @@ activate | history | create | install | list | remove | rollback | \
 	switch-generation | upgrade | wipe-history | \
 	import | export | edit | generations | git | push | pull | destroy)
 
-	# Look for the --environment argument(s).
+	# Look for the --environment and --system argument(s).
 	args=()
 	while test $# -gt 0; do
 		case "$1" in
 		-e | --environment)
-			environments+=($(environmentArg $2))
+			environments+=("$2")
 			shift 2
+			;;
+		--system)
+			# Perform a quick sanity check of supported system types.
+			shift
+			checkValidSystem "$1" ||
+				error "invalid system type '$1'" </dev/null
+			export FLOX_SYSTEM="$1"
+			shift
 			;;
 		*)
 			args+=("$1")
@@ -150,6 +158,12 @@ activate | history | create | install | list | remove | rollback | \
 	done
 	if [ ${#environments[@]} -eq 0 ]; then
 		environments+=($defaultEnv)
+	else
+		declare -a environmentArgs=()
+		for i in "${environments[@]}"; do
+			environmentArgs+=($(environmentArg "$i"))
+		done
+		environments=("${environmentArgs[@]}")
 	fi
 
 	# Only the "activate" subcommand accepts multiple environments.
@@ -158,51 +172,48 @@ activate | history | create | install | list | remove | rollback | \
 	fi
 
 	environment=${environments[0]}
-	environmentOwner=$($_basename $($_dirname $environment))
-	environmentMetaDir="$FLOX_META/$environmentOwner"
-	environmentStartGen=$(environmentGen "$environment")
 
 	[ $verbose -eq 0 ] || [ "$subcommand" = "activate" ] || echo Using environment: $environment >&2
 
 	case "$subcommand" in
 
 	## Environment commands
-	# Reminder: "${args[@]}" has the environment arg removed.
+	# Reminder: "${args[@]}" has the -e and --system args removed.
 	activate)
-		floxActivate "${environments[*]}" "$NIX_CONFIG_system" "${args[@]}";;
+		floxActivate "${environments[*]}" "$FLOX_SYSTEM" "${args[@]}";;
 	create)
-		floxCreate "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxCreate "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	destroy)
-		floxDestroy "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxDestroy "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	edit)
-		floxEdit "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxEdit "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	export)
-		floxExport "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxExport "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	generations)
-		floxGenerations "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxGenerations "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	git)
 		floxGit "$environment" "${args[@]}";;
 	history)
-		floxHistory "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxHistory "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	import)
-		floxImport "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxImport "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	install)
-		floxInstall "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxInstall "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	list)
-		floxList "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxList "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	push | pull)
-		floxPushPull "$subcommand" "$environment" "$NIX_CONFIG_system" ${args[@]};;
+		floxPushPull "$subcommand" "$environment" "$FLOX_SYSTEM" ${args[@]};;
 	remove)
-		floxRemove "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxRemove "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	rollback|switch-generation)
 		if [ "$subcommand" = "switch-generation" ]; then
 			# rewrite switch-generation to instead use the new
 			# "rollback --to" command (which makes no sense IMO).
 			args=("--to" "${args[@]}")
 		fi
-		floxRollback "$environment" "$NIX_CONFIG_system" $subcommand "${args[@]}";;
+		floxRollback "$environment" "$FLOX_SYSTEM" $subcommand "${args[@]}";;
 	upgrade)
-		floxUpgrade "$environment" "$NIX_CONFIG_system" "${args[@]}";;
+		floxUpgrade "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 
 	wipe-history)
 		error not implemented < /dev/null;;
@@ -250,7 +261,7 @@ build | develop | eval | publish | run | shell)
 
 # The environments subcommand takes no arguments.
 envs | environments)
-	floxEnvironments "$NIX_CONFIG_system" "${invocation_args[@]}"
+	floxEnvironments "$FLOX_SYSTEM" "${invocation_args[@]}"
 	;;
 
 gh)

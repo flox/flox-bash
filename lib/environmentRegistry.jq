@@ -148,7 +148,7 @@ def _syncGeneration(args):
       "else " +
         if ($version == 1) then
           # Temporary XXX: Identify schema version in use, <=006 or >=007
-          "environmentManifestFile=$( [ -e $environmentMetaDir/\($generation).json ] && echo $environmentMetaDir/\($generation).json || echo $environmentMetaDir/\($generation)/manifest.json ) && " +
+          "environmentManifestFile=$( [ -e \($environmentMetaDir)/\($generation).json ] && echo \($environmentMetaDir)/\($generation).json || echo \($environmentMetaDir)/\($generation)/manifest.json ) && " +
           # Ensure all flakes referenced in environment are built.
           "manifest $environmentManifestFile listFlakesInEnvironment | " +
           " $_xargs --no-run-if-empty $( [ $verbose -eq 0 ] || echo '--verbose' ) -- $_nix build --impure --no-link && " +
@@ -159,7 +159,7 @@ def _syncGeneration(args):
           # Now we can attempt to build the environment and store in the bash $environmentPath variable.
           "environmentPath=$($_nix profile build $environmentManifestFile) && "
         else
-          "environmentPath=$($invoke_nix build --impure --no-link --print-out-paths $environmentMetaDir/\($generation)#floxEnvs.$system.default) && "
+          "environmentPath=$($invoke_nix build --impure --no-link --print-out-paths \($environmentMetaDir)/\($generation)#floxEnvs.\($environmentSystem).default) && "
         end +
         # Now create the generation link using nix-store so that it creates a
         # GC root in the process. N.B. this command will silently overwrite a

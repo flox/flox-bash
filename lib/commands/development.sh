@@ -312,7 +312,7 @@ function floxDevelop() {
 	# the "packages.$system." part as we'll add it back when constructing
 	# the canonical flake URLs.
 	local installableAttrPath=${installable//*#/}
-	installableAttrPath="${installableAttrPath//packages.$NIX_CONFIG_system./}"
+	installableAttrPath="${installableAttrPath//packages.$FLOX_SYSTEM./}"
 
 	# If the user didn't provide the url part of the flakeref then use ".".
 	local installableFlakeRef=${installable//#*/}
@@ -321,8 +321,8 @@ function floxDevelop() {
 	fi
 
 	# Compute the canonical build and floxEnv flakerefs for the installable.
-	local floxEnvFlakeURL="${installableFlakeRef}#floxEnvs.$NIX_CONFIG_system.$installableAttrPath"
-	local packageFlakeURL="${installableFlakeRef}#packages.$NIX_CONFIG_system.$installableAttrPath"
+	local floxEnvFlakeURL="${installableFlakeRef}#floxEnvs.$FLOX_SYSTEM.$installableAttrPath"
+	local packageFlakeURL="${installableFlakeRef}#packages.$FLOX_SYSTEM.$installableAttrPath"
 
 	# Compute the GCRoot path to be created/activated.
 	local topLevel=$(flakeTopLevel "$installableFlakeRef" "${developArgs[@]}")
@@ -370,13 +370,13 @@ function floxDevelop() {
 			# to take it from here.
 			# flox develop
 			if [ $interactive -eq 1 ]; then
-				floxActivate "$floxEnvGCRoot" "$NIX_CONFIG_system" -- \
+				floxActivate "$floxEnvGCRoot" "$FLOX_SYSTEM" -- \
 					$_nix "${_nixArgs[@]}" develop "$installable" "${developArgs[@]}" \
 						--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
 						"${remainingArgs[@]}"
 			# print-dev-env
 			else
-				floxActivate "$floxEnvGCRoot" "$NIX_CONFIG_system"
+				floxActivate "$floxEnvGCRoot" "$FLOX_SYSTEM"
 				verboseExec $_nix "${_nixArgs[@]}" print-dev-env "$installable" "${developArgs[@]}" \
 					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
 					"${remainingArgs[@]}"

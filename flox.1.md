@@ -90,11 +90,15 @@ runtime environments, developer environments, and administration.
 
 ## Runtime environments
 
-The following option is supported by the commands below.
+The following options are supported by the commands below.
 
 `(-e|--environment) <name>`
 :   Selects **flox environment** to be modified or used. If not provided then
     `flox` will fall back to using the `default` environment.
+
+`--system <type>`
+:   Perform command for provided (Nix) system type. If not provided then
+    `flox` will fall back to using the current machine's system type.
 
 *Commands*
 
