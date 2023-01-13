@@ -146,15 +146,21 @@ def flakerefToPname(args): expectedArgs(1; args) |
   flakerefToFloxpkg(args) |
   split(".") | .[2:] | join(".");
 
-# Add "position" index as we define $elements.
+# Add position and package{Name,PName,Version} as we define $elements.
 ( $manifest[].elements | to_entries | map(
+  ( .value.storePaths[0] | .[44:] ) as $packageName |
+  ( .value | elementToFloxpkg | split(".")[2:] | join(".") ) as $packagePName |
+  ( $packageName | ltrimstr("\($packagePName)-") ) as $packageVersion |
   .value * {
     position:.key,
-    packageName: (
+    packageName:$packageName,
+    packagePName:$packagePName,
+    packageVersion:$packageVersion,
+    packageIdentifier: (
       if .value.attrPath then
         flakerefToPname(["\(.value.originalUrl)#\(.value.attrPath)"])
       else
-        .value.storePaths[0] | .[44:]
+        $packageName
       end
     )
   }
@@ -220,7 +226,7 @@ def floxpkgFromElement:
 
 def floxpkgFromElementWithRunPath:
   if .attrPath then
-    flakerefToFloxpkg(["\(.originalUrl)#\(.attrPath)"]) + "\t" + (.storePaths | join(","))
+    flakerefToFloxpkg(["\(.originalUrl)#\(.attrPath)"]) + " " + (.storePaths | join(","))
   else .storePaths[] end;
 
 def catalogPathFromElement:
@@ -321,7 +327,11 @@ def listEnvironment(args):
   (args | length) as $argc |
   if $argc == 0 then
     $elements | map(
-      (.position | tostring) + " " + floxpkgFromElement
+      . as $datum |
+      ($datum | floxpkgFromElement) as $floxpkgArg |
+      ($datum | .packageVersion) as $floxpkgVersion |
+      ($datum | .position) as $position |
+      "\($position | tostring) \($floxpkgArg) \($floxpkgVersion)"
     ) | join("\n")
   elif $argc == 2 then
     error("excess argument: " + args[1])
@@ -332,7 +342,7 @@ def listEnvironment(args):
       (.position | tostring) + " " + floxpkgFromElementWithRunPath
     ) | join("\n")
   elif args[0] == "--json" then (
-    $elements | sort_by(.packageName) | unique_by(.packageName) | map(
+    $elements | sort_by(.packageIdentifier) | unique_by(.packageIdentifier) | map(
       . as $datum |
       ($datum | floxpkgFromElement) as $floxpkgArg |
       {"floxpkgArg": $floxpkgArg} * $datum
@@ -346,7 +356,7 @@ def listEnvironment(args):
   end;
 
 def listEnvironmentTOML(args): expectedArgs(0; args) |
-  $elements | sort_by(.packageName) | unique_by(.packageName) |
+  $elements | sort_by(.packageIdentifier) | unique_by(.packageIdentifier) |
     map(TOMLFromElement) as $TOMLelements |
   (["[packages]"] + $TOMLelements) | join("\n");
 
