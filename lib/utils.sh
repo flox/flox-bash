@@ -1369,6 +1369,56 @@ function betaRefreshNixCache() {
 }
 
 #
+# darwinRepairFiles()
+#
+# The flox installer includes logic to patch /etc/zshrc{,_Apple_Terminal}
+# to fix bugs in Apple's default zshrc files, but it also seems that upgrades
+# (and updates?) will indiscriminately blat user's customizations of these
+# system-wide files. At some point we hope to get Apple to update their
+# copies of the scripts, but in the meantime we check with each invocation
+# to ensure that they haven't been reverted.
+#
+# https://github.com/flox/flox-bash-private/issues/434
+#
+function darwinPromptPatchFile() {
+	trace "$@"
+	brokenFile=$1; shift
+	patchFile=$1; shift
+	warn "flox modifications to '$brokenFile' for zsh session history support"
+	warn "seem to have been reverted, possibly by way of a recent OS update."
+	if $invoke_gum confirm --default="true" "Reapply flox patches to '$brokenFile'?"; then
+		# Intentionally relying on Mac versions of sudo and patch.
+		( set -x && \
+			/usr/bin/sudo /usr/bin/patch -V none -p0 -d / --verbose < $patchFile ) || \
+			warn "problems applying '$patchFile' - please reinstall flox"
+	else
+		warn "OK, note you may encounter problems with zsh session history."
+	fi
+}
+function darwinRepairFiles() {
+	trace "$@"
+	[ $interactive -eq 1 ] || return 0
+	if ! $_grep -q 'HISTFILE=${HISTFILE:-${ZDOTDIR:-$HOME}/.zsh_history}' /etc/zshrc; then
+		if [ -f /usr/local/share/flox/files/darwin-zshrc.patch ] && \
+			$_cmp --quiet /etc/zshrc /etc/zshrc.backup-before-flox; then
+			darwinPromptPatchFile /etc/zshrc /usr/local/share/flox/files/darwin-zshrc.patch
+		else
+			warn "broken 'HISTFILE' variable assignment in /etc/zshrc - please reinstall flox"
+		fi
+		warn "continuing ..."
+	fi
+	if ! $_grep -q 'SHELL_SESSION_DIR="${SHELL_SESSION_DIR:-${ZDOTDIR:-$HOME}/.zsh_sessions}"' /etc/zshrc_Apple_Terminal; then
+		if [ -f /usr/local/share/flox/files/darwin-zshrc_Apple_Terminal.patch ] && \
+			$_cmp --quiet /etc/zshrc_Apple_Terminal /etc/zshrc_Apple_Terminal.backup-before-flox; then
+			darwinPromptPatchFile /etc/zshrc_Apple_Terminal /usr/local/share/flox/files/darwin-zshrc_Apple_Terminal.patch
+		else
+			warn "broken 'SHELL_SESSION_DIR' variable assignment in /etc/zshrc - please reinstall flox"
+		fi
+		warn "continuing ..."
+	fi
+}
+
+#
 # identifyParentShell()
 #
 # Do everything in our power to identify the parent shell. We basically

@@ -264,6 +264,9 @@ function floxActivate() {
 		esac
 	fi
 
+	# Address possibility of corrupt /etc/zshrc* files on Darwin.
+	[ "$($_uname -s)" != "Darwin" ] || darwinRepairFiles
+
 	# Activate.
 	if [ $interactive -eq 1 ]; then
 		# Interactive case - launch subshell.
