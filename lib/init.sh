@@ -2,6 +2,7 @@
 _prefix="@@PREFIX@@"
 _prefix=${_prefix:-.}
 _lib=$_prefix/lib
+_libexec=$_prefix/libexec
 _etc=$_prefix/etc
 
 # Use extended glob functionality throughout.

@@ -32,6 +32,7 @@
 , parallel
 , pkgs
 , shfmt
+, substituteAll
 , util-linuxMinimal
 , which
 , writeText
@@ -56,47 +57,29 @@ let
     ];
   });
 
-  # TODO: create floxProfile for other shell dialects (e.g. csh).
-  floxProfile = writeText "flox.profile" (''
-    # Nix packages rely on "system" files that are found in different
-    # locations on different operating systems and distros, and many of
-    # these packages employ environment variables for overriding the
-    # default locations for such files.
-    #
-    # In general there are two approaches for defining these variables:
-    #
-    # 1. Local: whereby the application itself is built wrapped in a script
-    #    which sets the required variables.
-    # 2. Global: operating systems have the facility for setting system-wide
-    #    environment variables which affect all processes.
-    #
-    # This file provides a place for defining global environment variables
-    # and borrows liberally from the set of default environment variables
-    # set by NixOS, the principal proving ground for Nix packaging efforts.
-    _flox_activate_verbose=/dev/null
-    if [ -n "$FLOX_ACTIVATE_VERBOSE" ]; then
-        _flox_activate_verbose=/dev/stderr
-        echo "prepending \"$FLOX_PATH_PREPEND\" to \$PATH" 1>&2
-        echo "prepending \"$FLOX_XDG_DATA_DIRS_PREPEND\" to \$XDG_DATA_DIRS" 1>&2
-    fi
-    export PATH="$FLOX_PATH_PREPEND":"$PATH"
-    export XDG_DATA_DIRS="$FLOX_XDG_DATA_DIRS_PREPEND":"$XDG_DATA_DIRS"
-    source <(${coreutils}/bin/tee $_flox_activate_verbose <<EOF
-    export SSL_CERT_FILE="''${SSL_CERT_FILE:-${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt}"
-    export NIX_SSL_CERT_FILE="''${NIX_SSL_CERT_FILE:-$SSL_CERT_FILE}"
-  '' + lib.optionalString hostPlatform.isLinux ''
-    export LOCALE_ARCHIVE="${pkgs.glibcLocales}/lib/locale/locale-archive"
-  '' + lib.optionalString hostPlatform.isDarwin ''
-    export NIX_COREFOUNDATION_RPATH="${pkgs.darwin.CF}/Library/Frameworks"
-    export PATH_LOCALE="${pkgs.darwin.locale}/share/locale"
-  '' + ''
-    if [ -n "$FLOX_BASH_INIT_SCRIPT" ]; then
-        . "$FLOX_BASH_INIT_SCRIPT"
-    fi
-    EOF
-    )
-    unset FLOX_PATH_PREPEND FLOX_ACTIVATE_VERBOSE FLOX_BASH_INIT_SCRIPT
-  '');
+  # TODO: floxActivateFish, etc.
+  floxActivateBashDarwin = substituteAll {
+    src = builtins.toFile "activate.bash" (
+      (builtins.readFile ./activate.bash) +
+      (builtins.readFile ./activate.darwin.bash)
+    );
+    inherit (pkgs) cacert;
+    inherit (pkgs.darwin) locale;
+    coreFoundation = pkgs.darwin.CF;
+  };
+  floxActivateBashLinux = substituteAll {
+    src = builtins.toFile "activate.bash" (
+      (builtins.readFile ./activate.bash) +
+      (builtins.readFile ./activate.linux.bash)
+    );
+    inherit (pkgs) cacert glibcLocales;
+  };
+  floxActivateBash =
+    if hostPlatform.isLinux then
+      floxActivateBashLinux
+    else if hostPlatform.isDarwin then
+      floxActivateBashDarwin
+    else throw "unsupported system variant";
 
   bats = pkgs.bats.withLibraries (p: [ p.bats-support p.bats-assert ]);
 
@@ -116,7 +99,7 @@ in stdenv.mkDerivation rec {
     "VERSION=${version}"
     "FLOXPATH=$(out)/libexec/flox:${lib.makeBinPath buildInputs}"
     "NIXPKGS_CACERT_BUNDLE_CRT=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-    "FLOX_PROFILE=${floxProfile}"
+    "FLOX_ACTIVATE_BASH=${floxActivateBash}"
   ] ++ lib.optionals hostPlatform.isLinux [
     "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
   ] ++ lib.optionals hostPlatform.isDarwin [
@@ -145,7 +128,7 @@ in stdenv.mkDerivation rec {
 
     # Rewrite /bin/sh to the full path of bashInteractive.
     # Use --host to resolve using the runtime path.
-    patchShebangs --host $out/libexec/flox/flox
+    patchShebangs --host $out/libexec/flox/flox $out/libexec/flox/darwin-path-fixer
   '';
 
   doInstallCheck = ! stdenv.isDarwin;

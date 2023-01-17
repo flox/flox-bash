@@ -1,13 +1,66 @@
 ## Environment commands
 
-# "flox activate" is invoked in three contexts:
-# * with arguments: prepend environment bin directories to PATH and
-#   invoke the commands provided, else ...
-# * interactive: we need to take over the shell "rc" entrypoint
-#   so that we can guarantee to prepend to the PATH *AFTER* all
-#   other processing has been completed, else ...
-# * non-interactive: here we simply prepend to the PATH and set
-#   required env variables.
+#
+# bashRC($@)
+#
+# Takes a list of environments and emits bash commands to configure each
+# of them in the order provided.
+#
+function bashRC() {
+	trace "$@"
+	# Start with required platform-specific Nixpkgs environment variables.
+	$_grep -v '^#' $_lib/commands/shells/activate.bash | $_grep -v '^$'
+	# Add computed environment variables.
+	for i in PATH XDG_DATA_DIRS FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PROMPT_COLOR_{1,2}; do
+		printf 'export %s="%s"\n' $i "${!i}"
+	done
+	# Add environment-specific activation commands.
+	for i in "$@"; do
+		if [ -f "$i/activate" ]; then
+			$_cat $i/activate
+		elif [ -f "$i/manifest.toml" ]; then
+			# Original v1 format to be deprecated.
+			(metaGitShow $i manifest.toml 2>/dev/null | manifestTOML bashInit) || :
+		fi
+	done
+}
+
+#
+# Regardless of the context in which "flox activate" is invoked it does
+# three things, although it may not do all of these in every context:
+#
+#   I. sets environment variables
+#   II. runs hooks
+#   III. invokes a _single_ command
+#
+# ... and "flox activate" can be invoked in the following contexts:
+#
+#   A. with arguments denoting a command to be invoked
+#      1. creates an "rc" script in bash (i.e. flox CLI shell)
+#      2. if NOT environment already active
+#        - appends commands (I && II) to the "rc" script
+#      3. source "rc" script directly and exec() $cmdArgs (III)
+#   B. in an interactive context
+#      1. creates an "rc" script in the language of the user's $SHELL
+#      2. if NOT environment already active
+#        - appends commands (I && II) to the "rc" script
+#      3. exec() $SHELL (III) with "rc" configured to source script
+#   C. in a non-interactive context
+#      0. confirms the running shell (cannot trust $SHELL)
+#      1. creates an "rc" script in the language of the running shell
+#      2. if NOT environment already active
+#        - appends commands (I && II) to the "rc" script
+#      3. cat() contents of "rc" script to stdout (does not invoke anything)
+#      4. remove "rc" script
+#
+# Breaking it down in this way allows us to employ common logic across
+# all cases. In the B and C cases we take over the shell "rc" entrypoint
+# so that we can guarantee that flox environment directories are prepended
+# to the PATH *AFTER* all other processing has been completed. This is
+# particularly important in the case of Darwin which has a "path_helper"
+# that re-orders the PATH in a decidedly "unhelpful" way with each new
+# shell invocation.
+#
 
 _environment_commands+=("activate")
 _usage["activate"]="activate environment:
@@ -20,104 +73,12 @@ function floxActivate() {
 	local -a environments=($1); shift
 	local system="$1"; shift
 	local -a invocation=("$@")
+	local -A _flox_active_environments_hash
+	local -a _flox_original_active_environments_array
+	local -a _environments_to_activate
 
-	# The $FLOX_ACTIVE_ENVIRONMENTS variable is colon-separated (like $PATH)
-	# and contains the list of fully-qualified active environments by path,
-	# e.g. /Users/floxfan/.local/share/flox/environments/local/default.
-	# Load this variable into an associative array for convenient lookup.
-	declare -A _flox_active_environments
-	declare -a _environments_to_activate
-	for i in $(IFS=:; echo $FLOX_ACTIVE_ENVIRONMENTS); do
-		_flox_active_environments[$i]=1
-	done
-
-	# Identify each environment to be activated, taking note to avoid
-	# attempting to activate an environment that has already been
-	# activated.
-	for i in "${environments[@]}"; do
-		if [ -z "${_flox_active_environments[$i]}" ]; then
-			# Only warn if it's not the default environment.
-			if [ "$i" != "$defaultEnv" ]; then
-				[ -d "$i/." ] || warn "INFO environment not found: $i"
-			fi
-			_environments_to_activate+=("$i")
-			_flox_active_environments[$i]=1
-		elif [ "$i" != "$defaultEnv" ]; then
-			# Only throw an error if in an interactive session, and don't
-			# throw an error when attempting to activate the default env.
-			if [ $interactive -eq 1 ]; then
-				error "$i environment already active" < /dev/null
-			fi
-		fi
-	done
-
-	# Add "default" to end of the list if it's not already there.
-	# Do this separately from loop above to detect when people
-	# explicitly attempt to activate default env twice.
-	if [ -z "${_flox_active_environments[$defaultEnv]}" ]; then
-		_environments_to_activate+=("$defaultEnv")
-		_flox_active_environments[$defaultEnv]=1
-	fi
-
-	# Build up string to be prepended to PATH. Add in order provided.
-	# Also similarly configure the FLOX_ACTIVE_ENVIRONMENTS variables
-	# for each environment to be activated.
-	FLOX_PATH_PREPEND=
-	FLOX_XDG_DATA_DIRS_PREPEND=
-	_flox_active_environments_prepend=
-	FLOX_BASH_INIT_SCRIPT=$(mkTempFile)
-	for i in "${_environments_to_activate[@]}"; do
-		FLOX_PATH_PREPEND="${FLOX_PATH_PREPEND:+$FLOX_PATH_PREPEND:}$i/bin"
-		FLOX_XDG_DATA_DIRS_PREPEND="${FLOX_XDG_DATA_DIRS_PREPEND:+$FLOX_XDG_DATA_DIRS_PREPEND:}$i/share"
-		_flox_active_environments_prepend="${_flox_active_environments_prepend:+$_flox_active_environments_prepend:}${i}"
-		# Activate environment using version-specific logic.
-		if [ -f "$i/catalog.json" ]; then
-			# New v2 format.
-			# Just append the pre-compiled activation script. Lest you be
-			# tempted to simply copy this script (as I was) recall that we
-			# are appending to a single script containing initialization
-			# actions for _all_ environments to be activated.
-			$invoke_cat $i/activate >> $FLOX_BASH_INIT_SCRIPT || :
-		else
-			# Original v1 format.
-			# Use 'git show' to grab the correct manifest.toml without checking
-			# out the branch, and if the branch or manifest.toml file does not
-			# exist then carry on.
-			(metaGitShow $i manifest.toml 2>/dev/null | manifestTOML bashInit) >> $FLOX_BASH_INIT_SCRIPT || :
-		fi
-	done
-	FLOX_ACTIVE_ENVIRONMENTS=${_flox_active_environments_prepend}${FLOX_ACTIVE_ENVIRONMENTS:+:}${FLOX_ACTIVE_ENVIRONMENTS}
-	unset _flox_active_environments_prepend
-
-	# Set the init script to self-destruct upon activation (unless debugging).
-	# Very James Bond.
-	[ $debug -gt 0 ] || \
-		echo "$_rm $FLOX_BASH_INIT_SCRIPT" >> $FLOX_BASH_INIT_SCRIPT
-
-	# FLOX_PROMPT_ENVIRONMENTS is a space-separated list of the
-	# abbreviated "alias" names of activated environments for
-	# inclusion in the prompt.
-	FLOX_PROMPT_ENVIRONMENTS=
-	for i in $(IFS=:; echo $FLOX_ACTIVE_ENVIRONMENTS); do
-		j=$(environmentPromptAlias "$i")
-		FLOX_PROMPT_ENVIRONMENTS="${FLOX_PROMPT_ENVIRONMENTS:+$FLOX_PROMPT_ENVIRONMENTS }${j}"
-	done
-
-	if [ ${#_environments_to_activate[@]} -eq 0 ]; then
-		# Only throw an error if an interactive session, otherwise
-		# exit quietly.
-		if [ $interactive -eq 1 -o $verbose -gt 0 ]; then
-			warn "no new environments to activate (active environments: $FLOX_PROMPT_ENVIRONMENTS)"
-		fi
-		exit 0
-	fi
-
-	export FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PATH_PREPEND FLOX_XDG_DATA_DIRS_PREPEND FLOX_BASH_INIT_SCRIPT
-	# Export FLOX_ACTIVATE_VERBOSE for use within flox.profile.
-	[ $verbose -eq 0 ] || export FLOX_ACTIVATE_VERBOSE=$verbose
-
-	cmdArgs=()
-	inCmdArgs=0
+	local -a cmdArgs=()
+	local -i inCmdArgs=0
 	for arg in "${invocation[@]}"; do
 		case "$arg" in
 		--)
@@ -133,66 +94,213 @@ function floxActivate() {
 		esac
 	done
 
-	if [ ${#cmdArgs[@]} -gt 0 ]; then
-		export PATH="$FLOX_PATH_PREPEND:$PATH"
-		export XDG_DATA_DIRS="$FLOX_XDG_DATA_DIRS_PREPEND:$XDG_DATA_DIRS"
+	# The $FLOX_ACTIVE_ENVIRONMENTS variable is colon-separated (like $PATH)
+	# and contains the list of fully-qualified active environments by path,
+	# e.g. /Users/floxfan/.local/share/flox/environments/local/default.
+	# Load this variable into an associative array for convenient lookup.
+	for i in $(IFS=:; echo $FLOX_ACTIVE_ENVIRONMENTS); do
+		_flox_active_environments_hash["$i"]=1
+		_flox_original_active_environments_array+=("$i")
+	done
 
-		export FLOX_PATH_PREPEND FLOX_BASH_INIT_SCRIPT \
-			FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS \
-			FLOX_XDG_DATA_DIRS_PREPEND
-		source "$_etc/flox.profile"
-		[ $verbose -eq 0 ] || pprint "+$colorBold" exec "${cmdArgs[@]}" "$colorReset" 1>&2
-		exec "${cmdArgs[@]}"
-	else
-		case "$SHELL" in
-		*bash)
-			if [ $interactive -eq 1 ]; then
-				# TODO: export variable for setting flox env from within flox.profile,
-				# *after* the PATH has been set.
-				[ $verbose -eq 0 ] || pprint "+$colorBold" exec "$SHELL" "--rcfile" "$_etc/flox.bashrc" "$colorReset" 1>&2
-				exec "$SHELL" "--rcfile" "$_etc/flox.bashrc"
-			else
-				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\""
-				echo "export FLOX_XDG_DATA_DIRS_PREPEND=\"$FLOX_XDG_DATA_DIRS_PREPEND\""
-				echo "export FLOX_BASH_INIT_SCRIPT=\"$FLOX_BASH_INIT_SCRIPT\""
-				echo "export FLOX_ACTIVE_ENVIRONMENTS=\"$FLOX_ACTIVE_ENVIRONMENTS\""
-				echo "export FLOX_PROMPT_ENVIRONMENTS=\"$FLOX_PROMPT_ENVIRONMENTS\""
-				echo "source $_etc/flox.profile"
-				exit 0
+	# Identify each environment to be activated, taking note to avoid
+	# attempting to activate an environment that has already been
+	# activated.
+	for i in "${environments[@]}"; do
+		if [ -z "${_flox_active_environments_hash[$i]}" ]; then
+			# Only warn if it's not the default environment.
+			if [ "$i" != "$defaultEnv" ]; then
+				[ -d "$i/." ] || warn "INFO environment not found: $i"
 			fi
+			_environments_to_activate+=("$i")
+			_flox_active_environments_hash["$i"]=1
+		elif [ "$i" != "$defaultEnv" ]; then
+			# Only throw an error if in an interactive session, and don't
+			# throw an error when attempting to activate the default env.
+			if [ $interactive -eq 1 ]; then
+				error "$i environment already active" < /dev/null
+			fi
+		fi
+	done
+
+	# Add "default" to end of the list if it's not already there.
+	# Do this separately from loop above to detect when people
+	# explicitly attempt to activate default env twice.
+	if [ -z "${_flox_active_environments_hash[$defaultEnv]}" ]; then
+		_environments_to_activate+=("$defaultEnv")
+		_flox_active_environments_hash["$defaultEnv"]=1
+	fi
+
+	# Warn and exit 0 if interactive and nothing to do.
+	if [ $interactive -eq 1 -a ${#cmdArgs[@]} -eq 0 -a ${#_environments_to_activate[@]} -eq 0 ]; then
+		warn "no new environments to activate (active environments: $FLOX_PROMPT_ENVIRONMENTS)"
+		exit 0
+	fi
+
+	# Determine shell language to be used for "rc" script.
+	local rcShell
+	if [ ${#cmdArgs[@]} -gt 0 ]; then
+		rcShell=$_bash # i.e. language of this script
+	elif [ $interactive -eq 1 ]; then
+		rcShell=$SHELL # i.e. the shell we will be invoking
+	else
+		# Non-interactive. In this case it's really important to emit commands
+		# using the correct syntax, so start by doing everything possible to
+		# accurately identify the currently-running (parent) shell.
+		rcShell=$(identifyParentShell)
+		# Just in case we got it wrong, only trust $rcShell if it "smells like
+		# a shell", which AFAIK is best expressed as ending in "sh".
+		case "$rcShell" in
+		*sh) : ;;
+		*) # Weird ... this warrants a warning.
+			warn "WARNING: calling process '$rcShell' does not look like a shell .. using '$SHELL' syntax"
+			rcShell=$SHELL
+			;;
+		esac
+	fi
+
+	# Build up strings to be prepended to environment variables.
+	# Note the requirement to prepend in the order provided, e.g.
+	# if activating environments 'A' and 'B' in that order then
+	# the string to be prepended to PATH is 'A/bin:B/bin'.
+	local -a path_prepend=()
+	local -a xdg_data_dirs_prepend=()
+	local -a flox_active_environments_prepend=()
+	local -a flox_prompt_environments_prepend=()
+	for i in "${_environments_to_activate[@]}"; do
+		path_prepend+=("$i/bin")
+		xdg_data_dirs_prepend+=("$i/share")
+		flox_active_environments_prepend+=("$i")
+		j=$(environmentPromptAlias "$i")
+		flox_prompt_environments_prepend+=("$j")
+	done
+	export PATH="$(joinString ':' "${path_prepend[@]}" "$PATH")"
+	export XDG_DATA_DIRS="$(joinString ':' "${xdg_data_dirs_prepend[@]}" "$XDG_DATA_DIRS")"
+	export FLOX_ACTIVE_ENVIRONMENTS="$(joinString ':' "${flox_active_environments_prepend[@]}" "$FLOX_ACTIVE_ENVIRONMENTS")"
+	export FLOX_PROMPT_ENVIRONMENTS="$(joinString ' ' "${flox_prompt_environments_prepend[@]}" "$FLOX_PROMPT_ENVIRONMENTS")"
+
+	# Darwin has a "path_helper" which indiscriminately reorders the path to
+	# put the Apple-preferred items first in the PATH, which completely breaks
+	# the user's ability to manage their PATH in subshells, e.g. when using tmux.
+	#
+	# Trouble is, there's really no way to undo the damage done by the "path_helper"
+	# apart from inflicting the similarly heinous approach of again reordering the
+	# PATH to put flox environments at the front. It's fighting fire with fire, but
+	# unless we want to risk even further breakage by disabling path_helper in
+	# /etc/zprofile this is the best workaround we've come up with.
+	#
+	# https://discourse.floxdev.com/t/losing-part-of-my-shell-environment-when-using-flox-develop/556/2
+	if [[ -x /usr/libexec/path_helper && "$PATH" =~ ^/usr/local/bin: ]]; then
+		if [ ${#cmdArgs[@]} -eq 0 -a $interactive -eq 0 ]; then
+			case "$rcShell" in
+			*bash|*zsh)
+				export PATH="$(echo $PATH | $_awk -v shellDialect=bash -f $_libexec/flox/darwin-path-fixer.awk)"
+				;;
+			esac
+		fi
+	fi
+
+	# Create "rc" script.
+	local rcScript=$(mktemp) # cleans up after itself, do not use mkTempFile()
+	case $rcShell in
+	*bash)
+		bashRC "${_environments_to_activate[@]}" >> $rcScript
+		;;
+	*zsh)
+		# The zsh fpath variable must be prepended with each new subshell.
+		local -a fpath_prepend=()
+		for i in "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"; do
+			# Add to fpath irrespective of whether the directory exists at
+			# activation time because people can install to an environment
+			# while it is active and immediately benefit from commandline
+			# completion.
+			fpath_prepend+=("$i"/share/zsh/site-functions "$i"/share/zsh/vendor-completions)
+		done
+		if [ ${#fpath_prepend[@]} -gt 0 ]; then
+			echo "fpath=(${fpath_prepend[@]} \$fpath)" >> $rcScript
+			echo "autoload -U compinit && compinit" >> $rcScript
+		fi
+		bashRC "${_environments_to_activate[@]}" >> $rcScript
+		;;
+	*csh|*fish)
+		error "unsupported shell: $rcShell" < /dev/null
+		;;
+	*)
+		error "unknown shell: $rcShell" < /dev/null
+		;;
+	esac
+
+	# Set the init script to self-destruct upon activation (unless debugging).
+	# Very James Bond.
+	[ $debug -gt 0 ] || echo "$_rm $rcScript" >> $rcScript
+
+	# If invoking a command, go ahead and exec().
+	if [ ${#cmdArgs[@]} -gt 0 ]; then
+		# Command case - source "rc" script and exec command.
+		source $rcScript
+		[ $verbose -eq 0 ] || pprint "+$colorBold" exec "${cmdArgs[@]}" "$colorReset" 1>&2
+		exec "${cmdArgs[@]}" # Does not return.
+	fi
+
+	# Add commands to configure prompt for interactive shells. The
+	# challenge here is that this code can be called one or two
+	# times for a single activation, i.e. person can do one or
+	# both of the following:
+	#
+	# - invoke 'flox activate -e foo'
+	# - have '. <(flox activate)' in .zshrc
+	#
+	# Our only real defense against this sort of "double activation"
+	# is to put guards around our configuration, just as C include
+	# files have had since the dawn of time.
+	if [ -z "$FLOX_PROMPT_DISABLE" ]; then
+		case "$rcShell" in
+		*bash)
+			cat $_etc/flox.prompt.bashrc >> $rcScript
 			;;
 		*zsh)
-			if [ $interactive -eq 1 ]; then
-				# TODO: export variable for setting flox env from within flox.profile,
-				# *after* the PATH has been set.
-				if [ -n "$ZDOTDIR" ]; then
-					[ $verbose -eq 0 ] || warn "+ export FLOX_ORIG_ZDOTDIR=\"$ZDOTDIR\""
-					export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
-				fi
-				[ $verbose -eq 0 ] || warn "+ export ZDOTDIR=\"$_etc/flox.zdotdir\""
-				export ZDOTDIR="$_etc/flox.zdotdir"
-				[ $verbose -eq 0 ] || pprint "+$colorBold" exec "$SHELL" "$colorReset" 1>&2
-				exec "$SHELL"
-			else
-				echo "export FLOX_PATH_PREPEND=\"$FLOX_PATH_PREPEND\""
-				echo "export FLOX_XDG_DATA_DIRS_PREPEND=\"$FLOX_XDG_DATA_DIRS_PREPEND\""
-				echo "export FLOX_BASH_INIT_SCRIPT=\"$FLOX_BASH_INIT_SCRIPT\""
-				echo "export FLOX_ACTIVE_ENVIRONMENTS=\"$FLOX_ACTIVE_ENVIRONMENTS\""
-				echo "export FLOX_PROMPT_ENVIRONMENTS=\"$FLOX_PROMPT_ENVIRONMENTS\""
-				echo "source $_etc/flox.profile"
-				exit 0
+			cat $_etc/flox.zdotdir/prompt.zshrc >> $rcScript
+			;;
+		esac
+	fi
+
+	# Activate.
+	if [ $interactive -eq 1 ]; then
+		# Interactive case - launch subshell.
+		case "$rcShell" in
+		*bash)
+			export FLOX_BASH_INIT_SCRIPT=$rcScript
+			[ $verbose -eq 0 ] || pprint "+$colorBold" exec "$rcShell" "--rcfile" "$_etc/flox.bashrc" "$colorReset" 1>&2
+			exec "$rcShell" "--rcfile" "$_etc/flox.bashrc"
+			;;
+		*zsh)
+			export FLOX_ZSH_INIT_SCRIPT=$rcScript
+			if [ -n "$ZDOTDIR" ]; then
+				[ $verbose -eq 0 ] || warn "+ export FLOX_ORIG_ZDOTDIR=\"$ZDOTDIR\""
+				export FLOX_ORIG_ZDOTDIR="$ZDOTDIR"
 			fi
+			[ $verbose -eq 0 ] || warn "+ export ZDOTDIR=\"$_etc/flox.zdotdir\""
+			export ZDOTDIR="$_etc/flox.zdotdir"
+			[ $verbose -eq 0 ] || pprint "+$colorBold" exec "$rcShell" "$colorReset" 1>&2
+			exec "$rcShell"
 			;;
 		*)
-			if [ $interactive -eq 1 ]; then
-				warn "unsupported shell: \"$SHELL\""
-				warn "Launching bash instead"
-				export SHELL="$_bash"
-				[ $verbose -eq 0 ] || pprint "+$colorBold" exec "$SHELL" "--rcfile" "$_etc/flox.bashrc" "$colorReset" 1>&2
-				exec "$SHELL" "--rcfile" "$_etc/flox.bashrc"
-			else
-				error "unsupported shell: \"$SHELL\" - please run 'flox activate' in interactive mode" </dev/null
-			fi
+			warn "unsupported shell: \"$rcShell\""
+			warn "Launching bash instead"
+			[ $verbose -eq 0 ] || pprint "+$colorBold" exec "$rcShell" "--rcfile" "$_etc/flox.bashrc" "$colorReset" 1>&2
+			exec "$rcShell" "--rcfile" "$_etc/flox.bashrc"
+			;;
+		esac
+	else
+		# Non-interactive case - print out commands to be sourced.
+		local _flox_activate_verbose=/dev/null
+		[ $verbose -eq 0 ] || _flox_activate_verbose=/dev/stderr
+		case "$rcShell" in
+		*bash|*zsh)
+			$_cat $rcScript | $_tee $_flox_activate_verbose
+			;;
+		*)
+			error "unsupported shell: \"$rcShell\" - please run 'flox activate' in interactive mode" </dev/null
 			;;
 		esac
 	fi

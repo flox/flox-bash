@@ -31,13 +31,14 @@ MAN1 = $(addsuffix .1,$(BIN))
 MAN = $(MAN1)
 ETC = \
 	etc/flox.bashrc \
-	etc/flox.profile \
+	etc/flox.prompt.bashrc \
 	etc/flox.toml \
 	etc/flox.zdotdir/.zlogin \
 	etc/flox.zdotdir/.zlogout \
 	etc/flox.zdotdir/.zprofile \
 	etc/flox.zdotdir/.zshenv \
-	etc/flox.zdotdir/.zshrc
+	etc/flox.zdotdir/.zshrc \
+	etc/flox.zdotdir/prompt.zshrc
 LIB = \
 	lib/bootstrap.sh \
 	lib/commands.sh \
@@ -46,6 +47,7 @@ LIB = \
 	lib/commands/environment.sh \
 	lib/commands/general.sh \
 	lib/commands/publish.sh \
+	lib/commands/shells/activate.bash \
 	lib/diff-manifests.jq \
 	lib/init.sh \
 	lib/manifest.jq \
@@ -68,7 +70,9 @@ LIB = \
 	lib/templateFloxEnv/flake.nix \
 	lib/templateFloxEnv/pkgs/default/default.nix \
 	lib/templateFloxEnv/pkgs/default/flox.nix
-LIBEXEC = libexec/flox/flox
+LIBEXEC = \
+	libexec/flox/flox \
+	libexec/flox/darwin-path-fixer.awk
 SHARE = share/bash-completion/completions/flox
 LINKBIN = # Add files to be linked to flox here
 
@@ -98,8 +102,8 @@ $(PREFIX)/bin/%: %
 	@mkdir -p $(@D)
 	cp $< $@
 
-# This file is mastered in default.nix, passed by makeFlags.
-$(PREFIX)/etc/flox.profile: $(FLOX_PROFILE)
+# These files are mastered in default.nix, passed by makeFlags.
+$(PREFIX)/lib/commands/shells/activate.bash: $(FLOX_ACTIVATE_BASH)
 	-@rm -f $@
 	@mkdir -p $(@D)
 	cp $< $@
@@ -132,6 +136,11 @@ $(PREFIX)/libexec/flox/flox: flox.sh
 	  $< > $@
 	$(SHFMT) $@ >/dev/null
 	chmod +x $@
+
+$(PREFIX)/libexec/%: libexec/%
+	-@rm -f $@
+	@mkdir -p $(@D)
+	cp $< $@
 
 $(PREFIX)/share/man/man1/%: %
 	-@rm -f $@

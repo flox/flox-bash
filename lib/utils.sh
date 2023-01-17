@@ -148,8 +148,8 @@ function hash_commands() {
 hash_commands \
 	ansifilter awk basename bash cat chmod cmp column cp curl cut dasel date dirname \
 	getent gh git grep gum id jq ln man mkdir mktemp mv nix nix-editor nix-store \
-	parallel pwd readlink realpath rm rmdir sed sh sleep sort stat tail tar touch tr \
-	uname uuid xargs zgrep
+	parallel pwd readlink realpath rm rmdir sed sh sleep sort stat tail tar tee \
+	touch tr uname uuid xargs zgrep
 
 # Return full path of first command available in PATH.
 #
@@ -1366,6 +1366,82 @@ function betaRefreshNixCache() {
 #				--no-write-lock-file \
 #				{1} \
 #			::: ${privateFlakes[@]} || :
+}
+
+#
+# identifyParentShell()
+#
+# Do everything in our power to identify the parent shell. We basically
+# only have two sources of information at our disposal:
+#
+# 1. the value of $SHELL, which may be a lie
+# 2. the PID of the parent shell, as provided to us by the C/Rust wrapper
+#    in the form of the FLOX_PARENT_PID environment variable
+#
+# Perform a sanity check to confirm that the value of $SHELL matches the
+# current running shell. Algorithm is currently to
+# compare the value of $0 to $SHELL, but we can go crazy later
+# inspecting the running process, etc. if necessary.
+#
+function identifyParentShell() {
+	trace "$@"
+	local parentShell="$SHELL" # default
+	local shellCmd="${SHELL/*\//}" # aka basename
+	local parentShellCmd="$shellCmd" # default
+
+	# Only attempt a guess if we know our parent PID.
+	if [ -n "$FLOX_PARENT_PID" ]; then
+		# First attempt to identify details of parent shell process.
+		if [ -L "/proc/$FLOX_PARENT_PID/exe" -a \
+			 -r "/proc/$FLOX_PARENT_PID/exe" ]; then
+			# Linux - use information from /proc.
+			parentShell="$($_readlink "/proc/$FLOX_PARENT_PID/exe")"
+		elif local psOutput="$(ps -c -o command= -p $FLOX_PARENT_PID 2>/dev/null)"; then
+			# Darwin/other - use `ps` to guess the shell.
+			# Note that this value often comes back with a leading "-" character
+			# that is not part of the executable's path.
+			parentShell="${psOutput/#-/}"
+		fi
+
+		# Split out the command by itself (aka basename).
+		parentShellCmd="${parentShell/*\//}"
+
+		# Compare $SHELL and $parentShell to see if the command names match.
+		if [ "$shellCmd" == "$parentShellCmd" ]; then
+			# Respect $SHELL over $parentShell (which is usually its realpath).
+			echo "$SHELL"
+		else
+			# Return parent shell.
+			echo "$parentShell"
+		fi
+	else
+		# We don't know our parent PID so don't even guess.
+		echo "$SHELL"
+	fi
+}
+
+#
+# joinString( $separator, $string1, $string2, ... )
+#
+# Like any other join() function. Not calling it "join" because don't
+# want to have confusion with coreutils `join`.
+function joinString() {
+	trace "$@"
+	local separator="$1"; shift
+	local accum=
+	while test $# -gt 0; do
+		case "$1" in
+		"") : ;;
+		*)
+			if [ -n "$accum" ]; then
+				accum="${accum}${separator}${1}"
+			else
+				accum="${1}"
+			fi
+		esac
+		shift
+	done
+	echo "$accum"
 }
 
 # vim:ts=4:noet:syntax=bash
