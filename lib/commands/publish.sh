@@ -545,10 +545,25 @@ function floxPublish() {
 				"$epAttrPath" "$buildFlakeURL" "$packageAttrPath" "$publishSystem" \
 				"$FLOX_STABILITY" "$USER" "$invocation_string" | \
 			if $_git -C "$gitClone" commit -F -; then
-				$_git -C "$gitClone" push
+				# Attempt 3 times (arbitrary) to push commit upstream.
+				local -i pushAttempt=0
+				while true; do
+					[ $pushAttempt -lt 3 ] ||
+						error "could not push to $channelRepository after $pushAttempt attempts" </dev/null
+					$_git -C "$gitClone" pull --rebase
+					if $_git -C "$gitClone" push; then
+						# Job done.
+						break
+					else
+						let ++pushAttempt
+						# Give it an increasing delay before attempting to push again.
+						sleep $pushAttempt
+					fi
+				done
 			fi
 		fi
 	else
 		$_jq -n -r --argjson ep "$elementPath" '$ep.analysis'
 	fi
 }
+# vim:ts=4:noet:syntax=bash
