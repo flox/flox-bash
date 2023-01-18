@@ -14,6 +14,7 @@ setup_file() {
     fi
     export FLOX_PACKAGE
     export FLOX_CLI=$FLOX_PACKAGE/bin/flox
+    export FLOX_PACKAGE_FIRST8=$(echo $FLOX_PACKAGE | dd bs=c skip=11 count=8 2>/dev/null)
   fi
   export FLOX_DISABLE_METRICS=1
   export TEST_ENVIRONMENT=_testing_
@@ -45,6 +46,20 @@ setup_file() {
   rmdir tests/out/subdir tests/out || :
   rm -f $FLOX_CONFIG_HOME/{gitconfig,nix.conf}
   export TESTS_DIR=$(realpath ./tests)
-  export DEVELOP_TEST_DIR=$(mktemp -d)
+  export UNAME_S=$(uname -s)
+
+  # Assume that versions:
+  # a) start with numbers
+  # b) contain at least one dot
+  # c) contain only numbers and dots
+  #
+  # Of course this isn't true in general, but we can adhere to this
+  # convention for this set of unit tests.
+  #
+  # N.B.:
+  # - do NOT include $VERSION_REGEX within quotes (eats backslashes)
+  # - do NOT add '$' at the end to anchor the match at EOL (doesn't work)
+  export VERSION_REGEX='[0-9]+\.[0-9.]+'
+
   set +x
 }

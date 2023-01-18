@@ -149,13 +149,23 @@ def flakerefToPname(args): expectedArgs(1; args) |
 # Add position and package{Name,PName,Version} as we define $elements.
 ( $manifest[].elements | to_entries | map(
   ( .value.storePaths[0] | .[44:] ) as $packageName |
-  ( .value | elementToFloxpkg | split(".")[2:] | join(".") ) as $packagePName |
-  ( $packageName | ltrimstr("\($packagePName)-") ) as $packageVersion |
+  ( if ( .value | has("attrPath") ) then (
+    ( .value | elementToFloxpkg | split(".")[2:] | join(".") ) as $packagePName |
+    ( $packageName | ltrimstr("\($packagePName)-") ) as $packageVersion |
+    [ $packagePName, $packageVersion ]
+  ) else (
+    # When installing by store path we don't have the provenance to
+    # precisely know what part of the "name" is the "pname" as opposed
+    # to the "version", so don't guess and instead present the beginning
+    # characters of the path checksum as the version.
+    ( .value.storePaths[0] | .[11:19] ) as $packageVersion |
+    [ $packageName, $packageVersion ]
+  ) end ) as $packagePNameVersion |
   .value * {
     position:.key,
     packageName:$packageName,
-    packagePName:$packagePName,
-    packageVersion:$packageVersion,
+    packagePName:$packagePNameVersion[0],
+    packageVersion:$packagePNameVersion[1],
     packageIdentifier: (
       if .value.attrPath then
         flakerefToPname(["\(.value.originalUrl)#\(.value.attrPath)"])

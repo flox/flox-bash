@@ -42,7 +42,7 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  1"
-  assert_output --partial "0 $FLOX_PACKAGE"
+  assert_output --partial "0  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
 }
 
 @test "tear down install test state" {

@@ -99,7 +99,7 @@ load test_support.bash
   # Unfortunately we need to do a partial match because our attempt
   # to override the nixpkgs input throws a warning on a non-capacitated
   # flake.
-  assert_output --partial '[ "binaryTarball" "dockerImage" "installTests" "perlBindings" ]'
+  assert_output --partial '[ "binaryTarball" "dockerImage" "installTests" "nixpkgsLibTests" "perlBindings" ]'
 
   # Generate a directory with the specified contents:
   run $FLOX_CLI eval --write-to ./tests/out --expr '{ foo = "bar"; subdir.bla = "123"; }'
@@ -219,7 +219,7 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  1"
-  assert_output --partial "0 stable.nixpkgs-flox.hello"
+  assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
 }
 
 @test "flox install cowsay jq dasel" {
@@ -232,10 +232,10 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  2"
-  assert_output --partial "0 stable.nixpkgs-flox.cowsay"
-  assert_output --partial "1 stable.nixpkgs-flox.dasel"
-  assert_output --partial "2 stable.nixpkgs-flox.hello"
-  assert_output --partial "3 stable.nixpkgs-flox.jq"
+  assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
+  assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
+  assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
+  assert_output --regexp "3  stable.nixpkgs-flox.jq +"$VERSION_REGEX
 }
 
 @test "flox activate can invoke hello and cowsay" {
@@ -254,10 +254,10 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  3"
-  assert_output --partial "0 stable.nixpkgs-flox.cowsay"
-  assert_output --partial "1 stable.nixpkgs-flox.dasel"
+  assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
+  assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.hello"
-  assert_output --partial "2 stable.nixpkgs-flox.jq"
+  assert_output --regexp "2  stable.nixpkgs-flox.jq +"$VERSION_REGEX
 }
 
 @test "verify flox edit removed hello from flox.nix" {
@@ -280,10 +280,10 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  4"
-  assert_output --partial "0 stable.nixpkgs-flox.cowsay"
-  assert_output --partial "1 stable.nixpkgs-flox.dasel"
-  assert_output --partial "2 stable.nixpkgs-flox.hello"
-  assert_output --partial "3 stable.nixpkgs-flox.jq"
+  assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
+  assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
+  assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
+  assert_output --regexp "3  stable.nixpkgs-flox.jq +"$VERSION_REGEX
 }
 
 @test "verify flox edit added hello to flox.nix" {
@@ -306,9 +306,9 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  5"
-  assert_output --partial "0 stable.nixpkgs-flox.cowsay"
-  assert_output --partial "1 stable.nixpkgs-flox.dasel"
-  assert_output --partial "2 stable.nixpkgs-flox.jq"
+  assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
+  assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
+  assert_output --regexp "2  stable.nixpkgs-flox.jq +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
@@ -316,10 +316,10 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT 2
   assert_success
   assert_output --partial "Curr Gen  2"
-  assert_output --partial "0 stable.nixpkgs-flox.cowsay"
-  assert_output --partial "1 stable.nixpkgs-flox.dasel"
-  assert_output --partial "2 stable.nixpkgs-flox.hello"
-  assert_output --partial "3 stable.nixpkgs-flox.jq"
+  assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
+  assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
+  assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
+  assert_output --regexp "3  stable.nixpkgs-flox.jq +"$VERSION_REGEX
 }
 
 @test "flox history should contain the install and removal of stable.nixpkgs-flox.hello" {
@@ -348,7 +348,7 @@ load test_support.bash
 
   run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
   assert_success
-  assert_output --partial "0 stable.nixpkgs-flox.hello"
+  assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
 
   run $FLOX_CLI remove -e $TEST_CASE_ENVIRONMENT 0
   assert_success
@@ -371,7 +371,7 @@ load test_support.bash
 
   run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
   assert_success
-  assert_output --partial "0 nixpkgs#hello"
+  assert_output --regexp "0  nixpkgs#hello  hello-"$VERSION_REGEX
 
   run $FLOX_CLI remove -e $TEST_CASE_ENVIRONMENT 0
   assert_success
@@ -475,10 +475,10 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  4"
-  assert_output --partial "0 stable.nixpkgs-flox.cowsay"
-  assert_output --partial "1 stable.nixpkgs-flox.dasel"
-  assert_output --partial "2 stable.nixpkgs-flox.hello"
-  assert_output --partial "3 stable.nixpkgs-flox.jq"
+  assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
+  assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
+  assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
+  assert_output --regexp "3  stable.nixpkgs-flox.jq +"$VERSION_REGEX
 }
 
 @test "flox rollback --to 3" {
@@ -491,9 +491,9 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  3"
-  assert_output --partial "0 stable.nixpkgs-flox.cowsay"
-  assert_output --partial "1 stable.nixpkgs-flox.dasel"
-  assert_output --partial "2 stable.nixpkgs-flox.jq"
+  assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
+  assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
+  assert_output --regexp "2  stable.nixpkgs-flox.jq +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
@@ -507,7 +507,7 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  1"
-  assert_output --partial "0 stable.nixpkgs-flox.hello"
+  assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.cowsay"
   ! assert_output --partial "stable.nixpkgs-flox.dasel"
   ! assert_output --partial "stable.nixpkgs-flox.jq"
@@ -595,7 +595,7 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  1"
-  assert_output --partial "0 stable.nixpkgs-flox.hello"
+  assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.cowsay"
   ! assert_output --partial "stable.nixpkgs-flox.dasel"
   ! assert_output --partial "stable.nixpkgs-flox.jq"
@@ -627,8 +627,8 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  6"
-  assert_output --partial "0 stable.nixpkgs-flox.hello"
-  assert_output --partial "1 $FLOX_PACKAGE"
+  assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
+  assert_output --partial "1  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
 }
 
 @test "flox remove hello again" {
@@ -647,8 +647,8 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  8"
-  assert_output --partial "0 nixpkgs#hello"
-  assert_output --partial "1 $FLOX_PACKAGE"
+  assert_output --regexp "0  nixpkgs#hello +hello-"$VERSION_REGEX
+  assert_output --partial "1  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
@@ -674,7 +674,7 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  9"
-  assert_output --partial "0 $FLOX_PACKAGE"
+  assert_output --partial "0  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "nixpkgs#hello"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
@@ -695,7 +695,7 @@ load test_support.bash
 #   run $FLOX_CLI list -e $TEST_ENVIRONMENT
 #   assert_success
 #   assert_output --partial "Curr Gen  10"
-#   assert_output --partial "0 $FLOX_PACKAGE"
+#   assert_output --partial "0  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
 #   ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
 #   ! assert_output --partial "stable.nixpkgs-flox.hello"
 # }
@@ -710,7 +710,7 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  10"
-  assert_output --partial "0 $FLOX_PACKAGE"
+  assert_output --partial "0  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "nixpkgs#hello"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
@@ -731,23 +731,25 @@ load test_support.bash
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "Curr Gen  11"
-  assert_output --partial "0 nixpkgs#hello"
-  assert_output --partial "1 $FLOX_PACKAGE"
+  assert_output --regexp "0  nixpkgs#hello +hello-"$VERSION_REGEX
+  assert_output --partial "1  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
 @test "flox develop setup" {
+  [ $UNAME_S == Linux ] || skip
   # since develop tests use expect, flox thinks it's being used interactively and asks about metrics
   sed -i '2i\  "floxMetricsConsent": 0,' "$XDG_CONFIG_HOME/flox/floxUserMeta.json"
-  cp -r "$TESTS_DIR/develop" "$DEVELOP_TEST_DIR"
+  cp -r "$TESTS_DIR/develop" "$FLOX_TEST_HOME"
   # note the develop flake may have an out of date lock
 }
 
 function assertAndRemoveFiles {
-  pushd "$DEVELOP_TEST_DIR/develop"
+  [ $UNAME_S == Linux ] || skip
+  pushd "$FLOX_TEST_HOME/develop"
     assert [ -h .flox/envs/my-pkg ]
     rm -r .flox
-    assert [ -f $DEVELOP_TEST_DIR/develop/pkgs/my-pkg/catalog.json ]
+    assert [ -f $FLOX_TEST_HOME/develop/pkgs/my-pkg/catalog.json ]
     rm pkgs/my-pkg/catalog.json
     assert [ -f pkgs/my-pkg/manifest.json ]
     rm pkgs/my-pkg/manifest.json
@@ -755,7 +757,8 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop no installable" {
-  pushd "$DEVELOP_TEST_DIR/develop"
+  [ $UNAME_S == Linux ] || skip
+  pushd "$FLOX_TEST_HOME/develop"
     expect "$TESTS_DIR/develop.exp" ""
     assert_success
     assertAndRemoveFiles
@@ -763,8 +766,9 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop from flake root" {
-  pushd "$DEVELOP_TEST_DIR/develop"
-    for attr in "" my-pkg .#my-pkg .#packages.$NIX_SYSTEM.my-pkg "$DEVELOP_TEST_DIR/develop#my-pkg"; do
+  [ $UNAME_S == Linux ] || skip
+  pushd "$FLOX_TEST_HOME/develop"
+    for attr in "" my-pkg .#my-pkg .#packages.$NIX_SYSTEM.my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
       expect "$TESTS_DIR/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
@@ -773,8 +777,9 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop from flake subdirectory" {
-  pushd "$DEVELOP_TEST_DIR/develop/pkgs"
-    for attr in .#my-pkg "$DEVELOP_TEST_DIR/develop#my-pkg"; do
+  [ $UNAME_S == Linux ] || skip
+  pushd "$FLOX_TEST_HOME/develop/pkgs"
+    for attr in .#my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
       expect "$TESTS_DIR/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
@@ -783,17 +788,19 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop from different directory" {
-  pushd "$DEVELOP_TEST_DIR"
+  [ $UNAME_S == Linux ] || skip
+  pushd "$FLOX_TEST_HOME"
     expect "$TESTS_DIR/develop.exp" ./develop#my-pkg
     assert_success
   popd
 }
 
 @test "flox develop after git init" {
-  pushd "$DEVELOP_TEST_DIR/develop"
+  [ $UNAME_S == Linux ] || skip
+  pushd "$FLOX_TEST_HOME/develop"
     git init
     git add .
-    for attr in .#my-pkg "$DEVELOP_TEST_DIR/develop#my-pkg"; do
+    for attr in .#my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
       expect "$TESTS_DIR/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
@@ -802,6 +809,7 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop fails with remote flake" {
+  [ $UNAME_S == Linux ] || skip
   expect "$TESTS_DIR/develop-fail.exp" "git+ssh://git@github.com/flox/flox-bash-private?dir=tests/develop#my-pkg"
 }
 
