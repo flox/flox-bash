@@ -14,7 +14,7 @@
       # echo "Supercharged by flox!" 1>&2
     '';
   };
-  variables = {
+  environmentVariables = {
     # LANG = "en_US.UTF-8";
   };
 }

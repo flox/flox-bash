@@ -330,6 +330,8 @@ EOF
 		if [ -n "$currentGen" ]; then
 			# -T so we don't copy the parent directory
 			$_cp -rT $workDir/$currentGen $workDir/$nextGen
+			# Always refresh the flake.{nix,lock} files with each new generation.
+			$_cp -f --no-preserve=mode $_lib/templateFloxEnv/flake.{nix,lock} -t $workDir/$nextGen
 		else
 			# files in the Nix store are read-only
 			$_cp --no-preserve=mode -rT $_lib/templateFloxEnv $workDir/$nextGen
@@ -477,6 +479,8 @@ EOF
 		# Create an ephemeral copy of the current generation to delete from.
 		# -T so we don't copy the parent directory
 		$_cp -rT $workDir/$currentGen $workDir/$nextGen
+		# Always refresh the flake.{nix,lock} files with each new generation.
+		$_cp -f --no-preserve=mode $_lib/templateFloxEnv/flake.{nix,lock} -t $workDir/$nextGen
 		# otherwise Nix build won't be able to find any of the files
 		$_git -C $workDir add $nextGen
 
@@ -629,6 +633,8 @@ EOF
 		# Create an ephemeral copy of the current generation to upgrade.
 		# -T so we don't copy the parent directory
 		$_cp -rT $workDir/$currentGen $workDir/$nextGen
+		# Always refresh the flake.{nix,lock} files with each new generation.
+		$_cp -f --no-preserve=mode $_lib/templateFloxEnv/flake.{nix,lock} -t $workDir/$nextGen
 		# otherwise Nix build won't be able to find any of the files
 		$_git -C $workDir add $nextGen
 
@@ -755,6 +761,8 @@ EOF
 		if [ -n "$currentGen" ]; then
 			# -T so we don't copy the parent directory
 			$_cp -rT $workDir/$currentGen $workDir/$nextGen
+			# Always refresh the flake.{nix,lock} files with each new generation.
+			$_cp -f --no-preserve=mode $_lib/templateFloxEnv/flake.{nix,lock} -t $workDir/$nextGen
 		else
 			# files in the Nix store are read-only
 			$_cp --no-preserve=mode -rT $_lib/templateFloxEnv $workDir/$nextGen

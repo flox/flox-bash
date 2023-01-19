@@ -398,12 +398,12 @@ load test_support.bash
 @test "flox upgrade" {
   case $NIX_SYSTEM in
   aarch64-darwin)
-    RG_PATH="/nix/store/6kn84d55zk4dqrchqlpvk48kqnd3k3zp-ripgrep-13.0.0/bin/rg"
-    CURL_PATH="/nix/store/j4d52qz31jc2vgrykqfiydap56c24pwa-curl-7.85.0/bin/curl"
+    RG_PATH="/nix/store/mxqb114cj1lb9zi9qf83bfm2ilp055pn-ripgrep-13.0.0/bin/rg"
+    CURL_PATH="/nix/store/m5zisbaps5dzpg5gsq2fxd3cp2jbzz9p-curl-7.85.0/bin/curl"
     ;;
   x86_64-linux)
-    RG_PATH="/nix/store/yxwz89xhwvjfnkw89y26v220j3f7py22-ripgrep-13.0.0/bin/rg"
-    CURL_PATH="/nix/store/4wig68iqd08bzfdqhbyx9ddn25krpvnl-curl-7.85.0/bin/curl"
+    RG_PATH="/nix/store/02ayr4zw6qvfrgkvxl42wrdavr3vybwn-ripgrep-13.0.0/bin/rg"
+    CURL_PATH="/nix/store/34qg4fjcfl2ww2cn9glqiqcrjvqa5vjr-curl-7.85.0/bin/curl"
     ;;
   *)
     echo "unsupported system for upgrade test"
@@ -415,7 +415,8 @@ load test_support.bash
   # which they shouldn't
   run $FLOX_CLI subscribe nixpkgs-flox-upgrade-test github:flox/nixpkgs-flox/master
   assert_success
-  run sh -c "tar -cf - --mode u+w -C ./tests/upgrade/$NIX_SYSTEM . | $FLOX_CLI import -e _upgrade_testing_"
+  # Note the use of --dereference to copy flake.{nix,lock} as files.
+  run sh -c "tar -cf - --dereference --mode u+w -C ./tests/upgrade/$NIX_SYSTEM . | $FLOX_CLI import -e _upgrade_testing_"
   assert_success
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
   assert_output "$RG_PATH"
@@ -740,7 +741,9 @@ load test_support.bash
   [ $UNAME_S == Linux ] || skip
   # since develop tests use expect, flox thinks it's being used interactively and asks about metrics
   sed -i '2i\  "floxMetricsConsent": 0,' "$XDG_CONFIG_HOME/flox/floxUserMeta.json"
-  cp -r "$TESTS_DIR/develop" "$FLOX_TEST_HOME"
+  # Note the use of --dereference to copy flake.{nix,lock} as files.
+  run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR ./develop | tar -C $FLOX_TEST_HOME -xf -"
+  assert_success
   # note the develop flake may have an out of date lock
 }
 
