@@ -1,9 +1,9 @@
 # Tweak the (already customized) prompt: add a flox indicator.
 _esc="\x1b["
-colorReset="${_esc}0m"
-colorBold="${_esc}1m"
-colorPrompt1="${_esc}38;5;${FLOX_PROMPT_COLOR_1}m"
-colorPrompt2="${_esc}38;5;${FLOX_PROMPT_COLOR_2}m"
+colorReset="\[${_esc}0m\]"
+colorBold="\[${_esc}1m\]"
+colorPrompt1="\[${_esc}38;5;${FLOX_PROMPT_COLOR_1}m\]"
+colorPrompt2="\[${_esc}38;5;${FLOX_PROMPT_COLOR_2}m\]"
 _floxPrompt1="${colorPrompt1}flox"
 _floxPrompt2="${colorPrompt2}[$FLOX_PROMPT_ENVIRONMENTS]"
 _flox=$(echo -e -n "${colorBold}${FLOX_PROMPT-$_floxPrompt1} ${_floxPrompt2}${colorReset} ")
