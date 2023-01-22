@@ -322,14 +322,14 @@ subscribe)
 	if [ ${#invocation_args[@]} -gt 2 ]; then
 		usage | error "extra arguments provided to \"$subcommand\""
 	fi
-	subscribeFlake ${invocation_args[@]}
+	subscribeFlake "${invocation_args[@]}"
 	;;
 
 unsubscribe)
 	if [ ${#invocation_args[@]} -gt 1 ]; then
 		usage | error "extra arguments provided to \"$subcommand\""
 	fi
-	unsubscribeFlake ${invocation_args[@]}
+	unsubscribeFlake "${invocation_args[@]}"
 	;;
 
 channels | list-channels)

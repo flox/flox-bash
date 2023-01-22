@@ -1063,7 +1063,7 @@ function updateFloxFlakeRegistry() {
 	tmpFloxFlakeRegistry=$($_mktemp --dry-run --tmpdir=$FLOX_CONFIG_HOME)
 	. <(registry $floxUserMeta 1 get channels | $_jq -r '
 	  to_entries | sort_by(.key) | map(
-	    "minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry \(.key) \(.value) && validChannels[\(.key)]=1"
+	    "minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry \"\(.key)\" \"\(.value)\" && validChannels[\(.key)]=1"
 	  )[]
 	')
 

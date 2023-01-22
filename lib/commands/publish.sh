@@ -492,7 +492,7 @@ function floxPublish() {
 	fi
 
 	# Gather buildRepository package outpath metadata.
-	local buildMetadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$canonicalFlakeRef" --json)
+	local buildMetadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$canonicalFlakeRef" --no-write-lock-file --json)
 
 	# shellcheck disable=SC2086 # since jq variables don't need to be quoted
 	evalAndBuildAndSource=$($_jq -n \
