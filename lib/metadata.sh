@@ -995,4 +995,88 @@ EOF
 	done
 }
 
+#
+# doAutoUpdate($environment)
+#
+# Decide whether to attempt an auto-update of the provided environment.
+# Returns 0 (never), 1 (prompt), or 2 (pull without prompting) depending
+# on environment variables, name of environment, and (eventually) other
+# criteria.
+#
+function doAutoUpdate() {
+	trace "$@"
+	local environment="$1"; shift
+	case "$FLOX_AUTOUPDATE" in
+	0|1|2) echo "$FLOX_AUTOUPDATE";;
+	"") echo 1;;
+	*)
+		warn "ignoring invalid value '$FLOX_AUTOUPDATE' for '\$FLOX_AUTOUPDATE'"
+		echo 1;;
+	esac
+}
+
+#
+# updateAvailable($environment)
+#
+# Checks to see if origin/branchname is ahead of the local branchname,
+# and if so returns the generation number of the upstream version, and
+# otherwise returns 0 to indicate that the generations are the same.
+#
+function updateAvailable() {
+	trace "$@"
+	local environment="$1"; shift
+
+	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	eval $(decodeEnvironment "$environment")
+
+	# First calculate current generation number.
+	local tmpfile=$(mkTempFile)
+	if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName"; then
+		$invoke_git -C "$environmentMetaDir" show "${branchName}:metadata.json" > $tmpfile
+		if local -i currentGen=$(registry $tmpfile 1 get currentGen); then
+			# If that worked then calculate generation number upstream.
+			if $_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branchName"; then
+				$invoke_git -C "$environmentMetaDir" show "origin/${branchName}:metadata.json" > $tmpfile
+				if local -i currentOriginGen=$(registry $tmpfile 1 get currentGen); then
+					if [ $currentGen -lt $currentOriginGen ]; then
+						echo $currentOriginGen
+						return 0
+					fi
+				fi
+			fi
+		fi
+	fi
+	echo 0
+}
+
+#
+# trailingAsyncFetch()
+#
+# Perform a sequential "trailing fetch" of the floxmeta repositories
+# for the set of environments passed in "$@".
+#
+function _trailingAsyncFetch() {
+	trace "$@"
+	for metaDir in "$@"; do
+		githubHelperGit -C "$metaDir" fetch origin || :
+	done
+	exit 0
+}
+function trailingAsyncFetch() {
+	trace "$@"
+	[ $# -gt 0 ] || return 0
+	local -A trailingAsyncFetchMetaDirs
+	for environment in "$@"; do
+		# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+		eval $(decodeEnvironment "$environment")
+		trailingAsyncFetchMetaDirs["$environmentMetaDir"]=1
+	done
+	# Make every effort to stay hidden in the background unless debugging.
+	if [ $debug -gt 0 ]; then
+		( _trailingAsyncFetch "${!trailingAsyncFetchMetaDirs[@]}" </dev/null & )
+	else
+		( _trailingAsyncFetch "${!trailingAsyncFetchMetaDirs[@]}" </dev/null & ) >/dev/null 2>&1
+	fi
+}
+
 # vim:ts=4:noet:syntax=bash

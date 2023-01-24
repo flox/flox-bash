@@ -149,6 +149,12 @@ The following options are supported by the commands below.
     a series of commands to be sourced by your current `$SHELL`,
     or with a command and arguments to be invoked directly.
 
+    By default checks for new generations in the background
+    and prompts to upgrade with the next activation.
+    See `FLOX_AUTOUPDATE` in *ENVIRONMENT VARIABLES* section below
+    for further information on configuring the self-updating features
+    of flox environments.
+
     Examples:
 
     - activate "default" flox environment only within the current shell
@@ -341,6 +347,19 @@ flox install unstable.nixpkgs-flox.hello@2.10
 :   Location for runtime flox environments as included in `PATH` environment variable.
     Defaults to `$XDG_DATA_HOME/flox/environments` or `$HOME/.local/share/flox/environments`
     if `$XDG_DATA_HOME` is not defined.
+
+`$FLOX_AUTOUPDATE`
+:   By default flox will check for new environment generations
+    in the background as they are activated
+    and then prompt to upgrade with the next activation.
+    This can be configured as follows:
+
+    Setting `FLOX_AUTOUPDATE=0` disables feature.
+    \
+    Setting `FLOX_AUTOUPDATE=1` (or if not defined) enables feature.
+    \
+    Setting `FLOX_AUTOUPDATE=2` configures flox to automatically
+    pull updates without prompting.
 
 `$FLOX_PROMPT`, `$FLOX_PROMPT_COLOR_{1,2}`, `$FLOX_PROMPT_DISABLE`
 :   The **FLOX_PROMPT** variable defaults to a bold blue "flox"

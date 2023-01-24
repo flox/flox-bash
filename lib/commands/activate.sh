@@ -131,6 +131,27 @@ function floxActivate() {
 		_flox_active_environments_hash["$defaultEnv"]=1
 	fi
 
+	# Before possibly bailing out, check to see if any of the active or
+	# about-to-be-activated environments have updates pending.
+	for environment in "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"; do
+		local -i autoUpdate=$(doAutoUpdate "$environment")
+		if [ $autoUpdate -ne 0 ]; then
+			local -i updateGen=$(updateAvailable "$environment")
+			if [ $updateGen -gt 0 ]; then
+				if [ $autoUpdate -eq 1 ]; then
+					# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+					eval $(decodeEnvironment "$environment")
+					if $_gum confirm "'$environmentAlias' is at generation $updateGen, pull latest version?"; then
+						floxPushPull pull "$environment" "$system" ${invocation[@]}
+					fi
+				else # $autoUpdate == 2, aka always pull without prompting
+					floxPushPull pull "$environment" "$system" ${invocation[@]}
+				fi
+			fi
+		fi
+	done
+	trailingAsyncFetch "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"
+
 	# Warn and exit 0 if interactive and nothing to do.
 	if [ $interactive -eq 1 -a ${#cmdArgs[@]} -eq 0 -a ${#_environments_to_activate[@]} -eq 0 ]; then
 		warn "no new environments to activate (active environments: $FLOX_PROMPT_ENVIRONMENTS)"
