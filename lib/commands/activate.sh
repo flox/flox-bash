@@ -82,7 +82,11 @@ function floxActivate() {
 	for arg in "${invocation[@]}"; do
 		case "$arg" in
 		--)
-			inCmdArgs=1
+			if [ $inCmdArgs -eq 1 ]; then
+				cmdArgs+=("$arg")
+			else
+				inCmdArgs=1
+			fi
 			;;
 		*)
 			if [ $inCmdArgs -eq 1 ]; then
