@@ -136,7 +136,7 @@ function floxActivate() {
 	for environment in "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"; do
 		local -i autoUpdate=$(doAutoUpdate "$environment")
 		if [ $autoUpdate -ne 0 ]; then
-			local -i updateGen=$(updateAvailable "$environment")
+			local -i updateGen=$(updateAvailable "$environment" 2>/dev/null)
 			if [ $updateGen -gt 0 ]; then
 				if [ $autoUpdate -eq 1 ]; then
 					# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}

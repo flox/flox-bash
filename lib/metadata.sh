@@ -1030,17 +1030,19 @@ function updateAvailable() {
 	eval $(decodeEnvironment "$environment")
 
 	# First calculate current generation number.
-	local tmpfile=$(mkTempFile)
-	if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName"; then
-		$invoke_git -C "$environmentMetaDir" show "${branchName}:metadata.json" > $tmpfile
-		if local -i currentGen=$(registry $tmpfile 1 get currentGen); then
-			# If that worked then calculate generation number upstream.
-			if $_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branchName"; then
-				$invoke_git -C "$environmentMetaDir" show "origin/${branchName}:metadata.json" > $tmpfile
-				if local -i currentOriginGen=$(registry $tmpfile 1 get currentGen); then
-					if [ $currentGen -lt $currentOriginGen ]; then
-						echo $currentOriginGen
-						return 0
+	if [ -d "$environmentMetaDir" ]; then
+		local tmpfile=$(mkTempFile)
+		if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName"; then
+			$invoke_git -C "$environmentMetaDir" show "${branchName}:metadata.json" > $tmpfile
+			if local -i currentGen=$(registry $tmpfile 1 get currentGen); then
+				# If that worked then calculate generation number upstream.
+				if $_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branchName"; then
+					$invoke_git -C "$environmentMetaDir" show "origin/${branchName}:metadata.json" > $tmpfile
+					if local -i currentOriginGen=$(registry $tmpfile 1 get currentGen); then
+						if [ $currentGen -lt $currentOriginGen ]; then
+							echo $currentOriginGen
+							return 0
+						fi
 					fi
 				fi
 			fi
