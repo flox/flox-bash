@@ -2,14 +2,146 @@
 
 _general_commands+=("channels")
 _usage["channels"]="list channel subscriptions"
+_usage_options["channels"]="[--json]"
+function floxChannels() {
+	trace "$@"
+	local -a channelsArgs=()
+	local -i displayJSON=0
+	while test $# -gt 0; do
+		# 'flox list' args.
+		case "$1" in
+		--json) # takes zero args
+			displayJSON=1
+			shift
+			;;
+		-*)
+			usage | error "unknown option '$1'"
+			;;
+		*)
+			usage | error "extra argument '$1'"
+			;;
+		esac
+	done
+	if [ $displayJSON -gt 0 ]; then
+		registry $floxUserMeta 1 get channels | $_jq -r '
+		  with_entries(
+		    ( if (.key == "flox" or .key == "nixpkgs" or .key == "nixpkgs-flox")
+			  then "flox" else "user" end ) as $type |
+		    .value = {type:$type,url:.value}
+		  )'
+	else
+		local -a rows=($(registry $floxUserMeta 1 get channels | $_jq -r '
+		  to_entries | sort_by(.key) | map(
+		    ( if (.key == "flox" or .key == "nixpkgs" or .key == "nixpkgs-flox")
+			  then "flox" else "user" end ) as $type |
+			"|\(.key)|\($type)|\(.value)|"
+		  )[]
+		'))
+		$invoke_gum format --type="markdown" -- "|Channel|Type|URL|" "|---|---|---|" "${rows[@]}"
+	fi
+}
 
 _general_commands+=("subscribe")
 _usage["subscribe"]="subscribe to channel URL"
 _usage_options["subscribe"]="[<name> [<url>]]"
+function floxSubscribe() {
+	trace "$@"
+	local flakeName
+	local flakeUrl
+	while test $# -gt 0; do
+		case "$1" in
+		-*)
+			usage | error "unknown option '$1'"
+			;;
+		*)
+			if [ -n "$flakeName" ]; then
+				if [ -n "$flakeUrl" ]; then
+					usage | error "extra argument '$1'"
+				else
+					flakeUrl="$1"; shift
+				fi
+			else
+				flakeName="$1"; shift
+			fi
+			;;
+		esac
+	done
+	if [ -z "$flakeName" ]; then
+		read -e -p "Enter channel name to be added: " flakeName
+	fi
+	if [ ${validChannels["$flakeName"]+_} ]; then
+		error "subscription already exists for channel '$flakeName'" < /dev/null
+	fi
+	[[ "$flakeName" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] ||
+		error "invalid channel name '$flakeName', valid regexp: ^[a-zA-Z][a-zA-Z0-9_-]*$" < /dev/null
+	if [ -n "$flakeUrl" ]; then
+		validateFlakeURL "$flakeUrl" || \
+			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
+		registry $floxUserMeta 1 set channels "$flakeName" "$flakeUrl"
+	else
+		flakeUrl=$(registry $floxUserMeta 1 getPromptSet \
+			"Enter URL for '$flakeName' channel: " \
+			$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master) \
+			channels "$flakeName")
+		validateFlakeURL "$flakeUrl" || {
+			registry $floxUserMeta 1 delete channels "$flakeName"
+			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
+		}
+	fi
+	warn "subscribed channel '$flakeName'"
+}
 
 _general_commands+=("unsubscribe")
 _usage["unsubscribe"]="unsubscribe from channel"
 _usage_options["unsubscribe"]="[<name>]"
+function floxUnsubscribe() {
+	trace "$@"
+	local flakeName
+	while test $# -gt 0; do
+		case "$1" in
+		-*)
+			usage | error "unknown option '$1'"
+			;;
+		*)
+			if [ -n "$flakeName" ]; then
+				usage | error "extra argument '$1'"
+			else
+				flakeName="$1"; shift
+			fi
+			;;
+		esac
+	done
+	if [ -n "$flakeName" ]; then
+		if [ ! ${validChannels["$flakeName"]+_} ]; then
+			error "invalid channel '$flakeName'" < /dev/null
+		fi
+		case "$flakeName" in
+		flox|nixpkgs|nixpkgs-flox)
+			error "cannot unsubscribe from flox channel '$flakeName'" < /dev/null
+			;;
+		esac
+	else
+		local -A redactedChannels
+		for i in "${!validChannels[@]}"; do
+			case "$i" in
+				flox|nixpkgs|nixpkgs-flox) : ;;
+				*) redactedChannels["$i"]=1 ;;
+			esac
+		done
+		local -a sortedRedactedChannels=($(echo "${!redactedChannels[@]}" | $_xargs -n 1 | $_sort | $_xargs))
+		if [ ${#sortedRedactedChannels[@]} -gt 0 ]; then
+			warn "Select channel to unsubscribe: "
+			flakeName=$($_gum choose "${sortedRedactedChannels[@]}")
+		else
+			error "no channel to unsubscribe" < /dev/null
+		fi
+	fi
+	if registry $floxUserMeta 1 delete channels "$flakeName"; then
+		warn "unsubscribed from channel '$flakeName'"
+	else
+		error "unsubscribe channel failed '$flakeName'" < /dev/null
+	fi
+}
 
 _general_commands+=("search")
 _usage["search"]="search packages in subscribed channels"
