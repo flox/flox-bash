@@ -4,7 +4,8 @@ usage:
 general commands:
     flox [(-v|--verbose)] [--debug] <command> [<args>]
     ----
-    flox channels - list channel subscriptions
+    flox channels [--json]
+         - list channel subscriptions
     flox subscribe [<name> [<url>]]
          - subscribe to channel URL
     flox unsubscribe [<name>]

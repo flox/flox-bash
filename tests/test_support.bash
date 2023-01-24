@@ -31,6 +31,10 @@ setup_file() {
   export FLOX_DATA_HOME=$XDG_DATA_HOME/flox
   export FLOX_ENVIRONMENTS=$FLOX_DATA_HOME/environments
   export FLOX_CONFIG_HOME=$XDG_CONFIG_HOME/flox
+
+  unset FLOX_PROMPT_ENVIRONMENTS
+  unset FLOX_ACTIVE_ENVIRONMENTS
+
   # Weirdest thing, gh will *move* your gh creds to the XDG_CONFIG_HOME
   # if it finds them in your home directory. Doesn't ask permission, just
   # does it. That is *so* not the right thing to do. (visible with strace)

@@ -117,13 +117,13 @@ load test_support.bash
 @test "flox subscribe public" {
   run $FLOX_CLI subscribe flox-examples github:flox-examples/floxpkgs
   assert_success
-  assert_output - < /dev/null
+  assert_output --partial "subscribed channel 'flox-examples'"
 }
 
 @test "flox unsubscribe public" {
   run $FLOX_CLI unsubscribe flox-examples
   assert_success
-  assert_output - < /dev/null
+  assert_output --partial "unsubscribed from channel 'flox-examples'"
 }
 
 @test "assert not logged into github" {
@@ -156,14 +156,14 @@ load test_support.bash
 @test "flox subscribe private with creds GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR" {
   run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI subscribe flox-examples-private github:flox-examples/floxpkgs-private"
   assert_success
-  assert_output - < /dev/null
+  assert_output --partial "subscribed channel 'flox-examples-private'"
 }
 
 # Keep environment in next test to prevent nix.conf rewrite warning.
 @test "flox unsubscribe private" {
   run sh -c "XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR $FLOX_CLI unsubscribe flox-examples-private"
   assert_success
-  assert_output - < /dev/null
+  assert_output --partial "unsubscribed from channel 'flox-examples-private'"
 }
 
 @test "flox create -e $TEST_ENVIRONMENT" {
@@ -206,7 +206,7 @@ load test_support.bash
 @test "flox subscribe nixpkgs-flox-dup" {
   run $FLOX_CLI subscribe nixpkgs-flox-dup github:flox/nixpkgs-flox/master
   assert_success
-  assert_output - < /dev/null
+  assert_output --partial "subscribed channel 'nixpkgs-flox-dup'"
 }
 
 @test "flox install stable.nixpkgs-flox-dup.hello" {
