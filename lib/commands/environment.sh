@@ -3,11 +3,59 @@
 _environment_commands+=("list")
 _usage["list"]="list installed packages"
 _usage_options["list"]="[--out-path] [--json]"
+
+function floxListProject() {
+	trace "$@"
+	local environment="$1"; shift
+	local system="$1"; shift
+	local displayOutPath="$1"; shift
+	local displayJSON="$1"; shift
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	eval $(decodeEnvironment "$environment")
+
+	# Increase verbosity when invoking list command.
+	if [ $verbose -eq 1 ]; then
+		let ++verbose
+	fi
+
+	local manifestJSON="$environmentBaseDir/manifest.json"
+
+	# Display data.
+	# XXX "currentGeneration" is probably the wrong label to be using here
+	# because we may have selected to display a different generation number
+	# by way of a commandline argument. Should revisit based on needs of
+	# SaaS/environment manager project.
+	if [ $displayJSON -gt 0 ]; then
+		manifest $manifestJSON listEnvironment --json | $_jq -r \
+			--arg c "$environmentParentDir/$environmentName" \
+			--arg a "$environmentAlias" \
+			--arg s "$environmentSystem" \
+			--arg p "$environmentBaseDir" \
+			'{"name":$c,"alias":$a,"system":$s,"path":$p} * .'
+	else
+		$_cat <<EOF
+$environmentParentDir/$environmentName
+    Alias     $environmentAlias
+    System    $environmentSystem
+    Path      $environmentBaseDir
+
+Packages
+EOF
+		if [ $displayOutPath -gt 0 ]; then
+			manifest $manifestJSON listEnvironment --out-path |
+				$_column -t | $_sed 's/^/    /'
+		else
+			manifest $manifestJSON listEnvironment |
+				$_column -t | $_sed 's/^/    /'
+		fi
+	fi
+}
+
 function floxList() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 	local -a invocation=("$@")
@@ -57,6 +105,16 @@ function floxList() {
 		listArgs=(${listArgs[@]:1}) # aka shift
 	done
 
+	# Test to see if this is a project environment.
+	if [ -z "$environmentMetaDir" ]; then
+		# Project environments don't take generations.
+		[ -z "$listGeneration" ] ||
+			error "cannot list project environment by generation number" < /dev/null
+		# Launch into project-specific version with already-parsed args.
+		floxListProject "$environment" "$system" $displayOutPath $displayJSON
+		return 0
+	fi
+
 	local currentGeneration
 	if [ -z "$listGeneration" ]; then
 		# Identify currentGeneration of environment.
@@ -103,17 +161,18 @@ function floxList() {
 	# SaaS/environment manager project.
 	if [ $displayJSON -gt 0 ]; then
 		manifest $manifestJSON listEnvironment --json | $_jq -r \
+			--arg n "$environmentOwner/$environmentName" \
 			--arg a "$environmentAlias" \
 			--arg s "$environmentSystem" \
-			--arg p "$environmentDir/$environmentName" \
-			--arg c "$listGeneration" \
-			'{"alias":$a,"system":$s,"path":$p,"currentGeneration":$c} * .'
+			--arg p "$environmentBaseDir" \
+			--arg l "$listGeneration" \
+			'{"name":$n,"alias":$a,"system":$s,"path":$p,"currentGeneration":$l} * .'
 	else
 		$_cat <<EOF
 $environmentOwner/$environmentName
     Alias     $environmentAlias
     System    $environmentSystem
-    Path      $environmentDir/$environmentName
+    Path      $environmentBaseDir
     Curr Gen  $listGeneration
 
 Packages
@@ -135,7 +194,7 @@ function floxCreate() {
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# Create shared clone for creating new environment.
@@ -252,8 +311,8 @@ function floxInstall() {
 		# Now we want to construct the manifest.json entries for incorporating
 		# the new installables into our environments, and the easiest way to
 		# do that is to just install them to an ephemeral profile.
-		local profileWorkDir=$(mkTempDir)
-		if ! $invoke_nix profile install --profile "$profileWorkDir/x" --impure "${pkgArgs[@]}"; then
+		local environmentWorkDir=$(mkTempDir)
+		if ! $invoke_nix profile install --profile "$environmentWorkDir/x" --impure "${pkgArgs[@]}"; then
 			# If that failed then repeat the build of each pkgArg individually
 			# to report which one(s) failed.
 			local -a failedPkgArgs=()
@@ -287,13 +346,13 @@ function floxInstall() {
 		# Construct and render the new manifest.json in the metadata workDir.
 		if [ -n "$currentGen" ]; then
 			$_cat \
-				$profileWorkDir/x/manifest.json \
+				$environmentWorkDir/x/manifest.json \
 				$workDir/$currentGen/manifest.json \
 				| $_jq -s -f $_lib/merge-manifests.jq \
 				> $workDir/$nextGen/manifest.json
 		else
 			# Expand the compact JSON rendered by default.
-			$_jq . $profileWorkDir/x/manifest.json > $workDir/$nextGen/manifest.json
+			$_jq . $environmentWorkDir/x/manifest.json > $workDir/$nextGen/manifest.json
 		fi
 		$_git -C $workDir add $nextGen/manifest.json
 
@@ -408,10 +467,10 @@ function floxRemove() {
 	local nextGen=$($_readlink $workDir/next)
 
 	# Create an ephemeral copy of the current generation to delete from.
-	local profileWorkDir=$(mkTempDir)
+	local environmentWorkDir=$(mkTempDir)
 	local envPackage=$($_jq -r '.generations[.currentGen].path' $workDir/metadata.json)
-	$_ln -s $envPackage $profileWorkDir/x-$currentGen-link
-	$_ln -s x-$currentGen-link $profileWorkDir/x
+	$_ln -s $envPackage $environmentWorkDir/x-$currentGen-link
+	$_ln -s x-$currentGen-link $environmentWorkDir/x
 
 	local -i currentGenVersion
 	if ! currentGenVersion=$(registry $workDir/metadata.json 1 get generations "$currentGen" version); then
@@ -429,12 +488,12 @@ function floxRemove() {
 		pkgArgs+=("$pkgArg")
 		position=
 		if [[ "$pkgArg" == *#* ]]; then
-			position=$(manifest $profileWorkDir/x/manifest.json flakerefToPosition "$pkgArg") ||
+			position=$(manifest $environmentWorkDir/x/manifest.json flakerefToPosition "$pkgArg") ||
 				error "package \"$pkg\" not found in environment $environment" </dev/null
 		elif [[ "$pkgArg" =~ ^[0-9]+$ ]]; then
 			position="$pkgArg"
 		else
-			position=$(manifest $profileWorkDir/x/manifest.json storepathToPosition "$pkgArg") ||
+			position=$(manifest $environmentWorkDir/x/manifest.json storepathToPosition "$pkgArg") ||
 				error "package \"$pkg\" not found in environment $environment" </dev/null
 		fi
 		pkgPositionArgs+=($position)
@@ -442,19 +501,19 @@ function floxRemove() {
 	# Look up floxpkg name(s) from position.
 	local -a pkgNames=()
 	for position in ${pkgPositionArgs[@]}; do
-		pkgNames+=("$(manifest $profileWorkDir/x/manifest.json positionToFloxpkg "$position")") ||
+		pkgNames+=("$(manifest $environmentWorkDir/x/manifest.json positionToFloxpkg "$position")") ||
 			error "failed to look up package name for position \"$position\" in environment $environment" </dev/null
 	done
 
 	case $currentGenVersion in
 	1)
 		# Render a new environment with 'nix profile remove'.
-		$invoke_nix profile remove --profile $profileWorkDir/x "${pkgPositionArgs[@]}"
-		envPackage=$($_realpath $profileWorkDir/x/.)
+		$invoke_nix profile remove --profile $environmentWorkDir/x "${pkgPositionArgs[@]}"
+		envPackage=$($_realpath $environmentWorkDir/x/.)
 
 		# That went well, update metadata accordingly.
 		# Expand the compact JSON rendered by default.
-		$_jq . $profileWorkDir/x/manifest.json > $workDir/$nextGen/manifest.json
+		$_jq . $environmentWorkDir/x/manifest.json > $workDir/$nextGen/manifest.json
 		$_git -C $workDir add $nextGen/manifest.json
 
 		# Generate declarative manifest.
@@ -554,10 +613,10 @@ function floxUpgrade() {
 	local nextGen=$($_readlink $workDir/next)
 
 	# Create an ephemeral copy of the current generation to upgrade.
-	local profileWorkDir=$(mkTempDir)
+	local environmentWorkDir=$(mkTempDir)
 	local envPackage=$($_jq -r '.generations[.currentGen].path' $workDir/metadata.json)
-	$_ln -s $envPackage $profileWorkDir/x-$currentGen-link
-	$_ln -s x-$currentGen-link $profileWorkDir/x
+	$_ln -s $envPackage $environmentWorkDir/x-$currentGen-link
+	$_ln -s x-$currentGen-link $environmentWorkDir/x
 
 	# The remove and upgrade commands operate on flake references and
 	# require the package to be present in the manifest. Take this
@@ -568,12 +627,12 @@ function floxUpgrade() {
 		pkgArg=$(floxpkgArg "$pkg")
 		position=
 		if [[ "$pkgArg" == *#* ]]; then
-			position="$(manifest $profileWorkDir/x/manifest.json flakerefToPosition "$pkgArg")" ||
+			position="$(manifest $environmentWorkDir/x/manifest.json flakerefToPosition "$pkgArg")" ||
 				error "package \"$pkg\" not found in environment $environment" </dev/null
 		elif [[ "$pkgArg" =~ ^[0-9]+$ ]]; then
 			position="$pkgArg"
 		else
-			position="$(manifest $profileWorkDir/x/manifest.json storepathToPosition "$pkgArg")" ||
+			position="$(manifest $environmentWorkDir/x/manifest.json storepathToPosition "$pkgArg")" ||
 				error "package \"$pkg\" not found in environment $environment" </dev/null
 		fi
 		pkgArgs+=($position)
@@ -581,13 +640,13 @@ function floxUpgrade() {
 	# Look up floxpkg name(s) from position.
 	local -a pkgNames=()
 	for position in ${pkgArgs[@]}; do
-		pkgNames+=("$(manifest $profileWorkDir/x/manifest.json positionToFloxpkg "$position")") ||
+		pkgNames+=("$(manifest $environmentWorkDir/x/manifest.json positionToFloxpkg "$position")") ||
 			error "failed to look up package name for position \"$position\" in environment $environment" </dev/null
 	done
 	# Look up catalog deletion paths from position.
 	local -a pkgCatalogPaths=()
 	for position in ${pkgArgs[@]}; do
-		pkgCatalogPaths+=("$(manifest $profileWorkDir/x/manifest.json positionToCatalogPath "$position")") ||
+		pkgCatalogPaths+=("$(manifest $environmentWorkDir/x/manifest.json positionToCatalogPath "$position")") ||
 			error "failed to look up package catalog path for position \"$position\" in environment $environment" </dev/null
 	done
 
@@ -600,15 +659,15 @@ function floxUpgrade() {
 
 		# Render a new environment with 'nix profile upgrade'.
 		if [ ${#pkgArgs[@]} -gt 0 ]; then
-			$invoke_nix profile upgrade --impure --profile $profileWorkDir/x "${pkgArgs[@]}"
+			$invoke_nix profile upgrade --impure --profile $environmentWorkDir/x "${pkgArgs[@]}"
 		else
-			$invoke_nix profile upgrade --impure --profile $profileWorkDir/x '.*'
+			$invoke_nix profile upgrade --impure --profile $environmentWorkDir/x '.*'
 		fi
-		envPackage=$($_realpath $profileWorkDir/x/.)
+		envPackage=$($_realpath $environmentWorkDir/x/.)
 
 		# That went well, update metadata accordingly.
 		# Expand the compact JSON rendered by default.
-		$_jq . $profileWorkDir/x/manifest.json > $workDir/$nextGen/manifest.json
+		$_jq . $environmentWorkDir/x/manifest.json > $workDir/$nextGen/manifest.json
 		$_git -C $workDir add $nextGen/manifest.json
 
 		# Generate declarative manifest.
@@ -645,7 +704,7 @@ EOF
 
 		if [ ${#upgradeArgs[@]} == 0 ]; then
 			# If upgrading all, simply remove all locks.
-			rm $workDir/$nextGen/pkgs/default/catalog.json
+			$_rm $workDir/$nextGen/pkgs/default/catalog.json
 		else
 			# Delete all pkgCatalogPath references from catalog.json.
 			local concatPkgCatalogPaths=$(IFS=","; echo "${pkgCatalogPaths[*]}")
@@ -891,7 +950,7 @@ function floxExport() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	# This is the easy one; just export all the generations. It's up to the
 	# import function to weed out and renumber the current generation.
@@ -905,7 +964,7 @@ function floxHistory() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# Default to verbose log format (like git).
@@ -1022,7 +1081,7 @@ function floxDestroy() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local originArg=
 	local -i force=0
@@ -1041,7 +1100,7 @@ function floxDestroy() {
 
 	# Look for symlinks to delete.
 	local -a links=()
-	for i in $environmentDir/$environmentName{,-*-link}; do
+	for i in $environmentParentDir/$environmentName{,-*-link}; do
 		if [ -L "$i" ]; then
 			links+=("$i")
 			warnings+=(" - $i")
@@ -1050,7 +1109,7 @@ function floxDestroy() {
 
 	# Look for directories to delete.
 	local -a directories=()
-	for i in $environmentDir/$environmentName; do
+	for i in $environmentParentDir/$environmentName; do
 		if [ ! -L "$i" -a -d "$i" ]; then
 			directories+=("$i")
 			warnings+=(" - $i")
@@ -1139,7 +1198,7 @@ function floxPushPull() {
 	local action="$1"; shift
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local forceArg=
 	local -i noRender=0
@@ -1245,7 +1304,7 @@ function floxGit() {
 	trace "$@"
 	local environment="$1"; shift
 	local -a invocation=("$@")
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	githubHelperGit -C $environmentMetaDir ${args[@]}
 }

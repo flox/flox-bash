@@ -321,8 +321,8 @@ function floxDevelop() {
 	fi
 
 	# Compute the canonical build and floxEnv flakerefs for the installable.
-	local floxEnvFlakeURL="${installableFlakeRef}#floxEnvs.$FLOX_SYSTEM.$installableAttrPath"
-	local packageFlakeURL="${installableFlakeRef}#packages.$FLOX_SYSTEM.$installableAttrPath"
+	local floxEnvFlakeURL="${installableFlakeRef}#.floxEnvs.$FLOX_SYSTEM.$installableAttrPath"
+	local packageFlakeURL="${installableFlakeRef}#.packages.$FLOX_SYSTEM.$installableAttrPath"
 
 	# Compute the GCRoot path to be created/activated.
 	local topLevel=$(flakeTopLevel "$installableFlakeRef" "${developArgs[@]}")
@@ -524,6 +524,44 @@ function floxShell() {
 		export NIX_GET_COMPLETIONS="$(( FLOX_ORIGINAL_NIX_GET_COMPLETIONS + 1 ))"
 	fi
 	$invoke_nix "${_nixArgs[@]}" shell --impure "${shellArgs[@]}" "${installables[@]}" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY "${remainingArgs[@]}"
+}
+
+#
+# selectDefaultEnvironment($defaultEnvironment)
+#
+# Looks to see if current directory is within a project with a
+# capacitated flake, and if so then prompts for and returns the
+# environment implied by the selected project.
+#
+function selectDefaultEnvironment() {
+	trace "$@"
+	local subcommand="$1"; shift
+	local defaultEnv="$1"; shift
+
+	case "$subcommand" in
+	activate|edit|install|list|remove|upgrade) # support project environments
+		: ;; # pass
+	*) # all other commands do not support project environments
+		echo "$defaultEnv"
+		return 0
+		;;
+	esac
+
+	local topLevel=$(flakeTopLevel "." 2>/dev/null) || :
+	[ -n "$topLevel" ] || topLevel="."
+	# This could fail noisily, so quietly try a lookup before calling
+	# selectAttrPath() which needs to prompt to stderr.
+	local -a attrPaths=($(lookupAttrPaths $topLevel 2>/dev/null))
+	if [ ${#attrPaths[@]} -gt 0 ]; then
+		local attrPath="$(selectAttrPath $topLevel $subcommand)"
+		if [ -n "$attrPath" ]; then
+			echo "$topLevel#$attrPath"
+		else
+			echo "$defaultEnv"
+		fi
+	else
+		echo "$defaultEnv"
+	fi
 }
 
 # vim:ts=4:noet:syntax=bash

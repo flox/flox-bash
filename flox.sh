@@ -157,7 +157,7 @@ activate | history | create | install | list | remove | rollback | \
 		esac
 	done
 	if [ ${#environments[@]} -eq 0 ]; then
-		environments+=($defaultEnv)
+		environments+=$(selectDefaultEnvironment "$subcommand" "$defaultEnv")
 	else
 		declare -a environmentArgs=()
 		for i in "${environments[@]}"; do
@@ -172,6 +172,17 @@ activate | history | create | install | list | remove | rollback | \
 	fi
 
 	environment=${environments[0]}
+
+	# project environments are only valid for a subset of subcommands.
+	if [[ "$environment" =~ '#' ]]; then # project flox environment
+		case "$subcommand" in
+		activate|edit|install|list|remove|upgrade) # support project environments
+			: ;; # pass
+		*) # all other commands do not support project environments
+			error "'$subcommand' not supported for project environments" < /dev/null
+			;;
+		esac
+	fi
 
 	[ $verbose -eq 0 ] || [ "$subcommand" = "activate" ] || echo Using environment: $environment >&2
 

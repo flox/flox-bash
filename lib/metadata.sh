@@ -216,7 +216,7 @@ function temporaryAssert008Schema {
 	trace "$@"
 	local environment="$1"; shift
 	local repoDir="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local currentGen=$($_readlink $workDir/current || :)
 	local nextGen=$($_readlink $workDir/next)
@@ -268,7 +268,7 @@ function temporaryAssert008Schema {
 	$_git -C $repoDir add $nextGen/pkgs/default/flox.nix
 
 	local envPackage
-	if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$nextGenDir#floxEnvs.$environmentSystem.default"); then
+	if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$nextGenDir#.floxEnvs.$environmentSystem.default"); then
 		error "failed to install packages: ${pkgArgs[@]}" < /dev/null
 	fi
 
@@ -291,13 +291,13 @@ function temporaryAssert008Schema {
 function temporaryAssert009LinkLayout() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	# The alias is either "owner/name" or "name" based on the owner, so
 	# we can't use that. Instead construct our own fully-qualified
 	# name by removing the system from environmentName.
 	local environmentBasename="${environmentName/$environmentSystem\./}"
-	for i in ${environmentDir}/${environmentBasename} ${environmentDir}/${environmentBasename}-*-link; do
+	for i in ${environmentParentDir}/${environmentBasename} ${environmentParentDir}/${environmentBasename}-*-link; do
 		if [ -L "$i" ]; then
 			local x=$($_readlink "$i")
 			case "$x" in
@@ -307,10 +307,10 @@ function temporaryAssert009LinkLayout() {
 			$environmentBasename-*-link|/nix/store/*)
 				# Old link - rename and leave forwarding link in its place.
 				local y="${environmentSystem}.$($_basename $i)"
-				if [ -L "${environmentDir}/$y" ]; then
+				if [ -L "${environmentParentDir}/$y" ]; then
 					$_rm "$i"
 				else
-					$_mv "$i" "${environmentDir}/$y"
+					$_mv "$i" "${environmentParentDir}/$y"
 				fi
 				$_ln -s "$y" "$i"
 				;;
@@ -363,7 +363,7 @@ function githubHelperGit() {
 function metaGit() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# First verify that the clone is not out of date and check
@@ -379,7 +379,7 @@ function metaGitShow() {
 	trace "$@"
 	local environment="$1"; shift
 	local filename="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# First assert the relevant branch exists.
@@ -396,9 +396,9 @@ function metaGitShow() {
 function syncEnvironment() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
-	local environmentRealDir=$($_readlink -f $environmentDir)
+	local environmentRealDir=$($_readlink -f $environmentParentDir)
 
 	# Create shared clone for performing work.
 	local workDir=$(mkTempDir)
@@ -425,7 +425,7 @@ function commitMessage() {
 	local -i endGen=$1; shift
 	local logMessage="$1"; shift
 	local invocation="${@}"
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	#
@@ -593,7 +593,7 @@ function rewriteURLs() {
 function getSetOrigin() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# Check to see if the origin is already set.
@@ -654,7 +654,7 @@ function getSetOrigin() {
 			# rename .local/share/flox/environments/{local -> owner}
 			#   replace with symlink from local -> owner
 			if [ -d "$FLOX_ENVIRONMENTS/$newEnvironmentOwner" ]; then
-				warn "moving profile directory $FLOX_ENVIRONMENTS/$newEnvironmentOwner out of the way"
+				warn "moving environment directory $FLOX_ENVIRONMENTS/$newEnvironmentOwner out of the way"
 				$invoke_mv --verbose $FLOX_ENVIRONMENTS/$newEnvironmentOwner{,.$$}
 			fi
 			if [ -d "$FLOX_ENVIRONMENTS/local" ]; then
@@ -685,8 +685,48 @@ function beginTransaction() {
 	local environment="$1"; shift
 	local workDir="$1"; shift
 	local -i createBranch="$1"; shift
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
+
+	# If this is a project environment there will be no $environmentMetaDir.
+	# Create a simulated generation environment so that we don't have to
+	# create project-specific versions of all the calling functions.
+	if [ -z "$environmentMetaDir" ]; then
+		# Create a fake environmentMetaDir.
+		environmentMetaDir=$(mkTempDir)
+		gitInitFloxmeta "$environmentMetaDir"
+
+		# Create an ephemeral clone in $workDir.
+		$invoke_git clone --quiet --shared "$environmentMetaDir" $workDir
+
+		# Use registry function to initialize metadata.json.
+		registry "$workDir/metadata.json" 1 set currentGen 1
+		registry "$workDir/metadata.json" 1 setNumber generations 1 version 2
+		if [ -L "$environmentBaseDir" ]; then
+			local oldEnvironmentPath="$($_readlink "$environmentBaseDir")"
+			registry "$workDir/metadata.json" 1 set generations 1 path "$oldEnvironmentPath"
+		fi
+
+		# Copy existing flox.nix or create from templateFloxEnv.
+		$_mkdir "$workDir/1"
+		$invoke_ln -s 1 "$workDir/current"
+		$_mkdir "$workDir/current/pkgs"
+		if [ -f "$protoPkgDir/flox.nix" ]; then
+			$_mkdir "$workDir/current/pkgs/default"
+			$_cp "$protoPkgDir/flox.nix" "$workDir/current/pkgs/default/flox.nix"
+			[ ! -f "$protoPkgDir/catalog.json" ] ||
+				$_cp "$protoPkgDir/catalog.json" "$workDir/current/pkgs/default/catalog.json"
+			$_cp --no-preserve=mode $_lib/templateFloxEnv/pkgs/default/default.nix "$workDir/current/pkgs/default/default.nix"
+		else
+			$_cp --no-preserve=mode -rT $_lib/templateFloxEnv "$workDir/current/."
+		fi
+
+		# Link next generation.
+		$_mkdir -p "$workDir/2"; $_ln -s 2 "$workDir/next"
+
+		# Simulation complete; bid a hasty retreat.
+		return 0
+	fi
 
 	# Verify that $environmentMetaDir/local exists either as a directory
 	# or as a symlink to another directory.
@@ -813,8 +853,20 @@ function commitTransaction() {
 	local logMessage="$1"; shift
 	local nextGenVersion="$1"; shift
 	local invocation="${@}"
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
+
+	# If this is a project environment there will be no $environmentMetaDir,
+	# and correspondingly nothing to commit or push. The only thing we need
+	# to do in this instance is update the activation link and bid a hasty
+	# retreat.
+	if [ -z "$environmentMetaDir" ]; then
+		$invoke_nix_store --add-root "$environmentBaseDir" -r $environmentPackage >/dev/null
+		$invoke_cp "$workDir/next/pkgs/default/flox.nix" "$protoPkgDir/flox.nix"
+		$invoke_cp "$workDir/next/pkgs/default/catalog.json" "$protoPkgDir/catalog.json"
+		$invoke_git -C "$protoPkgDir" add flox.nix catalog.json
+		return 0
+	fi
 
 	# Glean current and next generations from clone.
 	local -i currentGen=$($_readlink $workDir/current || echo 0)
@@ -1026,7 +1078,7 @@ function updateAvailable() {
 	trace "$@"
 	local environment="$1"; shift
 
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# First calculate current generation number.
@@ -1069,9 +1121,12 @@ function trailingAsyncFetch() {
 	[ $# -gt 0 ] || return 0
 	local -A trailingAsyncFetchMetaDirs
 	for environment in "$@"; do
-		# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+		# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 		eval $(decodeEnvironment "$environment")
-		trailingAsyncFetchMetaDirs["$environmentMetaDir"]=1
+		# $environmentMetaDir will be blank for project environments.
+		if [ -n "$environmentMetaDir" ]; then
+			trailingAsyncFetchMetaDirs["$environmentMetaDir"]=1
+		fi
 	done
 	# Make every effort to stay hidden in the background unless debugging.
 	if [ $debug -gt 0 ]; then

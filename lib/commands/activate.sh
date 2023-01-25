@@ -114,8 +114,8 @@ function floxActivate() {
 	for i in "${environments[@]}"; do
 		_environments_requested+=("$i")
 		if [ -z "${_flox_active_environments_hash[$i]}" ]; then
-			# Only warn if it's not the default environment.
-			if [ "$i" != "$defaultEnv" ]; then
+			# Only warn if not a project or the default environment.
+			if [[ "$i" != "$defaultEnv" && ! "$i" =~ '#' ]]; then
 				[ -d "$i/." ] || warn "INFO environment not found: $i"
 			fi
 			_environments_to_activate+=("$i")
@@ -146,7 +146,7 @@ function floxActivate() {
 			local -i updateGen=$(updateAvailable "$environment" 2>/dev/null)
 			if [ $updateGen -gt 0 ]; then
 				if [ $autoUpdate -eq 1 ]; then
-					# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+					# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 					eval $(decodeEnvironment "$environment")
 					if $_gum confirm "'$environmentAlias' is at generation $updateGen, pull latest version?"; then
 						floxPushPull pull "$environment" "$system" ${invocation[@]}
@@ -194,12 +194,13 @@ function floxActivate() {
 	local -a xdg_data_dirs_prepend=()
 	local -a flox_active_environments_prepend=()
 	local -a flox_prompt_environments_prepend=()
-	for i in "${_environments_requested[@]}"; do
-		path_prepend+=("$i/bin")
-		xdg_data_dirs_prepend+=("$i/share")
-		flox_active_environments_prepend+=("$i")
-		j=$(environmentPromptAlias "$i")
-		flox_prompt_environments_prepend+=("$j")
+	for environment in "${_environments_to_activate[@]}"; do
+		# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+		eval $(decodeEnvironment "$environment")
+		path_prepend+=("$environmentBinDir")
+		xdg_data_dirs_prepend+=("$environment/share")
+		flox_active_environments_prepend+=("$environment")
+		flox_prompt_environments_prepend+=("$environmentAlias")
 	done
 	export PATH="$(joinString ':' "${path_prepend[@]}" "$PATH")"
 	export XDG_DATA_DIRS="$(joinString ':' "${xdg_data_dirs_prepend[@]}" "$XDG_DATA_DIRS")"

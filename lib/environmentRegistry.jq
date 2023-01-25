@@ -137,7 +137,7 @@ def _syncGeneration(args):
   # v1 floxEnvs do not contain a version
   (if .value.version then .value.version else 1 end) as $version |
   (($now-$lastActive)/(24*60*60)) as $daysSinceActive |
-  "\($environmentDir)/\($environmentName)-\($generation)-link" as $targetLink |
+  "\($environmentParentDir)/\($environmentName)-\($generation)-link" as $targetLink |
   # Cannot embed newlines so best we can do is return array and flatten later.
   if .value.path != null then (
     # Don't bother building an old generation *unless* it's the current one.
@@ -159,7 +159,7 @@ def _syncGeneration(args):
           # Now we can attempt to build the environment and store in the bash $environmentPath variable.
           "environmentPath=$($_nix profile build $environmentManifestFile) && "
         else
-          "environmentPath=$($invoke_nix build --impure --no-link --print-out-paths \($environmentMetaDir)/\($generation)#floxEnvs.\($environmentSystem).default) && "
+          "environmentPath=$($invoke_nix build --impure --no-link --print-out-paths \($environmentMetaDir)/\($generation)#.floxEnvs.\($environmentSystem).default) && "
         end +
         # Now create the generation link using nix-store so that it creates a
         # GC root in the process. N.B. this command will silently overwrite a
@@ -181,8 +181,8 @@ def syncGenerations(args):
   ( $registry | (if has("ageDays") then .ageDays else 10 end) ) as $ageDays |
   ( $registry | .generations | to_entries ) | map(_syncGeneration([$currentGen, $ageDays])) + [
     # Set the current generation symlink. Let its timestamp be now.
-    "$_rm -f \($environmentDir)/\($environmentName)",
-    "$_ln --force -s \($environmentName)-\($currentGen)-link \($environmentDir)/\($environmentName)"
+    "$_rm -f \($environmentParentDir)/\($environmentName)",
+    "$_ln --force -s \($environmentName)-\($currentGen)-link \($environmentParentDir)/\($environmentName)"
   ] | flatten | .[];
 
 # JSON does not permit integer keys so the generation keys are strings.

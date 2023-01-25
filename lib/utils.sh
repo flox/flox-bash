@@ -610,7 +610,7 @@ function environmentRegistry() {
 	local workDir="$1"; shift
 	local environment="$1"; shift
 	local registry="$workDir/metadata.json"
-	# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local version=1
 
@@ -625,7 +625,7 @@ function environmentRegistry() {
 		"-n" "-e" "-r" "-f" "$_lib/environmentRegistry.jq"
 		"--argjson" "now" "$now"
 		"--arg" "version" "$version"
-		"--arg" "environmentDir" "$environmentDir"
+		"--arg" "environmentParentDir" "$environmentParentDir"
 		"--arg" "environmentName" "$environmentName"
 		"--arg" "environmentSystem" "$environmentSystem"
 		"--arg" "environmentMetaDir" "$workDir"
@@ -722,7 +722,10 @@ function environmentArg() {
 	trace "$@"
 	# flox environments must resolve to fully-qualified paths within
 	# $FLOX_ENVIRONMENTS. Resolve paths in a variety of ways:
-	if [[ ${1:0:1} = "/" ]]; then
+	if [[ "$1" =~ '#' ]]; then
+		# Project environment. Pass through flakeref unaltered.
+		echo "$1"
+	elif [[ ${1:0:1} = "/" ]]; then
 		if [[ "$1" =~ ^$FLOX_ENVIRONMENTS ]]; then
 			# Path already a floxpm profile - use it.
 			echo "$1"
@@ -764,79 +767,95 @@ function checkValidSystem() {
 # decodeEnvironment($environment)
 #
 # Parses environment path and returns code to define:
-#   $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
+#   $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 #
 # Called with: eval $(decodeEnvironment $environment)
 #
 function decodeEnvironment() {
 	trace "$@"
+	local environment="$1"; shift
 
-	# First parse the straightforward "/"-delimited values.
-	local _old_ifs="$IFS"
-	local IFS=/
-	local -a _parts=($1)
-	local _numParts=${#_parts[@]}
-	local environmentDir="${_parts[*]:0:$(($_numParts-1))}" # == dirname $environment
-	local environmentName="${_parts[$(($_numParts-1))]}" # == basename $environment
-	local environmentOwner="${_parts[$(($_numParts-2))]}" # == basename $environmentDir
-	local environmentMetaDir="$FLOX_META/$environmentOwner"
-	IFS="$_old_ifs"
+	# Other variables to be populated based on environment type.
+	local branchName=""
+	local protoPkgDir=""
+	local environmentAlias=""
+	local environmentSystem=""
+	local environmentBaseDir=""
+	local environmentBinDir=""
+	local environmentMetaDir=""
+	local environmentParentDir=""
+	local environmentName=""
+	local environmentOwner=""
 
-	# The first part of environmentName is the system.
-	local environmentSystem="${environmentName/\.*/}"
-	if ! checkValidSystem "$environmentSystem"; then
-		# Assume we're only on a single system while we transition to the
-		# new directory layout (with system included in the PATH).
-		# echo "could not decode '$environment', invalid system type: '$environmentSystem'" </dev/null
-		environmentSystem=$NIX_CONFIG_system
+	if [[ "$environment" =~ ^$FLOX_ENVIRONMENTS ]]; then # named flox environment
+
+		# First parse the straightforward "/"-delimited values.
+		local _old_ifs="$IFS"
+		local IFS=/
+		local -a _parts=($environment)
+		local _numParts=${#_parts[@]}
+		environmentParentDir="${_parts[*]:0:$(($_numParts-1))}" # == dirname $environment
+		environmentName="${_parts[$(($_numParts-1))]}" # == basename $environment
+		environmentOwner="${_parts[$(($_numParts-2))]}" # == basename $environmentParentDir
+		IFS="$_old_ifs"
+
+		environmentBaseDir="$environment"
+		environmentBinDir="$environment/bin"
+		environmentMetaDir="$FLOX_META/$environmentOwner"
+
+		# The first part of environmentName is the system.
+		environmentSystem="${environmentName/\.*/}"
+		if ! checkValidSystem "$environmentSystem"; then
+			# Assume we're only on a single system while we transition to the
+			# new directory layout (with system included in the PATH).
+			# echo "could not decode '$environment', invalid system type: '$environmentSystem'" </dev/null
+			environmentSystem=$NIX_CONFIG_system
+		fi
+
+		# What remains is the alias (can contain dots). If this environment
+		# is not owned by $defaultEnvironmentOwner then also prepend the
+		# owner to the alias.
+		environmentAlias="${environmentName/$environmentSystem\./}"
+		if [ "$environmentOwner" != "$defaultEnvironmentOwner" ]; then
+			environmentAlias="$environmentOwner/$environmentAlias"
+		fi
+
+		# $branchName was previously a calculated field but is now the same
+		# as $environmentName. Nevertheless we'll keep it as it's useful
+		# to know in what context we're using the string.
+		local branchName="$environmentName"
+
+	elif [[ "$environment" =~ '#' ]]; then # project flox environment
+
+		local installableFlakeRef=${environment//#*/} # aka $topLevel
+		local installableAttrPath=${environment//*#/}
+		local topLevel=$(flakeTopLevel "$installableFlakeRef" "${invocationArgs[@]}")
+		local metaDir=$(flakeMetaDir "$topLevel")
+
+		# Similarly parse $topLevel "/"-delimited values.
+		local _old_ifs="$IFS"
+		local IFS=/
+		local -a _parts=($topLevel)
+		local _numParts=${#_parts[@]}
+		environmentParentDir="${_parts[*]:0:$(($_numParts-1))}" # == dirname $topLevel
+		environmentName="${_parts[$(($_numParts-1))]}#$installableAttrPath"
+		IFS="$_old_ifs"
+
+		environmentBaseDir="$metaDir/envs/$FLOX_SYSTEM.$installableAttrPath"
+		protoPkgDir="$topLevel/pkgs/$installableAttrPath"
+		environmentAlias=".#$installableAttrPath"
+		environmentSystem="$FLOX_SYSTEM"
+		environmentBinDir="$environmentBaseDir/bin"
+
+	else
+
+		error "could not identify type of environment '$environment'" </dev/null
+
 	fi
 
-	# What remains is the alias (can contain dots). If this environment
-	# is not owned by $defaultEnvironmentOwner then also prepend the
-	# owner to the alias.
-	local environmentAlias="${environmentName/$environmentSystem\./}"
-	if [ "$environmentOwner" != "$defaultEnvironmentOwner" ]; then
-		environmentAlias="$environmentOwner/$environmentAlias"
-	fi
-
-	# $branchName was previously a calculated field but is now the same
-	# as $environmentName. Nevertheless we'll keep it as it's useful
-	# to know in what context we're using the string.
-	local branchName="$environmentName"
-	for i in branchName environment{Dir,Name,Alias,Owner,System,MetaDir}; do
+	for i in branchName protoPkgDir environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}; do
 		echo "local $i='${!i}'"
 	done
-}
-
-#
-# environmentPromptAlias($environment)
-#
-# This function differentiates between project and named environments
-# inorder to return the shortest possible alias for inclusion in the
-# PS1 prompt.
-#
-function environmentPromptAlias() {
-	trace "$@"
-	local environment="$1"; shift
-	case "$environment" in
-	$FLOX_ENVIRONMENTS/*)
-		# set $branchName,$environment{Dir,Name,Alias,Owner,System,MetaDir}
-		eval $(decodeEnvironment "$environment")
-		echo "$environmentAlias"
-		;;
-	*)
-		# Redact $FLOX_ENVIRONMENTS from the path for named environments.
-		environment=${environment/$FLOX_ENVIRONMENTS\//}
-		# Redact "$defaultEnvironmentOwner/" from the beginning.
-		environment=${environment/$defaultEnvironmentOwner\//}
-		# Anything else containing more than one "/" must be a project env.
-		# Replace everything up to the last "/" with "...".
-		if [[ "$environment" == */*/?* ]]; then
-			environment=.../${environment//*\//}
-		fi
-		echo "$environment"
-		;;
-	esac
 }
 
 # Package args can take one of the following formats:
@@ -1199,9 +1218,16 @@ function selectAttrPath() {
 	else
 		warn "Select package for flox $subcommand"
 		attrPath=$($_gum choose ${attrPaths[*]})
+
+		local hintCommandArgs
+		case "$subcommand" in
+		activate|edit|install|list|remove|upgrade) hintCommandArgs="$subcommand -e .#$attrPath";;
+		*) hintCommandArgs="$subcommand -A $attrPath";;
+		esac
+
 		warn ""
 		warn "HINT: avoid selecting a package next time with:"
-		echo '{{ Color "'$LIGHTPEACH256'" "'$DARKBLUE256'" "$ flox '$subcommand' -A '$attrPath'" }}' \
+		echo '{{ Color "'$LIGHTPEACH256'" "'$DARKBLUE256'" "$ flox '$hintCommandArgs'" }}' \
 		    | $_gum format -t template 1>&2
 		echo "$attrPath"
 	fi
