@@ -189,7 +189,7 @@ function flakeTopLevel() {
 		# strip path:
 		url="${url/path:/}"
 		# extract dir for subflakes if it exists
-		dir="$(echo "$url" | sed -rn 's/.*\?dir=([^&]*).*/\1/p')"
+		dir="$(echo "$url" | $_sed -rn 's/.*\?dir=([^&]*).*/\1/p')"
 		# strip ?*
 		url="${url/\?*/}"
 		if [ -n "$dir" ]; then
