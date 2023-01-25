@@ -1474,21 +1474,29 @@ function identifyParentShell() {
 # joinString( $separator, $string1, $string2, ... )
 #
 # Like any other join() function. Not calling it "join" because don't
-# want to have confusion with coreutils `join`.
+# want to have confusion with coreutils `join`. Also remove dups.
+#
 function joinString() {
 	trace "$@"
 	local separator="$1"; shift
 	local accum=
+	local -A seen
 	while test $# -gt 0; do
-		case "$1" in
-		"") : ;;
-		*)
-			if [ -n "$accum" ]; then
-				accum="${accum}${separator}${1}"
-			else
-				accum="${1}"
-			fi
-		esac
+		for i in $(IFS=$separator; echo $1); do
+			case "$i" in
+			"") : ;;
+			*)
+				if [ -z "${seen["$i"]}" ]; then
+					if [ -n "$accum" ]; then
+						accum="${accum}${separator}${i}"
+					else
+						accum="${i}"
+					fi
+					seen["$i"]=1
+				fi
+				;;
+			esac
+		done
 		shift
 	done
 	echo "$accum"

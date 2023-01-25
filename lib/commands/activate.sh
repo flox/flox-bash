@@ -75,6 +75,7 @@ function floxActivate() {
 	local -a invocation=("$@")
 	local -A _flox_active_environments_hash
 	local -a _flox_original_active_environments_array
+	local -a _environments_requested
 	local -a _environments_to_activate
 
 	local -a cmdArgs=()
@@ -107,10 +108,11 @@ function floxActivate() {
 		_flox_original_active_environments_array+=("$i")
 	done
 
-	# Identify each environment to be activated, taking note to avoid
-	# attempting to activate an environment that has already been
-	# activated.
+	# Identify each environment requested, taking note of all those that
+	# have not yet been activated so we can be sure to avoid running their
+	# activation scripts multiple times.
 	for i in "${environments[@]}"; do
+		_environments_requested+=("$i")
 		if [ -z "${_flox_active_environments_hash[$i]}" ]; then
 			# Only warn if it's not the default environment.
 			if [ "$i" != "$defaultEnv" ]; then
@@ -119,10 +121,10 @@ function floxActivate() {
 			_environments_to_activate+=("$i")
 			_flox_active_environments_hash["$i"]=1
 		elif [ "$i" != "$defaultEnv" ]; then
-			# Only throw an error if in an interactive session, and don't
-			# throw an error when attempting to activate the default env.
+			# Only warn if in an interactive session, and don't warn when
+			# attempting to activate the default env.
 			if [ $interactive -eq 1 ]; then
-				error "$i environment already active" < /dev/null
+				warn "INFO not running hooks for active environment: $i"
 			fi
 		fi
 	done
@@ -131,6 +133,7 @@ function floxActivate() {
 	# Do this separately from loop above to detect when people
 	# explicitly attempt to activate default env twice.
 	if [ -z "${_flox_active_environments_hash[$defaultEnv]}" ]; then
+		_environments_requested+=("$defaultEnv")
 		_environments_to_activate+=("$defaultEnv")
 		_flox_active_environments_hash["$defaultEnv"]=1
 	fi
@@ -155,12 +158,6 @@ function floxActivate() {
 		fi
 	done
 	trailingAsyncFetch "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"
-
-	# Warn and exit 0 if interactive and nothing to do.
-	if [ $interactive -eq 1 -a ${#cmdArgs[@]} -eq 0 -a ${#_environments_to_activate[@]} -eq 0 ]; then
-		warn "no new environments to activate (active environments: $FLOX_PROMPT_ENVIRONMENTS)"
-		exit 0
-	fi
 
 	# Determine shell language to be used for "rc" script.
 	local rcShell
@@ -188,11 +185,16 @@ function floxActivate() {
 	# Note the requirement to prepend in the order provided, e.g.
 	# if activating environments 'A' and 'B' in that order then
 	# the string to be prepended to PATH is 'A/bin:B/bin'.
+	#
+	# Note that we set variables for all environments requested,
+	# regardless if they have already been activated, so that people
+	# can a) re-order their environments after activation and b) to
+	# prevent `flox activate` invocations from failing unnecessarily.
 	local -a path_prepend=()
 	local -a xdg_data_dirs_prepend=()
 	local -a flox_active_environments_prepend=()
 	local -a flox_prompt_environments_prepend=()
-	for i in "${_environments_to_activate[@]}"; do
+	for i in "${_environments_requested[@]}"; do
 		path_prepend+=("$i/bin")
 		xdg_data_dirs_prepend+=("$i/share")
 		flox_active_environments_prepend+=("$i")
@@ -234,7 +236,7 @@ function floxActivate() {
 	*zsh)
 		# The zsh fpath variable must be prepended with each new subshell.
 		local -a fpath_prepend=()
-		for i in "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"; do
+		for i in "$(joinString ' ' "${_environments_requested[@]}" "${_flox_original_active_environments_array[@]}")"; do
 			# Add to fpath irrespective of whether the directory exists at
 			# activation time because people can install to an environment
 			# while it is active and immediately benefit from commandline
