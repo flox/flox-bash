@@ -180,6 +180,7 @@ declare -a accessTokens=(
 	"github.com/flox/nixpkgs-catalog=$betaToken"
 	"github.com/flox/catalog-ingest=$betaToken"
 	"github.com/flox/flox-extras=$betaToken"
+	"github.com/flox/bundlers=$betaToken"
 )
 declare -A accessTokensMap # to detect/eliminate duplicates
 
@@ -274,6 +275,11 @@ $_cat > $tmpGitConfig <<EOF
 	insteadOf = "https://github.com/flox/flox-extras"
 	insteadOf = "ssh://git@github.com/flox/flox-extras"
 	insteadOf = "git@github.com:flox/flox-extras"
+	
+[url "https://floxbeta:$betaToken@github.com/flox/bundlers"]
+	insteadOf = "https://github.com/flox/bundlers"
+	insteadOf = "ssh://git@github.com/flox/bundlers"
+	insteadOf = "git@github.com:flox/bundlers"
 
 EOF
 # XXX Remove after closed beta.
