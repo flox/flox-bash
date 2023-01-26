@@ -275,7 +275,7 @@ $_cat > $tmpGitConfig <<EOF
 	insteadOf = "https://github.com/flox/flox-extras"
 	insteadOf = "ssh://git@github.com/flox/flox-extras"
 	insteadOf = "git@github.com:flox/flox-extras"
-	
+
 [url "https://floxbeta:$betaToken@github.com/flox/bundlers"]
 	insteadOf = "https://github.com/flox/bundlers"
 	insteadOf = "ssh://git@github.com/flox/bundlers"
