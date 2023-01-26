@@ -4,7 +4,7 @@
   nixpkgs,
 }: {target}: let
   inherit (self.lib) readPackage isValidDrv;
-  inherit (lib.capacitor.capacitate.capacitate) materialize;
+  inherit (lib.capacitor.capacitate) materialize;
   inherit (lib.capacitor.utils) mapAttrsRecursiveCondPath;
 
   analysisMapper = {
