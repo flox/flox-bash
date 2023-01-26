@@ -750,7 +750,7 @@ load test_support.bash
 function assertAndRemoveFiles {
   [ $UNAME_S == Linux ] || skip
   pushd "$FLOX_TEST_HOME/develop"
-    assert [ -h .flox/envs/my-pkg ]
+    assert [ -h .flox/envs/$NIX_SYSTEM.my-pkg ]
     rm -r .flox
     assert [ -f $FLOX_TEST_HOME/develop/pkgs/my-pkg/catalog.json ]
     rm pkgs/my-pkg/catalog.json

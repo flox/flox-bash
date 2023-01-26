@@ -16,11 +16,13 @@ function bashRC() {
 	done
 	# Add environment-specific activation commands.
 	for i in "$@"; do
-		if [ -f "$i/activate" ]; then
-			$_cat $i/activate
-		elif [ -f "$i/manifest.toml" ]; then
+		# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+		eval $(decodeEnvironment "$i")
+		if [ -f "$environmentBaseDir/activate" ]; then
+			$invoke_cat $environmentBaseDir/activate
+		elif [ -f "$environmentBaseDir/manifest.toml" ]; then
 			# Original v1 format to be deprecated.
-			(metaGitShow $i manifest.toml 2>/dev/null | manifestTOML bashInit) || :
+			(metaGitShow $environmentBaseDir manifest.toml 2>/dev/null | manifestTOML bashInit) || :
 		fi
 	done
 }
@@ -138,9 +140,16 @@ function floxActivate() {
 		_flox_active_environments_hash["$defaultEnv"]=1
 	fi
 
+	# filter out any project environments for update operations
+	local -a floxmeta_environments
+	for environment in "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"; do
+		if [[ ! "$environment" =~ '#' ]]; then
+			floxmeta_environments+=("$environment")
+		fi
+	done
 	# Before possibly bailing out, check to see if any of the active or
 	# about-to-be-activated environments have updates pending.
-	for environment in "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"; do
+	for environment in "${floxmeta_environments[@]}"; do
 		local -i autoUpdate=$(doAutoUpdate "$environment")
 		if [ $autoUpdate -ne 0 ]; then
 			local -i updateGen=$(updateAvailable "$environment" 2>/dev/null)
@@ -157,7 +166,7 @@ function floxActivate() {
 			fi
 		fi
 	done
-	trailingAsyncFetch "${_environments_to_activate[@]}" "${_flox_original_active_environments_array[@]}"
+	trailingAsyncFetch "${floxmeta_environments[@]}"
 
 	# Determine shell language to be used for "rc" script.
 	local rcShell

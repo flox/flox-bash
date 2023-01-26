@@ -329,7 +329,7 @@ function floxDevelop() {
 	[ -n "$topLevel" ] || \
 		error "could not determine toplevel directory from '$installableFlakeRef' (syntax error?)" < /dev/null
 	local metaDir=$(flakeMetaDir "$topLevel")
-	local floxEnvGCRoot="$metaDir/envs/$installableAttrPath"
+	local floxEnvGCRoot="$metaDir/envs/$FLOX_SYSTEM.$installableAttrPath"
 	local protoPkgDir="$topLevel/pkgs/$installableAttrPath"
 
 	# Figure out whether we're operating in a floxified project.
@@ -370,13 +370,13 @@ function floxDevelop() {
 			# to take it from here.
 			# flox develop
 			if [ $interactive -eq 1 ]; then
-				floxActivate "$floxEnvGCRoot" "$FLOX_SYSTEM" -- \
+				floxActivate "$floxEnvFlakeURL" "$FLOX_SYSTEM" -- \
 					$_nix "${_nixArgs[@]}" develop "$installable" "${developArgs[@]}" \
 						--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
 						"${remainingArgs[@]}"
 			# print-dev-env
 			else
-				floxActivate "$floxEnvGCRoot" "$FLOX_SYSTEM"
+				floxActivate "$floxEnvFlakeURL" "$FLOX_SYSTEM"
 				verboseExec $_nix "${_nixArgs[@]}" print-dev-env "$installable" "${developArgs[@]}" \
 					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
 					"${remainingArgs[@]}"

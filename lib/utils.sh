@@ -829,6 +829,7 @@ function decodeEnvironment() {
 
 		local installableFlakeRef=${environment//#*/} # aka $topLevel
 		local installableAttrPath=${environment//*#/}
+		installableAttrPath="${installableAttrPath//.floxEnvs.$FLOX_SYSTEM./}"
 		local topLevel=$(flakeTopLevel "$installableFlakeRef" "${invocationArgs[@]}")
 		local metaDir=$(flakeMetaDir "$topLevel")
 
