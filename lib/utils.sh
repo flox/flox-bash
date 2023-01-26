@@ -1094,7 +1094,8 @@ function updateFloxFlakeRegistry() {
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-staging github:flox/nixpkgs/staging
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-unstable github:flox/nixpkgs/unstable
 
-	if $_cmp --quiet $tmpFloxFlakeRegistry $floxFlakeRegistry; then
+	# order of keys is not relevant for json data
+	if [ -f $floxFlakeRegistry ] && $_cmp --quiet <(jq -S < $tmpFloxFlakeRegistry) <(jq -S < $floxFlakeRegistry); then
 		$_rm $tmpFloxFlakeRegistry
 	else
 		$_mv -f $tmpFloxFlakeRegistry $floxFlakeRegistry
