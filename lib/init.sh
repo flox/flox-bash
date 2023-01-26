@@ -147,15 +147,12 @@ floxFlakeRegistry="$FLOX_CONFIG_HOME/floxFlakeRegistry.json"
 # XXX May need further consideration for Enterprise.
 nixConf="$FLOX_CONFIG_HOME/nix.conf"
 tmpNixConf=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
+# We want the file in alphabetical order to ease comparing it.
+# The consideration of access tokens is somewhat out of order.
+# The remaining elements are appended below.
 $_cat > $tmpNixConf <<EOF
 # Automatically generated - do not edit.
-experimental-features = nix-command flakes
-netrc-file = $HOME/.netrc
-flake-registry = $floxFlakeRegistry
 accept-flake-config = true
-warn-dirty = false
-extra-substituters = https://cache.floxdev.com
-extra-trusted-public-keys = flox-store-public-0:8c/B+kjIaQ+BloCmNkRUKwaVPFWkriSAd0JJvuDu4F0=
 connect-timeout = 5
 EOF
 
@@ -224,8 +221,18 @@ if [ -f "$FLOX_CONFIG_HOME/flox/tokens" ]; then
 fi
 # Append all available tokens to nix.conf.
 if [ ${#accessTokens[@]} -gt 0 ]; then
-	echo "access-tokens = ${accessTokens[@]}" >> $tmpNixConf
+	echo "extra-access-tokens = ${accessTokens[@]}" >> $tmpNixConf
 fi
+
+# Add the remaining config values in alphabetical order
+$_cat >> $tmpNixConf <<EOF
+extra-experimental-features = nix-command flakes
+extra-substituters = https://cache.floxdev.com
+extra-trusted-public-keys = flox-store-public-0:8c/B+kjIaQ+BloCmNkRUKwaVPFWkriSAd0JJvuDu4F0=
+flake-registry = $floxFlakeRegistry
+netrc-file = $HOME/.netrc
+warn-dirty = false
+EOF
 
 if $_cmp --quiet $tmpNixConf $nixConf; then
 	$_rm $tmpNixConf
