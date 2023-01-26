@@ -1425,19 +1425,20 @@ function darwinPromptPatchFile() {
 function darwinRepairFiles() {
 	trace "$@"
 	[ $interactive -eq 1 ] || return 0
-	if ! $_grep -q 'HISTFILE=${HISTFILE:-${ZDOTDIR:-$HOME}/.zsh_history}' /etc/zshrc; then
-		if [ -f /usr/local/share/flox/files/darwin-zshrc.patch ] && \
-			$_cmp --quiet /etc/zshrc /etc/zshrc.backup-before-flox; then
-			darwinPromptPatchFile /etc/zshrc /usr/local/share/flox/files/darwin-zshrc.patch
+	# Only attempt to repair if /etc/zshrc* was patched at install time.
+	if [ -f /etc/zshrc -a -f /etc/zshrc.backup-before-flox ] &&
+		! $_grep -q 'HISTFILE=${HISTFILE:-${ZDOTDIR:-$HOME}/.zsh_history}' /etc/zshrc; then
+		if $_cmp --quiet /etc/zshrc /etc/zshrc.backup-before-flox; then
+			darwinPromptPatchFile /etc/zshrc $_share/flox/files/darwin-zshrc.patch
 		else
 			warn "broken 'HISTFILE' variable assignment in /etc/zshrc - please reinstall flox"
 		fi
 		warn "continuing ..."
 	fi
-	if ! $_grep -q 'SHELL_SESSION_DIR="${SHELL_SESSION_DIR:-${ZDOTDIR:-$HOME}/.zsh_sessions}"' /etc/zshrc_Apple_Terminal; then
-		if [ -f /usr/local/share/flox/files/darwin-zshrc_Apple_Terminal.patch ] && \
-			$_cmp --quiet /etc/zshrc_Apple_Terminal /etc/zshrc_Apple_Terminal.backup-before-flox; then
-			darwinPromptPatchFile /etc/zshrc_Apple_Terminal /usr/local/share/flox/files/darwin-zshrc_Apple_Terminal.patch
+	if [ -f /etc/zshrc_Apple_Terminal -a -f /etc/zshrc_Apple_Terminal.backup-before-flox ] &&
+		! $_grep -q 'SHELL_SESSION_DIR="${SHELL_SESSION_DIR:-${ZDOTDIR:-$HOME}/.zsh_sessions}"' /etc/zshrc_Apple_Terminal; then
+		if $_cmp --quiet /etc/zshrc_Apple_Terminal /etc/zshrc_Apple_Terminal.backup-before-flox; then
+			darwinPromptPatchFile /etc/zshrc_Apple_Terminal $_share/flox/files/darwin-zshrc_Apple_Terminal.patch
 		else
 			warn "broken 'SHELL_SESSION_DIR' variable assignment in /etc/zshrc - please reinstall flox"
 		fi

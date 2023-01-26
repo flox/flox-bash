@@ -74,6 +74,11 @@ LIBEXEC = \
 	libexec/flox/flox \
 	libexec/flox/darwin-path-fixer.awk
 SHARE = share/bash-completion/completions/flox
+ifeq ($(OS),darwin)
+  SHARE += \
+	share/flox/files/darwin-zshrc_Apple_Terminal.patch \
+	share/flox/files/darwin-zshrc.patch
+endif
 LINKBIN = # Add files to be linked to flox here
 
 # Discern source files just for monitoring by entr with hivemind.
@@ -143,6 +148,11 @@ $(PREFIX)/libexec/%: libexec/%
 	cp $< $@
 
 $(PREFIX)/share/man/man1/%: %
+	-@rm -f $@
+	@mkdir -p $(@D)
+	cp $< $@
+
+$(PREFIX)/share/%: share/%
 	-@rm -f $@
 	@mkdir -p $(@D)
 	cp $< $@
