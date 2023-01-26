@@ -446,7 +446,7 @@ function boolPrompt() {
 	trace "$@"
 	local prompt="$1"; shift
 	local default="$1"; shift
-	local defaultLower=$(echo $default | tr A-Z a-z)
+	local defaultLower=$(echo $default | $_tr A-Z a-z)
 	local defaultrc
 	case "$defaultLower" in
 	n|no) defaultrc=1 ;;
