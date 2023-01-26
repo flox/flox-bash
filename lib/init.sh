@@ -206,12 +206,12 @@ if [ -f "$XDG_CONFIG_HOME/gh/hosts.yml" ]; then
 		fi
 	done
 fi
-if [ -f "$FLOX_CONFIG_HOME/flox/tokens" ]; then
-	if [ "$($_stat -c %a $FLOX_CONFIG_HOME/flox/tokens)" != "600" ]; then
-		warn "fixing mode of $FLOX_CONFIG_HOME/flox/tokens"
-		$_chmod 600 "$FLOX_CONFIG_HOME/flox/tokens"
+if [ -f "$FLOX_CONFIG_HOME/tokens" ]; then
+	if [ "$($_stat -c %a $FLOX_CONFIG_HOME/tokens)" != "600" ]; then
+		warn "fixing mode of $FLOX_CONFIG_HOME/tokens"
+		$_chmod 600 "$FLOX_CONFIG_HOME/tokens"
 	fi
-	for i in $($_sed 's/#.*//' "$FLOX_CONFIG_HOME/flox/tokens"); do
+	for i in $($_sed 's/#.*//' "$FLOX_CONFIG_HOME/tokens"); do
 		# XXX add more syntax validation in golang rewrite
 		if [ -z "${accessTokensMap[$i]}" ]; then
 			accessTokens+=($i)
