@@ -9,7 +9,7 @@
       # gg = "git grep";
     };
     # POSIX shell hook run by flox activate, except curly braces have to be
-    # escaped like ``${
+    # escaped like ''${
     hook = ''
       # echo "Supercharged by flox!" 1>&2
     '';
