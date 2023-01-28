@@ -50,7 +50,6 @@ setup_file() {
   rmdir tests/out/subdir tests/out || :
   rm -f $FLOX_CONFIG_HOME/{gitconfig,nix.conf}
   export TESTS_DIR=$(realpath ./tests)
-  export UNAME_S=$(uname -s)
 
   # Assume that versions:
   # a) start with numbers

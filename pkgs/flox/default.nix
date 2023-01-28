@@ -87,7 +87,9 @@ in stdenv.mkDerivation rec {
   pname = "flox";
   version = "0.0.9-${getRev src}";
   src = self;
-  nativeBuildInputs = [ bats entr expect makeWrapper pandoc shfmt which ];
+  nativeBuildInputs = [ bats entr makeWrapper pandoc shfmt which ]
+    # nix-provided expect not working on Darwin (#441)
+    ++ lib.optionals hostPlatform.isLinux [ expect ];
   buildInputs = [
     ansifilter bashInteractive coreutils curl dasel diffutils
     findutils gawk getent git gh gnugrep gnused gnutar gum gzip jq

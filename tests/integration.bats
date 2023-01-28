@@ -738,7 +738,6 @@ load test_support.bash
 }
 
 @test "flox develop setup" {
-  [ $UNAME_S == Linux ] || skip
   # since develop tests use expect, flox thinks it's being used interactively and asks about metrics
   sed -i '2i\  "floxMetricsConsent": 0,' "$XDG_CONFIG_HOME/flox/floxUserMeta.json"
   # Note the use of --dereference to copy flake.{nix,lock} as files.
@@ -748,7 +747,6 @@ load test_support.bash
 }
 
 function assertAndRemoveFiles {
-  [ $UNAME_S == Linux ] || skip
   pushd "$FLOX_TEST_HOME/develop"
     assert [ -h .flox/envs/$NIX_SYSTEM.my-pkg ]
     rm -r .flox
@@ -760,7 +758,6 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop no installable" {
-  [ $UNAME_S == Linux ] || skip
   pushd "$FLOX_TEST_HOME/develop"
     expect "$TESTS_DIR/develop.exp" ""
     assert_success
@@ -769,7 +766,6 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop from flake root" {
-  [ $UNAME_S == Linux ] || skip
   pushd "$FLOX_TEST_HOME/develop"
     for attr in "" my-pkg .#my-pkg .#packages.$NIX_SYSTEM.my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
       expect "$TESTS_DIR/develop.exp" "$attr"
@@ -780,7 +776,6 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop from flake subdirectory" {
-  [ $UNAME_S == Linux ] || skip
   pushd "$FLOX_TEST_HOME/develop/pkgs"
     for attr in .#my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
       expect "$TESTS_DIR/develop.exp" "$attr"
@@ -791,7 +786,6 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop from different directory" {
-  [ $UNAME_S == Linux ] || skip
   pushd "$FLOX_TEST_HOME"
     expect "$TESTS_DIR/develop.exp" ./develop#my-pkg
     assert_success
@@ -799,7 +793,6 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop after git init" {
-  [ $UNAME_S == Linux ] || skip
   pushd "$FLOX_TEST_HOME/develop"
     git init
     git add .
@@ -812,7 +805,6 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop fails with remote flake" {
-  [ $UNAME_S == Linux ] || skip
   expect "$TESTS_DIR/develop-fail.exp" "git+ssh://git@github.com/flox/flox-bash-private?dir=tests/develop#my-pkg"
 }
 
