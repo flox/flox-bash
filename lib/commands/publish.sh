@@ -309,7 +309,7 @@ function floxPublish() {
 	# $buildRepository if it's not provided in an explicit flakeURL.
 	if [ -z "$packageAttrPath" ]; then
 		doEducatePublish
-		packageAttrPath="$(selectAttrPath $canonicalFlakeRef publish)"
+		packageAttrPath="$(selectAttrPath "$canonicalFlakeRef" publish)"
 	fi
 
 	# Stash the canonical and build flake URLs before altering $packageAttrPath.
@@ -485,10 +485,10 @@ function floxPublish() {
 	# Copy to binary cache (optional).
 	if [ -n "$uploadTo" ]; then
 		local builtfilter="flake:flox#builtfilter"
-		$invoke_nix "${_nixArgs[@]}" copy --to $uploadTo $outpaths
+		$invoke_nix "${_nixArgs[@]}" copy --to "$uploadTo" $outpaths
 		# Enhance eval data with remote binary substituter.
 		evalAndBuild=$(echo "$evalAndBuild" | \
-			$invoke_nix "${_nixArgs[@]}" run "$builtfilter" -- --substituter $downloadFrom)
+			$invoke_nix "${_nixArgs[@]}" run "$builtfilter" -- --substituter "$downloadFrom")
 	fi
 
 	# Gather buildRepository package outpath metadata.
