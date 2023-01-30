@@ -146,6 +146,8 @@ def _syncGeneration(args):
       "if [ -L \($targetLink) -a -d \($targetLink)/. ]; then " +
         ": verified existence of \($targetLink); " +
       "else " +
+      # Do not spend time building/linking anything but the current generation.
+      ( if ($currentGen == $generation) then
         if ($version == 1) then
           # Temporary XXX: Identify schema version in use, <=006 or >=007
           "environmentManifestFile=$( [ -e \($environmentMetaDir)/\($generation).json ] && echo \($environmentMetaDir)/\($generation).json || echo \($environmentMetaDir)/\($generation)/manifest.json ) && " +
@@ -166,7 +168,10 @@ def _syncGeneration(args):
         # symlink in situ.
         "$_nix_store --add-root \($targetLink) -r $environmentPath >/dev/null && " +
         # And set the symbolic link's date.
-        "$_touch -h --date=@\($created) \($targetLink); " +
+        "$_touch -h --date=@\($created) \($targetLink); "
+      else
+        ": not rendering non-current generation \($generation) at \($targetLink); "
+      end ) +
       "fi"
     ] else [
       # Remove old generation symlinks to allow package GC.
@@ -178,7 +183,7 @@ def _syncGeneration(args):
 
 def syncGenerations(args):
   ( $registry | .currentGen ) as $currentGen |
-  ( $registry | (if has("ageDays") then .ageDays else 10 end) ) as $ageDays |
+  ( $registry | (if has("ageDays") then .ageDays else 90 end) ) as $ageDays |
   ( $registry | .generations | to_entries ) | map(_syncGeneration([$currentGen, $ageDays])) + [
     # Set the current generation symlink. Let its timestamp be now.
     "$_rm -f \($environmentParentDir)/\($environmentName)",
