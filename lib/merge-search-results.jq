@@ -5,7 +5,7 @@
 # Usage:
 #   jq -r -f merge-search-results.jq <files> | jq -r -s add
 #
-( input_filename | split("/")[-4] ) as $channel
+( input_filename | split("/")[-3] ) as $channel
 |
 with_entries (
   ( .key | split(".") ) as $key |

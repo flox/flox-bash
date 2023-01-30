@@ -29,7 +29,6 @@
 , nix-editor
 , nixStable
 , pandoc
-, parallel
 , pkgs
 , shfmt
 , substituteAll
@@ -39,7 +38,6 @@
 }:
 
 let
-
   # The getent package can be found in pkgs.unixtools.
   inherit (pkgs.unixtools) getent;
 
@@ -93,7 +91,7 @@ in stdenv.mkDerivation rec {
   buildInputs = [
     ansifilter bashInteractive coreutils curl dasel diffutils
     findutils gawk getent git gh gnugrep gnused gnutar gum gzip jq
-    less libossp_uuid man nixPatched nix-editor parallel
+    less libossp_uuid man nixPatched nix-editor
     util-linuxMinimal
   ];
   makeFlags = [

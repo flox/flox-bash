@@ -148,7 +148,7 @@ function hash_commands() {
 hash_commands \
 	ansifilter awk basename bash cat chmod cmp column cp curl cut dasel date dirname \
 	getent gh git grep gum id jq ln man mkdir mktemp mv nix nix-editor nix-store \
-	parallel pwd readlink realpath rm rmdir sed sh sleep sort stat tail tar tee \
+	pwd readlink realpath rm rmdir sed sh sleep sort stat tail tar tee \
 	touch tr uname uuid xargs zgrep
 
 # Return full path of first command available in PATH.
@@ -1142,46 +1142,35 @@ function searchChannels() {
 		$invoke_nix flake metadata "flake:${channel}" --refresh ${_nixArgs[@]}  > /dev/null
 	done
 
-	# Nicely print out commands for debugging. We cannot do this with the
-	# usual $invoke_* trick because we're burying the invocation in two
-	# layers of `gum` and `parallel`.
-	local vars=()
-	if [ $verbose -ge $minverbosity ]; then
-		for i in ${exported_variables[$_nix]}; do
-			vars+=($(eval "echo $i=\${$i}"))
-		done
-		for _i in ${channels[@]}; do
-		  for _j in stable staging unstable; do
-			pprint "+$colorBold" "${vars[@]}" \
-				$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
-				"flake:${_i}#.catalog.${FLOX_SYSTEM}.${_j}" \'"$packageregexp"\' \
-				"$colorReset" 1>&2
-		  done
-		done
-	fi
-
-	# TODO: write our own parallel runner, or better yet port the CLI to a
-	# real language.
-	local _tmpdir=$(mkTempDir)
-	local -a _resultDirs=($(for i in ${channels[@]}; do echo \
-		$_tmpdir/1/$i/2/{stable,staging,unstable} $_tmpdir/1/$i/2 $_tmpdir/1/$i; \
-		done))
-	local -a _seqFiles=($(for i in ${channels[@]}; do echo $_tmpdir/1/$i/2/{stable,staging,unstable}/seq; done))
-	local -a _stdoutFiles=($(for i in ${channels[@]}; do echo $_tmpdir/1/$i/2/{stable,staging,unstable}/stdout; done))
-	local -a _stderrFiles=($(for i in ${channels[@]}; do echo $_tmpdir/1/$i/2/{stable,staging,unstable}/stderr; done))
+	# Construct temporary script for performing search in parallel.
 	# TODO: use log-format internal-json for conveying status
+	local _script=$(mkTempFile)
+	local _tmpdir=$(mkTempDir)
+	local -a _channelDirs=($(for i in ${channels[@]}; do echo $_tmpdir/$i; done))
+	local -a _resultDirs=($(for i in ${channels[@]}; do echo $_tmpdir/$i/{stable,staging,unstable}; done))
+	local -a _stdoutFiles=($(for i in ${channels[@]}; do echo $_tmpdir/$i/{stable,staging,unstable}/stdout; done))
+	local -a _stderrFiles=($(for i in ${channels[@]}; do echo $_tmpdir/$i/{stable,staging,unstable}/stderr; done))
+	local _nixInvocationVariables=()
+	for i in ${exported_variables[$_nix]}; do
+		_nixInvocationVariables+=("$i=${!i}")
+	done
+	for channel in ${channels[*]}; do
+		for stability in stable staging unstable; do
+			$_mkdir -p $_tmpdir/$channel/$stability
+			local -a cmd=(
+				$_nix search --log-format bar --json --no-write-lock-file $refreshArg
+				"'flake:${channel}#.catalog.${FLOX_SYSTEM}.$stability'" "'$packageregexp'"
+			)
+			echo "${cmd[@]} >$_tmpdir/$channel/$stability/stdout 2>$_tmpdir/$channel/$stability/stderr &" >> $_script
+			[ $verbose -lt $minverbosity ] || warn "+ ${_nixInvocationVariables[@]} ${cmd[@]}"
+		done
+	done
+	echo "wait" >> $_script
 	# gum BUG: writes the spinner to stdout (dumb) - redirect that to stderr
-	# gum BUG: doesn't preserve cmdline quoting properly so add extra quoting
-	#     that may bite us someday when they fix their bug upstream
-	minverbosity=2 $invoke_gum spin \
-		--title="Searching channels: ${channels[*]}" 1>&2 -- \
-		$_parallel --no-notice --results $_tmpdir -- \
-			$_nix search --log-format bar --json --no-write-lock-file $refreshArg \
-			"flake:{1}#.catalog.${FLOX_SYSTEM}.{2}" \'"$packageregexp"\' \
-			::: ${channels[@]} ::: stable staging unstable
+	$_gum spin --title="Searching channels: ${channels[*]}" 1>&2 -- $_bash $_script
 
 	# The results directory is composed of files of the form:
-	#     <seq>/<channel>/{seq,stdout,stderr}
+	#     <channel>/{stdout,stderr}
 	# Use jq to compile a single json stream from results.
 	$_grep --no-filename -v \
 	  -e "^evaluating 'catalog\." \
@@ -1193,9 +1182,8 @@ function searchChannels() {
 	  ${_stderrFiles[@]} 1>&2 || true
 	$invoke_jq -r -f "$_lib/merge-search-results.jq" ${_stdoutFiles[@]} | \
 		$_jq -r -s add && $_rm -f ${_stdoutFiles[@]}
-	$_rm -f ${_seqFiles[@]}
 	$_rm -f ${_stderrFiles[@]}
-	$_rmdir ${_resultDirs[@]} $_tmpdir/1 $_tmpdir
+	$_rmdir ${_resultDirs[@]} ${_channelDirs[@]} $_tmpdir
 }
 
 #
