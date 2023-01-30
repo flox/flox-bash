@@ -217,7 +217,6 @@ _environment_commands+=("install")
 _usage["install"]="install a package into an environment"
 function floxInstall() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
@@ -577,7 +576,6 @@ _usage["upgrade"]="upgrade packages using their most recent flake"
 _usage_options["upgrade"]="[--force]"
 function floxUpgrade() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
@@ -740,7 +738,6 @@ _environment_commands+=("edit")
 _usage["edit"]="edit declarative environment manifest"
 function floxEdit() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
@@ -881,7 +878,6 @@ _environment_commands+=("import")
 _usage["import"]="import declarative environment manifest as new generation"
 function floxImport() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
@@ -1018,7 +1014,6 @@ _environment_commands+=("rollback")
 _usage["rollback"]="roll back to the previous generation of an environment"
 function floxRollback() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	local environment="$1"; shift
 	local system="$1"; shift
 	local subcommand="$1"; shift
@@ -1179,11 +1174,11 @@ function floxDestroy() {
 
 _environment_commands+=("push")
 _usage["push"]="send environment metadata to remote registry"
-_usage_options["push"]="[--force]"
+_usage_options["push"]="[--force] [-m|--main]"
 
 _environment_commands+=("pull")
 _usage["pull"]="pull and render environment from remote registry"
-_usage_options["pull"]="[--force] [--no-render]"
+_usage_options["pull"]="[--force] [-m|--main] [--no-render]"
 
 #
 # floxPushPull("(push|pull)",$environment,$system)
@@ -1194,7 +1189,6 @@ _usage_options["pull"]="[--force] [--no-render]"
 #
 function floxPushPull() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	local action="$1"; shift
 	local environment="$1"; shift
 	local system="$1"; shift
@@ -1202,6 +1196,7 @@ function floxPushPull() {
 	eval $(decodeEnvironment "$environment")
 	local forceArg=
 	local -i noRender=0
+	local -i floxmain=0
 	while test $# -gt 0; do
 		case "$1" in
 		--force)
@@ -1213,6 +1208,12 @@ function floxPushPull() {
 				error "'$1' argument only valid with 'flox pull'" </dev/null
 			noRender=1
 			logFormat='format:{"time":%ct, "msg":"%s"}'
+			shift
+			;;
+		-m|--main|--floxmain) # better flag?
+			# Special case; push/pull the floxmain branch of the default floxmeta.
+			floxmain=1
+			branchName="$defaultBranch"
 			shift
 			;;
 		-*)
@@ -1256,7 +1257,7 @@ function floxPushPull() {
 		$invoke_git -C "$tmpDir" ls-files | $_xargs --no-run-if-empty $_git -C "$tmpDir" rm --quiet -f
 		# A commit is needed in order to make the branch visible.
 		$invoke_git -C "$tmpDir" commit --quiet --allow-empty \
-			-m "$USER created profile"
+			-m "$USER created $branchName environment"
 		$invoke_git -C "$tmpDir" push --quiet --set-upstream origin "$branchName"
 	fi
 
@@ -1280,7 +1281,9 @@ function floxPushPull() {
 			# to update both the bare repository and the checked out branch.
 			$invoke_git -C "$environmentMetaDir" config receive.denyCurrentBranch updateInstead
 			$invoke_git -C $tmpDir push $forceArg origin
-			if [ $noRender -gt 0 ]; then
+			if [ $floxmain -eq 1 ]; then
+				: # nothing to do
+			elif [ $noRender -gt 0 ]; then
 				warn "successfully pulled metadata for $environmentName ($system)"
 				if [ "$system" == "$NIX_CONFIG_system" ]; then
 					warn "REMINDER: invoke '$me pull -e $environmentName' before activating environment"

@@ -12,7 +12,10 @@ general commands:
          - unsubscribe from channel
     flox search [(-c|--channel) <channel>] [--json] <args>
          - search packages in subscribed channels
-    flox config - configure user parameters
+    flox config [--list] [--reset [--confirm]] \
+                [--set <arg> <value>] [--setNumber <arg> <value>] \
+                [--delete <arg>]
+         - configure user parameters
     flox gh - access to the gh CLI
     flox (envs|environments) - list all available environments
 
@@ -41,9 +44,9 @@ environment commands:
     flox wipe-history - delete non-current versions of an environment
     flox destroy [--force] [--origin]
          - remove all data pertaining to an environment
-    flox push [--force]
+    flox push [--force] [-m|--main]
          - send environment metadata to remote registry
-    flox pull [--force] [--no-render]
+    flox pull [--force] [-m|--main] [--no-render]
          - pull and render environment from remote registry
     flox git - access to the git CLI for floxmeta repository
 

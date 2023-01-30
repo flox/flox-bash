@@ -2,12 +2,6 @@
 # Company-specific defaults in /etc/flox.toml.
 # User-specific overrides in ~/.floxrc.
 
-[npfs]
-
-    npfs_mountpoint = "/nix/profiles"
-
 [floxpkgs]
 
     gitBaseURL = "https://github.com/"
-    organization = "flox"
-    defaultSubstituter = "https://cache.floxdev.com"

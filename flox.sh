@@ -118,7 +118,6 @@ declare -a invocation_args=("$@")
 declare invocation_string=$(pprint "$me" "$subcommand" "$@")
 
 # Flox environment path(s).
-declare defaultEnv=$(environmentArg "default")
 declare -a environments=()
 
 # Build log message as we go.
@@ -296,37 +295,7 @@ nix)
 	;;
 
 config)
-	declare -i configListMode=0
-	declare -i configResetMode=0
-	for arg in "$@"; do
-		case "$arg" in
-		--list|-l)
-			configListMode=1
-			shift
-			;;
-		--reset|-r)
-			configResetMode=1
-			shift
-			;;
-		--confirm|-c)
-			getPromptSetConfirm=1
-			shift
-			;;
-		*)
-			usage | error "unexpected argument \"$arg\" passed to \"$subcommand\""
-			;;
-		esac
-	done
-	if [ $configListMode -eq 0 ]; then
-		if [ $configResetMode -eq 1 ]; then
-			# Easiest way to reset is to simply remove the $floxUserMeta file.
-			$invoke_rm -f $floxUserMeta
-		fi
-		bootstrap
-	fi
-	# Finish by listing values.
-	registry $floxUserMeta 1 dump |
-		$_jq -r 'del(.version) | to_entries | map("\(.key) = \"\(.value)\"") | .[]'
+	floxConfig "${invocation_args[@]}"
 	;;
 
 subscribe)

@@ -17,6 +17,8 @@ setup_file() {
     export FLOX_PACKAGE_FIRST8=$(echo $FLOX_PACKAGE | dd bs=c skip=11 count=8 2>/dev/null)
   fi
   export FLOX_DISABLE_METRICS=1
+  # Remove any vestiges of previous test runs.
+  $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f || :
   export TEST_ENVIRONMENT=_testing_
   export NIX_SYSTEM=$($FLOX_CLI nix --extra-experimental-features nix-command show-config | awk '/system = / {print $NF}')
   # Simulate pure bootstrapping environment. It is challenging to get
@@ -42,10 +44,6 @@ setup_file() {
   # The way to defeat this behavior is by defining GH_CONFIG_DIR.
   export REAL_GH_CONFIG_DIR=$REAL_XDG_CONFIG_HOME/gh
   export GH_CONFIG_DIR=$XDG_CONFIG_HOME/gh
-  # Don't let ssh authentication confuse things.
-  # Remove any vestiges of previous test runs.
-  XDG_CONFIG_HOME=$REAL_XDG_CONFIG_HOME GH_CONFIG_DIR=$REAL_GH_CONFIG_DIR \
-    $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f || :
   rm -f tests/out/foo tests/out/subdir/bla
   rmdir tests/out/subdir tests/out || :
   rm -f $FLOX_CONFIG_HOME/{gitconfig,nix.conf}

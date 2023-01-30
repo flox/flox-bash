@@ -131,21 +131,24 @@ export FLOX_VERSION="@@VERSION@@"
 # XXX export XDG_DATA_DIRS="$FLOX_DATA_HOME"${XDG_DATA_DIRS:+':'}${XDG_DATA_DIRS}
 
 # Default profile "owner" directory, i.e. ~/.local/share/flox/environments/local/default/bin
-defaultEnvironmentOwner="local" # as in "/usr/local"
+declare defaultEnvironmentOwner="local" # as in "/usr/local"
 if [ -L "$FLOX_ENVIRONMENTS/$defaultEnvironmentOwner" ]; then
 	defaultEnvironmentOwner=$($_readlink "$FLOX_ENVIRONMENTS/$defaultEnvironmentOwner")
 fi
 
+# Path for floxmeta clone for current user (for access to floxmain).
+declare userFloxMetaCloneDir="$FLOX_META/$defaultEnvironmentOwner"
+
 # Define place to store user-specific metadata separate
 # from profile metadata.
-floxUserMeta="$FLOX_CONFIG_HOME/floxUserMeta.json"
+declare OLDfloxUserMeta="$FLOX_CONFIG_HOME/floxUserMeta.json"
 
 # Define location for user-specific flox flake registry.
-floxFlakeRegistry="$FLOX_CONFIG_HOME/floxFlakeRegistry.json"
+declare floxFlakeRegistry="$FLOX_CONFIG_HOME/floxFlakeRegistry.json"
 
 # Manage user-specific nix.conf for use with flox only.
 # XXX May need further consideration for Enterprise.
-nixConf="$FLOX_CONFIG_HOME/nix.conf"
+declare nixConf="$FLOX_CONFIG_HOME/nix.conf"
 tmpNixConf=$($_mktemp --tmpdir=$FLOX_CONFIG_HOME)
 # We want the file in alphabetical order to ease comparing it.
 # The consideration of access tokens is somewhat out of order.
@@ -323,8 +326,14 @@ eval $(nix_show_config)
 # from the environment if defined.
 export FLOX_SYSTEM="${FLOX_SYSTEM:-$NIX_CONFIG_system}"
 
+# Save path to default env for convenience throughout.
+declare defaultEnv="$FLOX_ENVIRONMENTS/$defaultEnvironmentOwner/$FLOX_SYSTEM.default"
+
 # Load configuration from [potentially multiple] flox.toml config file(s).
-eval $(read_flox_conf npfs floxpkgs)
+# Note: not using this data for anything yet but keeping it here as
+# placeholder for functionality. Expect it to figure prominently in
+# tenant customizations.
+eval $(read_flox_conf floxpkgs)
 
 # Bootstrap user-specific configuration.
 . $_lib/bootstrap.sh

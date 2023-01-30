@@ -23,18 +23,11 @@ function floxChannels() {
 		esac
 	done
 	if [ $displayJSON -gt 0 ]; then
-		registry $floxUserMeta 1 get channels | $_jq -r '
-		  with_entries(
-		    ( if (.key == "flox" or .key == "nixpkgs" or .key == "nixpkgs-flox")
-			  then "flox" else "user" end ) as $type |
-		    .value = {type:$type,url:.value}
-		  )'
+		getChannelsJSON
 	else
-		local -a rows=($(registry $floxUserMeta 1 get channels | $_jq -r '
+		local -a rows=($(getChannelsJSON | $_jq -r '
 		  to_entries | sort_by(.key) | map(
-		    ( if (.key == "flox" or .key == "nixpkgs" or .key == "nixpkgs-flox")
-			  then "flox" else "user" end ) as $type |
-			"|\(.key)|\($type)|\(.value)|"
+			"|\(.key)|\(.value.type)|\(.value.url)|"
 		  )[]
 		'))
 		$invoke_gum format --type="markdown" -- "|Channel|Type|URL|" "|---|---|---|" "${rows[@]}"
@@ -74,20 +67,14 @@ function floxSubscribe() {
 	fi
 	[[ "$flakeName" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] ||
 		error "invalid channel name '$flakeName', valid regexp: ^[a-zA-Z][a-zA-Z0-9_-]*$" < /dev/null
-	if [ -n "$flakeUrl" ]; then
-		validateFlakeURL "$flakeUrl" || \
-			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
-		registry $floxUserMeta 1 set channels "$flakeName" "$flakeUrl"
-	else
-		flakeUrl=$(registry $floxUserMeta 1 getPromptSet \
-			"Enter URL for '$flakeName' channel: " \
-			$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master) \
-			channels "$flakeName")
-		validateFlakeURL "$flakeUrl" || {
-			registry $floxUserMeta 1 delete channels "$flakeName"
-			error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
-		}
+	if [ -z "$flakeUrl" ]; then
+		local prompt="Enter URL for '$flakeName' channel: "
+		local value=$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master)
+		read -e -p "$prompt" -i "$value" flakeUrl
 	fi
+	validateFlakeURL "$flakeUrl" || \
+		error "could not verify channel URL: \"$flakeUrl\"" < /dev/null
+	floxUserMetaRegistry set channels "$flakeName" "$flakeUrl"
 	warn "subscribed channel '$flakeName'"
 }
 
@@ -115,28 +102,25 @@ function floxUnsubscribe() {
 		if [ ! ${validChannels["$flakeName"]+_} ]; then
 			error "invalid channel '$flakeName'" < /dev/null
 		fi
-		case "$flakeName" in
-		flox|nixpkgs|nixpkgs-flox)
+		if [ ${validChannels["$flakeName"]} == "flox" ]; then
 			error "cannot unsubscribe from flox channel '$flakeName'" < /dev/null
-			;;
-		esac
+		fi
 	else
-		local -A redactedChannels
+		local -A userChannels
 		for i in "${!validChannels[@]}"; do
-			case "$i" in
-				flox|nixpkgs|nixpkgs-flox) : ;;
-				*) redactedChannels["$i"]=1 ;;
-			esac
+			if [ "${validChannels["$i"]}" == "user" ]; then
+				userChannels["$i"]=1
+			fi
 		done
-		local -a sortedRedactedChannels=($(echo "${!redactedChannels[@]}" | $_xargs -n 1 | $_sort | $_xargs))
-		if [ ${#sortedRedactedChannels[@]} -gt 0 ]; then
+		local -a sortedUserChannels=($(echo "${!userChannels[@]}" | $_xargs -n 1 | $_sort | $_xargs))
+		if [ ${#sortedUserChannels[@]} -gt 0 ]; then
 			warn "Select channel to unsubscribe: "
-			flakeName=$($_gum choose "${sortedRedactedChannels[@]}")
+			flakeName=$($_gum choose "${sortedUserChannels[@]}")
 		else
 			error "no channel to unsubscribe" < /dev/null
 		fi
 	fi
-	if registry $floxUserMeta 1 delete channels "$flakeName"; then
+	if floxUserMetaRegistry delete channels "$flakeName"; then
 		warn "unsubscribed from channel '$flakeName'"
 	else
 		error "unsubscribe channel failed '$flakeName'" < /dev/null
@@ -148,7 +132,6 @@ _usage["search"]="search packages in subscribed channels"
 _usage_options["search"]="[(-c|--channel) <channel>] [--json] <args>"
 function floxSearch() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	packageregexp=
 	declare -i jsonOutput=0
 	declare refreshArg
@@ -220,6 +203,63 @@ function floxSearch() {
 
 _general_commands+=("config")
 _usage["config"]="configure user parameters"
+_usage_options["config"]="[--list] [--reset [--confirm]] \\
+                [--set <arg> <value>] [--setNumber <arg> <value>] \\
+                [--delete <arg>]"
+function floxConfig() {
+	trace "$@"
+	local -i configListMode=0
+	local -i configResetMode=0
+	local -i configRegistryMode=0
+	local configRegistryCmd
+	local -a configRegistryArgs
+	while [ $# -ne 0 ]; do
+		case "$1" in
+		--list|-l)
+			configListMode=1; shift
+			;;
+		--set|-s)
+			configRegistryMode=1; shift
+			configRegistryCmd=set
+			configRegistryArgs+=("$1"); shift
+			configRegistryArgs+=("$1"); shift
+			;;
+		--setNumber)
+			configRegistryMode=1; shift
+			configRegistryCmd=setNumber
+			configRegistryArgs+=("$1"); shift
+			configRegistryArgs+=("$1"); shift
+			;;
+		--delete)
+			configRegistryMode=1; shift
+			configRegistryCmd=delete
+			configRegistryArgs+=("$1"); shift
+			;;
+		--reset|-r)
+			configResetMode=1; shift
+			;;
+		--confirm|-c)
+			getPromptSetConfirm=1; shift
+			;;
+		*)
+			usage | error "extra argument '$1'"
+			;;
+		esac
+	done
+	if [ $configListMode -eq 0 ]; then
+		if [ $configResetMode -eq 1 ]; then
+			# Forcibly wipe out contents of floxUserMeta.json and start over.
+			$_jq -n -r -S '{channels:{},version:1}' |
+				initFloxUserMetaJSON "$userFloxMetaCloneDir" "reset: floxUserMeta.json"
+			bootstrap
+		elif [ $configRegistryMode -eq 1 ]; then
+			floxUserMetaRegistry $configRegistryCmd ${configRegistryArgs[@]}
+		fi
+	fi
+	# Finish by listing values.
+	floxUserMetaRegistry dump |
+		$_jq -r 'del(.version) | to_entries | map("\(.key) = \"\(.value)\"") | .[]'
+}
 
 _general_commands+=("gh")
 _usage["gh"]="access to the gh CLI"

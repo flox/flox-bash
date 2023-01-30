@@ -76,7 +76,6 @@ _usage_options["publish"]="[--build-repo <URL>] [--channel-repo <URL>] \\
                  [(-A|--attr) <package>] [--publish-system <system>]"
 function floxPublish() {
 	trace "$@"
-	betaRefreshNixCache # XXX: remove with open beta
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 
 	# Publish takes the same args as build, plus a few more.

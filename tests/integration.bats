@@ -57,6 +57,12 @@ load test_support.bash
   assert_output --partial "Updating $FLOX_CONFIG_HOME/gitconfig"
 }
 
+@test "flox git remote -v" {
+  run $FLOX_CLI git remote -v
+  assert_success
+  assert_output - < /dev/null
+}
+
 @test "flox --help" {
   run $FLOX_CLI --help
   assert_success
@@ -223,7 +229,7 @@ load test_support.bash
 }
 
 @test "flox install cowsay jq dasel" {
-  run $FLOX_CLI install -e $TEST_ENVIRONMENT cowsay jq dasel
+  run $FLOX_CLI --debug install -e $TEST_ENVIRONMENT cowsay jq dasel
   assert_success
   assert_output --partial "created generation 2"
 }
@@ -562,7 +568,7 @@ load test_support.bash
 }
 
 @test "flox environments should at least contain $TEST_ENVIRONMENT" {
-  run $FLOX_CLI --debug --debug environments
+  run $FLOX_CLI --debug environments
   assert_success
   assert_output --partial "/$TEST_ENVIRONMENT"
   assert_output --partial "Alias     $TEST_ENVIRONMENT"
@@ -619,7 +625,7 @@ load test_support.bash
 }
 
 @test "flox install by /nix/store path" {
-  run $FLOX_CLI install -e $TEST_ENVIRONMENT $FLOX_PACKAGE
+  run $FLOX_CLI --debug install -e $TEST_ENVIRONMENT $FLOX_PACKAGE
   assert_success
   assert_output --partial "created generation 6"
 }
@@ -739,7 +745,7 @@ load test_support.bash
 
 @test "flox develop setup" {
   # since develop tests use expect, flox thinks it's being used interactively and asks about metrics
-  sed -i '2i\  "floxMetricsConsent": 0,' "$XDG_CONFIG_HOME/flox/floxUserMeta.json"
+  $FLOX_CLI config --setNumber floxMetricsConsent 0
   # Note the use of --dereference to copy flake.{nix,lock} as files.
   run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR ./develop | tar -C $FLOX_TEST_HOME -xf -"
   assert_success

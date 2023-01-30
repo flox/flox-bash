@@ -83,7 +83,7 @@ let
 
 in stdenv.mkDerivation rec {
   pname = "flox";
-  version = "0.0.9-${getRev src}";
+  version = "0.0.10-${getRev src}";
   src = self;
   nativeBuildInputs = [ bats entr makeWrapper pandoc shfmt which ]
     # nix-provided expect not working on Darwin (#441)

@@ -558,13 +558,14 @@ function registry() {
 	fi
 
 	# jq args:
+	#   -S \                        # sort keys for stable output
 	#   -n \                        # null input
 	#   -e \                        # exit nonzero on errors
 	#   -r \                        # raw output (i.e. don't add quotes)
 	#   -f $_lib/registry.jq \      # the registry processing library
 	#   --slurpfile registry "$1" \ # slurp json into "$registry"
 	#	--arg version "$2" \        # required schema version
-	local jqargs=("-n" "-e" "-r" "-f" "$_lib/registry.jq" "--arg" "version" "$version")
+	local jqargs=("-S" "-n" "-e" "-r" "-f" "$_lib/registry.jq" "--arg" "version" "$version")
 
 	# N.B jq invocation aborts if it cannot slurp a file, so if the registry
 	# doesn't already exist (with nonzero size) then replace with bootstrap.
@@ -598,6 +599,99 @@ function registry() {
 		*)
 			minverbosity=2 $invoke_jq "${jqargs[@]}"
 		;;
+	esac
+}
+
+#
+# initFloxUserMetaJSON($workDir)
+#
+# Accepts content on STDIN and creates initial floxUserMeta.json.
+#
+function initFloxUserMetaJSON() {
+	trace "$@"
+	local message="$1"; shift
+
+	# First verify that the clone exists with a defined origin.
+	# Note that this function will bootstrap the clone into existence.
+	local origin=$(getSetOrigin "$defaultEnv")
+
+	# We normally use an ephemeral clone in floxUserMetaRegistry() to
+	# modify floxUserMeta.json but for bootstrapping it's OK to use the
+	# existing clone in situ as it's designed to have floxmain checked
+	# out at all times anyway.
+	local workDir="$userFloxMetaCloneDir"
+
+	# Start by checking out the floxmain branch, which is guaranteed to
+	# exist because it's found in github:flox/floxmeta-template.
+	$invoke_git -C "$workDir" checkout --quiet "$defaultBranch"
+
+	# Check for uncommitted file in the way.
+	if [ -f "$workDir"/floxUserMeta.json ]; then
+		$_mv --verbose "$workDir"/floxUserMeta.json{,.$now}
+	fi
+
+	# Capture STDIN to the new file.
+	$_cat > "$workDir"/floxUserMeta.json
+
+	# Record unique client UUID.
+	registry "$workDir"/floxUserMeta.json 1 get floxClientUUID >/dev/null 2>&1 || \
+		registry "$workDir"/floxUserMeta.json 1 set floxClientUUID $($_uuid)
+
+	# Add and commit.
+	$invoke_git -C "$workDir" add floxUserMeta.json
+	$invoke_git -C "$workDir" commit -m "$message" --quiet
+}
+
+#
+# function floxUserMetaRegistry()
+#
+# Get or modify data in $userFloxMetaCloneDir:floxmain:floxUserMeta.json
+# in a transaction.
+#
+function floxUserMetaRegistry() {
+	trace "$@"
+	local verb="$1"; shift
+
+	# First verify the floxmeta has been created.
+	if ! $_git -C "$userFloxMetaCloneDir" show-ref --quiet refs/heads/"$defaultBranch"; then
+		if [ -f $OLDfloxUserMeta ]; then
+			# XXX TEMPORARY: migrate data from ~/.config/floxUserMeta.json.
+			# XXX Delete after 20230331.
+			$_jq -r -S . $OLDfloxUserMeta |
+				initFloxUserMetaJSON "$userFloxMetaCloneDir" \
+				"init: floxUserMeta.json (migrated from <=0.0.9)"
+		else
+			$_jq -n -r -S '{channels:{},version:1}' |
+				initFloxUserMetaJSON "$userFloxMetaCloneDir" "init: floxUserMeta.json"
+		fi
+	fi
+
+	case "$verb" in
+	get|dump)
+		# Extract the registry to a temporary file.
+		local tmpRegistry=$(mkTempFile)
+		$invoke_git -C "$userFloxMetaCloneDir" show "$defaultBranch:floxUserMeta.json" >$tmpRegistry
+		# Perform the registry query.
+		registry $tmpRegistry 1 "$verb" $@
+		;;
+	set|setNumber|delete)
+		# Create ephemeral clone.
+		local workDir=$(mkTempDir)
+		$invoke_git clone --quiet --shared "$userFloxMetaCloneDir" $workDir
+		# Check out the floxmain branch in the ephemeral clone.
+		$invoke_git -C "$workDir" checkout --quiet $defaultBranch
+		# Modify the registry file
+		registry "$workDir/floxUserMeta.json" 1 "$verb" $@
+		local message="$USER invoked '${invocation_args[@]}'";
+		$invoke_git -C $workDir add "floxUserMeta.json"
+		$invoke_git -C $workDir commit -m "$message" --quiet
+		$invoke_git -C $workDir push --quiet --set-upstream origin $defaultBranch
+		# XXX TEMPORARY: write back contents to $OLDfloxUserMeta while we work
+		# to teach rust how to read from git.
+		$invoke_git -C "$userFloxMetaCloneDir" show "$defaultBranch:floxUserMeta.json" >$OLDfloxUserMeta
+		;;
+	*)
+		error "floxUserMetaRegistry(): unsupported operation '$verb'" </dev/null
 	esac
 }
 
@@ -1003,7 +1097,7 @@ function parseURL() {
 #
 # Convert gitBaseURL to URL for use in flake registry.
 #
-# Flake URLs are a pain, specifying branches in different ways,
+# Flake URLs specify branches in different ways,
 # e.g. these are all equivalent:
 #
 #   git+ssh://git@github.com/flox/floxpkgs?ref=master
@@ -1011,7 +1105,7 @@ function parseURL() {
 #   github:flox/floxpkgs/master
 #
 # Usage:
-#	defaultFlake=$(gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master)
+#	gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master
 #
 function gitBaseURLToFlakeURL() {
 	trace "$@"
@@ -1071,25 +1165,44 @@ function validateFlakeURL() {
 	fi
 }
 
+#
+# getChannelsJSON()
+#
+# Merge user-subscribed and flox-provided channels in a single JSON stream.
+#
+function getChannelsJSON() {
+	trace "$@"
+	# Combine flox-provided and user channels in a single stream.
+	floxUserMetaRegistry get channels | $_jq -S -r '
+		( . | with_entries(.value={type:"user",url:.value}) ) as $userChannels |
+		(
+		  {
+		    "flox": "github:flox/floxpkgs/master",
+		    "nixpkgs-flox": "github:flox/nixpkgs-flox/master"
+		  } | with_entries(.value={type:"flox",url:.value})
+		) as $floxChannels |
+		( $floxChannels * $userChannels )
+	'
+}
+
 # Populate user-specific flake registry.
 function updateFloxFlakeRegistry() {
-	# Set default catalog flake entries.
-	registry $floxUserMeta 1 set channels flox github:flox/floxpkgs/master
-	registry $floxUserMeta 1 set channels nixpkgs github:flox/nixpkgs/${FLOX_STABILITY}
-	registry $floxUserMeta 1 set channels nixpkgs-flox github:flox/nixpkgs-flox/master
-
-	# Render Nix flake registry file using user-provided flake entries.
+	trace "$@"
+	# Render Nix flake registry using flox and user-provided entries.
 	# Note: avoids problems to let nix create the temporary file.
 	tmpFloxFlakeRegistry=$($_mktemp --dry-run --tmpdir=$FLOX_CONFIG_HOME)
-	. <(registry $floxUserMeta 1 get channels | $_jq -r '
+	. <(getChannelsJSON | $_jq -r '
 	  to_entries | sort_by(.key) | map(
-	    "minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry \"\(.key)\" \"\(.value)\" && validChannels[\(.key)]=1"
+	    "minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry \"\(.key)\" \"\(.value.url)\" && validChannels[\(.key)]=\"\(.value.type)\""
 	  )[]
 	')
 
 	# Add courtesy Nix flake entries for accessing nixpkgs of different stabilities.
 	# We provide these as a backup to the use of "nixpkgs/{stable,staging,unstable}"
 	# in the event that the user overrides the "nixpkgs" entry in their user registry.
+	# We add this at the flake level, but we don't include them in getChannelsJSON
+	# above because these aren't "channels" containing flox catalogs.
+	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs github:flox/nixpkgs/$FLOX_STABILITY
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-stable github:flox/nixpkgs/stable
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-staging github:flox/nixpkgs/staging
 	minverbosity=2 $invoke_nix registry add --registry $tmpFloxFlakeRegistry nixpkgs-unstable github:flox/nixpkgs/unstable
@@ -1129,16 +1242,17 @@ function searchChannels() {
 		shift
 	done
 
-	# If no channels were passed then search all but "nixpkgs"
-	# (which isn't a capacitated flake).
+	# If no channels were requested then search all of them.
 	if [ ${#channels[@]} -eq 0 ]; then
-		channels=($(registry $floxUserMeta 1 get channels | $_jq -r 'keys | map(select(. != "nixpkgs")) | sort[]' || true))
+		channels=(${!validChannels[@]})
 	fi
 
-	# always refresh all channels except nixpkgs
+	# Refresh channel data before searching, but don't refresh the
+	# nixpkgs-flox channel by default because it is expensive to update and
+	# doesn't change often, unlike other channels that are quicker to update
+	# and for which people expect to see updates reflected instantly.
 	for channel in ${channels[@]}; do
-		[ $channel != "nixpkgs" ] || continue
-		[ $channel != "nixpkgs-flox" ] || continue	# XXX REMOVE AFTER BETA
+		[ $channel != "nixpkgs-flox" ] || continue
 		$invoke_nix flake metadata "flake:${channel}" --refresh ${_nixArgs[@]}  > /dev/null
 	done
 
@@ -1350,28 +1464,6 @@ function submitMetric() {
 	fi
 
 	exit 0
-}
-
-#
-# betaRefreshNixCache()
-#
-# Updates user's Nix cache (~/.cache/nix) with copies of private
-# flox-maintained flakes. This will only be required during the
-# closed beta, after which these repositories will be marked public.
-#
-# This function is only called in advance of any nix invocation
-# that may require access to any of the private repositories.
-#
-function betaRefreshNixCache() {
-	trace "$@"
-	local -a privateFlakes=(
-		github:flox/capacitor/v0
-		github:flox/nixpkgs-flox/master
-		github:flox/nixpkgs-catalog/$FLOX_SYSTEM
-		github:flox/catalog-ingest/main
-		github:flox/flox-extras/master
-		github:flox/flox/main
-	)
 }
 
 #

@@ -451,14 +451,18 @@ function commitMessage() {
 	# as 1 and 2 if both are defined, or 1 if there is only one generation.
 	local myEndGen=
 	if [ $startGen -gt 0 ]; then
-		# If there is a start and end generation then set generat
-		$invoke_ln -s $($_readlink "${environment}-${startGen}-link") $tmpDir/${environmentName}-1-link
-		$invoke_ln -s $($_readlink "${environment}-${endGen}-link") $tmpDir/${environmentName}-2-link
-		myEndGen=2
+		local startGenPath=$($_readlink "${environment}-${startGen}-link")
+		if [ -n "$startGenPath" ]; then
+			$invoke_ln -s $startGenPath $tmpDir/${environmentName}-1-link
+			myEndGen=2
+		else
+			warn "generation link not found: ${environment}-${startGen}-link"
+			myEndGen=1
+		fi
 	else
-		$invoke_ln -s $($_readlink "${environment}-${endGen}-link") $tmpDir/${environmentName}-1-link
 		myEndGen=1
 	fi
+	$invoke_ln -s $($_readlink "${environment}-${endGen}-link") $tmpDir/${environmentName}-${myEndGen}-link
 	$invoke_ln -s ${environmentName}-${myEndGen}-link $tmpDir/${environmentName}
 
 	local _cline
@@ -627,7 +631,9 @@ function getSetOrigin() {
 				if ghAuthHandle=$($_gh auth status |& $_awk '/Logged in to github.com as/ {print $7}'); then
 					origin="${gitBaseURL/+ssh/}$ghAuthHandle/floxmeta"
 				else
-					error "cannot set default origin for $environmentMetaDir in noninteractive mode" </dev/null
+					# No chance to discover origin; just create repo and return empty origin.
+					[ -d "$environmentMetaDir" ] || gitInitFloxmeta "$environmentMetaDir"
+					return 0
 				fi
 			else
 				origin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
