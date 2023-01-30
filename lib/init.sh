@@ -159,10 +159,6 @@ EOF
 # Ensure file is secure before appending access token(s).
 $_chmod 600 $tmpNixConf
 
-# Static "floxbeta" token for closed beta.
-# XXX Remove after closed beta.
-betaToken="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"
-
 # Look for github tokens from multiple sources:
 #   1. the user's own .config/nix/nix.conf, else
 #   2. the user's gh client backing store, else
@@ -171,14 +167,7 @@ betaToken="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"
 #
 # We need to do this because this nix.conf file is the one [1] place
 # where Nix will look to find access tokens for downloading URLs.
-declare -a accessTokens=(
-	"github.com/flox/capacitor=$betaToken"
-	"github.com/flox/nixpkgs-flox=$betaToken"
-	"github.com/flox/nixpkgs-catalog=$betaToken"
-	"github.com/flox/catalog-ingest=$betaToken"
-	"github.com/flox/flox-extras=$betaToken"
-	"github.com/flox/bundlers=$betaToken"
-)
+declare -a accessTokens=()
 declare -A accessTokensMap # to detect/eliminate duplicates
 
 if [ -f "$XDG_CONFIG_HOME/nix/nix.conf" ]; then
@@ -257,34 +246,28 @@ $_cat > $tmpGitConfig <<EOF
 	name = Flox User
 	email = floxuser@example.invalid
 
-# For access to the closed beta.
-[url "https://floxbeta:$betaToken@github.com/flox/capacitor"]
-	insteadOf = "https://github.com/flox/capacitor"
+# Use only https for accessing flox utility libraries.
+[url "https://github.com/flox/capacitor"]
 	insteadOf = "ssh://git@github.com/flox/capacitor"
 	insteadOf = "git@github.com:flox/capacitor"
 
-[url "https://floxbeta:$betaToken@github.com/flox/nixpkgs-flox"]
-	insteadOf = "https://github.com/flox/nixpkgs-flox"
+[url "https://github.com/flox/nixpkgs-flox"]
 	insteadOf = "ssh://git@github.com/flox/nixpkgs-flox"
 	insteadOf = "git@github.com:flox/nixpkgs-flox"
 
-[url "https://floxbeta:$betaToken@github.com/flox/nixpkgs-catalog"]
-	insteadOf = "https://github.com/flox/nixpkgs-catalog"
+[url "https://github.com/flox/nixpkgs-catalog"]
 	insteadOf = "ssh://git@github.com/flox/nixpkgs-catalog"
 	insteadOf = "git@github.com:flox/nixpkgs-catalog"
 
-[url "https://floxbeta:$betaToken@github.com/flox/catalog-ingest"]
-	insteadOf = "https://github.com/flox/catalog-ingest"
+[url "https://github.com/flox/catalog-ingest"]
 	insteadOf = "ssh://git@github.com/flox/catalog-ingest"
 	insteadOf = "git@github.com:flox/catalog-ingest"
 
-[url "https://floxbeta:$betaToken@github.com/flox/flox-extras"]
-	insteadOf = "https://github.com/flox/flox-extras"
+[url "https://github.com/flox/flox-extras"]
 	insteadOf = "ssh://git@github.com/flox/flox-extras"
 	insteadOf = "git@github.com:flox/flox-extras"
 
-[url "https://floxbeta:$betaToken@github.com/flox/bundlers"]
-	insteadOf = "https://github.com/flox/bundlers"
+[url "https://github.com/flox/bundlers"]
 	insteadOf = "ssh://git@github.com/flox/bundlers"
 	insteadOf = "git@github.com:flox/bundlers"
 

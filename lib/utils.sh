@@ -1372,16 +1372,6 @@ function betaRefreshNixCache() {
 		github:flox/flox-extras/master
 		github:flox/flox/main
 	)
-#	minverbosity=2 $invoke_gum spin \
-#		--title="Refreshing closed beta flake cache ..." 1>&2 -- \
-#		$_parallel --no-notice -- \
-#			$_nix flake prefetch \
-#				--access-tokens "github.com=${betaToken}" \
-#				--log-format bar \
-#				--json \
-#				--no-write-lock-file \
-#				{1} \
-#			::: ${privateFlakes[@]} || :
 }
 
 #
