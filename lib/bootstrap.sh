@@ -17,9 +17,11 @@ EOF
 
 # Bootstrap the personal metadata.
 declare gitBaseURL
+declare floxUserMeta=$(mkTempFile)
 function bootstrap() {
-	[ -f $floxUserMeta ] || _initial_bootstrap=1
-	floxUserMetaRegistry get floxClientUUID >/dev/null 2>&1 || \
+	$_git -C "$userFloxMetaCloneDir" \
+		show "$defaultBranch:floxUserMeta.json" >$floxUserMeta 2>/dev/null || _initial_bootstrap=1
+	floxUserMetaRegistry get floxClientUUID >/dev/null || \
 		floxUserMetaRegistry set floxClientUUID $($_uuid)
 	floxClientUUID=$(floxUserMetaRegistry get floxClientUUID)
 	if [ -t 1 ]; then

@@ -39,7 +39,7 @@ See the flox(1) man page for more information.
 
 EOF
 	educatePublish=1
-	registry $floxUserMeta 1 setNumber educatePublish 1
+	floxUserMetaRegistry setNumber educatePublish 1
 }
 
 #

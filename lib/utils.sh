@@ -652,43 +652,43 @@ function floxUserMetaRegistry() {
 	trace "$@"
 	local verb="$1"; shift
 
-	# First verify the floxmeta has been created.
-	if ! $_git -C "$userFloxMetaCloneDir" show-ref --quiet refs/heads/"$defaultBranch"; then
+	# Recall that the git version of floxUserMeta.json is copied to the
+	# $floxUserMeta file in bootstrap(). If that file is empty then we
+	# know to initialize the file in git and follow that by refreshing
+	# the temporary $floxUserMeta file in the local filesystem.
+	if [ ! -s $floxUserMeta ]; then
 		if [ -f $OLDfloxUserMeta ]; then
 			# XXX TEMPORARY: migrate data from ~/.config/floxUserMeta.json.
 			# XXX Delete after 20230331.
-			$_jq -r -S . $OLDfloxUserMeta |
-				initFloxUserMetaJSON "$userFloxMetaCloneDir" \
-				"init: floxUserMeta.json (migrated from <=0.0.9)"
+			$_jq -r -S 'del(.channels."flox") | del(.channels."nixpkgs") | del(.channels."nixpkgs-flox")' $OLDfloxUserMeta | initFloxUserMetaJSON "init: floxUserMeta.json (migrated from <=0.0.9)"
 		else
 			$_jq -n -r -S '{channels:{},version:1}' |
-				initFloxUserMetaJSON "$userFloxMetaCloneDir" "init: floxUserMeta.json"
+				initFloxUserMetaJSON "init: floxUserMeta.json"
 		fi
+		$_git -C "$userFloxMetaCloneDir" show "$defaultBranch:floxUserMeta.json" >$floxUserMeta
 	fi
 
 	case "$verb" in
 	get|dump)
-		# Extract the registry to a temporary file.
-		local tmpRegistry=$(mkTempFile)
-		$invoke_git -C "$userFloxMetaCloneDir" show "$defaultBranch:floxUserMeta.json" >$tmpRegistry
 		# Perform the registry query.
-		registry $tmpRegistry 1 "$verb" $@
+		registry $floxUserMeta 1 "$verb" $@
 		;;
 	set|setNumber|delete)
 		# Create ephemeral clone.
 		local workDir=$(mkTempDir)
-		$invoke_git clone --quiet --shared "$userFloxMetaCloneDir" $workDir
+		$_git clone --quiet --shared "$userFloxMetaCloneDir" $workDir
 		# Check out the floxmain branch in the ephemeral clone.
-		$invoke_git -C "$workDir" checkout --quiet $defaultBranch
+		$_git -C "$workDir" checkout --quiet $defaultBranch
 		# Modify the registry file
 		registry "$workDir/floxUserMeta.json" 1 "$verb" $@
-		local message="$USER invoked '${invocation_args[@]}'";
-		$invoke_git -C $workDir add "floxUserMeta.json"
-		$invoke_git -C $workDir commit -m "$message" --quiet
-		$invoke_git -C $workDir push --quiet --set-upstream origin $defaultBranch
+		$_git -C $workDir add "floxUserMeta.json"
+		$_git -C $workDir commit -m "$invocation_string" --quiet
+		$_git -C $workDir push --quiet --set-upstream origin $defaultBranch
+		# Refresh temporary $floxUserMeta (used for this invocation only).
+		$_git -C "$userFloxMetaCloneDir" show "$defaultBranch:floxUserMeta.json" >$floxUserMeta
 		# XXX TEMPORARY: write back contents to $OLDfloxUserMeta while we work
-		# to teach rust how to read from git.
-		$invoke_git -C "$userFloxMetaCloneDir" show "$defaultBranch:floxUserMeta.json" >$OLDfloxUserMeta
+		# to update the rust CLI to read this information from git.
+		$_cp -f $floxUserMeta $OLDfloxUserMeta
 		;;
 	*)
 		error "floxUserMetaRegistry(): unsupported operation '$verb'" </dev/null

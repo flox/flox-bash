@@ -83,8 +83,14 @@ while [ $# -ne 0 ]; do
 	esac
 done
 
+# Save the original invocation string.
+declare invocation_string="$0 $@"
+
 # Perform initialization with benefit of flox CLI args set above.
 . $_lib/init.sh
+
+# Improve upon the invocation string now we have pprint().
+invocation_string=$(pprint "$me" "$@")
 
 #
 # main()
@@ -113,9 +119,8 @@ if [ "$subcommand" = "rm" ]; then
 	subcommand=remove
 fi
 
-# Store the original invocation arguments.
+# Store the original subcommand invocation arguments.
 declare -a invocation_args=("$@")
-declare invocation_string=$(pprint "$me" "$subcommand" "$@")
 
 # Flox environment path(s).
 declare -a environments=()
