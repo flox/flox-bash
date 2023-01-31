@@ -16,7 +16,7 @@ EOF
 }
 
 # Bootstrap the personal metadata.
-declare gitBaseURL
+declare gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
 declare floxUserMeta=$(mkTempFile)
 function bootstrap() {
 	$_git -C "$userFloxMetaCloneDir" \

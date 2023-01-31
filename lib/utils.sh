@@ -660,7 +660,12 @@ function floxUserMetaRegistry() {
 		if [ -f $OLDfloxUserMeta ]; then
 			# XXX TEMPORARY: migrate data from ~/.config/floxUserMeta.json.
 			# XXX Delete after 20230331.
-			$_jq -r -S 'del(.channels."flox") | del(.channels."nixpkgs") | del(.channels."nixpkgs-flox")' $OLDfloxUserMeta | initFloxUserMetaJSON "init: floxUserMeta.json (migrated from <=0.0.9)"
+			$_jq -r -S '
+				del(.channels."flox") |
+				del(.channels."nixpkgs") |
+				del(.channels."nixpkgs-flox")
+			' $OLDfloxUserMeta |
+				initFloxUserMetaJSON "init: floxUserMeta.json (migrated from <=0.0.9)"
 		else
 			$_jq -n -r -S '{channels:{},version:1}' |
 				initFloxUserMetaJSON "init: floxUserMeta.json"
