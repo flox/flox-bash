@@ -233,13 +233,15 @@ function cleanup() {
 trap cleanup EXIT
 
 function mkTempFile() {
-	local tmpFile=$($_mktemp)
+	local tmpFile
+	tmpFile=$($_mktemp)
 	tmpFiles+=($tmpFile)
 	echo $tmpFile
 }
 
 function mkTempDir() {
-	local tmpDir=$($_mktemp -d)
+	local tmpDir
+	tmpDir=$($_mktemp -d)
 	tmpDirs+=($tmpDir)
 	echo $tmpDir
 }
@@ -420,7 +422,8 @@ function renderManifestTOML() {
 
 	if [ ${#floxpkgArgs[@]} -gt 0 ]; then
 		# Now we use this list of floxpkgArgs to create a temporary profile.
-		local tmpdir=$(mkTempDir)
+		local tmpdir
+		tmpdir=$(mkTempDir)
 		$invoke_nix profile install --impure --profile $tmpdir/profile "${floxpkgArgs[@]}"
 
 		# If we've gotten this far we have a profile. Follow the links to
@@ -446,7 +449,8 @@ function boolPrompt() {
 	trace "$@"
 	local prompt="$1"; shift
 	local default="$1"; shift
-	local defaultLower=$(echo $default | $_tr A-Z a-z)
+	local defaultLower
+	defaultLower=$(echo $default | $_tr A-Z a-z)
 	local defaultrc
 	case "$defaultLower" in
 	n|no) defaultrc=1 ;;
@@ -456,11 +460,14 @@ function boolPrompt() {
 		;;
 	esac
 	[ $interactive -eq 1 ] || return $defaultrc
-	local defaultCaps=$(echo $default | tr a-z A-Z)
-	local defaultPrompt=$(echo "y/n" | tr "$defaultLower" "$defaultCaps")
+	local defaultCaps
+	defaultCaps=$(echo $default | tr a-z A-Z)
+	local defaultPrompt
+	defaultPrompt=$(echo "y/n" | tr "$defaultLower" "$defaultCaps")
 	local value
 	read -e -p "$prompt ($defaultPrompt) " value
-	local valueLower=$(echo $value | tr A-Z a-z)
+	local valueLower
+	valueLower=$(echo $value | tr A-Z a-z)
 	case "$valueLower" in
 	n|no) return 1 ;;
 	y|yes) return 0 ;;
@@ -487,7 +494,8 @@ function promptInput() {
 	}
 	# Just assume a reasonable(?) screen width if COLUMNS not set.
 	local -i columns=${COLUMNS:-80}
-	local -i width=$(( $columns - ${#prompt} ))
+	local -i width
+	width=$(( $columns - ${#prompt} ))
 	if [ $width -gt 0 ]; then
 		$_gum input --placeholder "$placeholder" --prompt "$prompt " --value "$value" --width $width
 	else
@@ -545,7 +553,8 @@ function registry() {
 		shift
 		local prompt="$1"; shift
 		local defaultVal="$1"; shift
-		local value=$(registry "$registry" "$version" "get" "$@" || true)
+		local value
+		value=$(registry "$registry" "$version" "get" "$@" || true)
 		if [ -z "$value" ]; then
 			read -e -p "$prompt" -i "$defaultVal" value
 			registry "$registry" "$version" "set" "$@" "$value"
@@ -584,12 +593,14 @@ function registry() {
 		set | setNumber | setString | \
 		addArray | addArrayNumber | addArrayString | \
 		delete | delArray | delArrayNumber | delArrayString)
-			local _tmpfile=$(mkTempFile)
+			local _tmpfile
+			_tmpfile=$(mkTempFile)
 			minverbosity=2 $invoke_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
-				local dn=$($_dirname $registry)
+				local dn
+				dn=$($_dirname $registry)
 			else
 				error "something went wrong" < /dev/null
 			fi
@@ -613,7 +624,8 @@ function initFloxUserMetaJSON() {
 
 	# First verify that the clone exists with a defined origin.
 	# Note that this function will bootstrap the clone into existence.
-	local origin=$(getSetOrigin "$defaultEnv")
+	local origin
+	origin=$(getSetOrigin "$defaultEnv")
 
 	# We normally use an ephemeral clone in floxUserMetaRegistry() to
 	# modify floxUserMeta.json but for bootstrapping it's OK to use the
@@ -680,7 +692,8 @@ function floxUserMetaRegistry() {
 		;;
 	set|setNumber|delete)
 		# Create ephemeral clone.
-		local workDir=$(mkTempDir)
+		local workDir
+		workDir=$(mkTempDir)
 		$_git clone --quiet --shared "$userFloxMetaCloneDir" $workDir
 		# Check out the floxmain branch in the ephemeral clone.
 		$_git -C "$workDir" checkout --quiet $defaultBranch
@@ -747,12 +760,14 @@ function environmentRegistry() {
 		set | setNumber | setString | \
 		addArray | addArrayNumber | addArrayString | \
 		delete | delArray | delArrayNumber | delArrayString)
-			local _tmpfile=$(mkTempFile)
+			local _tmpfile
+			_tmpfile=$(mkTempFile)
 			$invoke_jq "${jqargs[@]}" > $_tmpfile
 			if [ -s "$_tmpfile" ]; then
 				$_cmp -s $_tmpfile $registry || $_mv $_tmpfile $registry
 				$_rm -f $_tmpfile
-				local dn=$($_dirname $registry)
+				local dn
+				dn=$($_dirname $registry)
 				[ ! -e "$dn/.git" ] || \
 					$_git -C $dn add $($_basename $registry)
 			else
@@ -929,8 +944,10 @@ function decodeEnvironment() {
 		local installableFlakeRef=${environment//#*/} # aka $topLevel
 		local installableAttrPath=${environment//*#/}
 		installableAttrPath="${installableAttrPath//.floxEnvs.$FLOX_SYSTEM./}"
-		local topLevel=$(flakeTopLevel "$installableFlakeRef" "${invocationArgs[@]}")
-		local metaDir=$(flakeMetaDir "$topLevel")
+		local topLevel
+		topLevel=$(flakeTopLevel "$installableFlakeRef" "${invocationArgs[@]}")
+		local metaDir
+		metaDir=$(flakeMetaDir "$topLevel")
 
 		# Similarly parse $topLevel "/"-delimited values.
 		local _old_ifs="$IFS"
@@ -1020,7 +1037,8 @@ function versionedFloxpkgArg() {
 
 function floxpkgArg() {
 	trace "$@"
-	local flakeref=$(versionedFloxpkgArg "$@")
+	local flakeref
+	flakeref=$(versionedFloxpkgArg "$@")
 
 	# Convert "attrPath@x.y.z" to "attrPath.x_y_z" because that
 	# is how it appears in the flox catalog.
@@ -1263,8 +1281,10 @@ function searchChannels() {
 
 	# Construct temporary script for performing search in parallel.
 	# TODO: use log-format internal-json for conveying status
-	local _script=$(mkTempFile)
-	local _tmpdir=$(mkTempDir)
+	local _script
+	_script=$(mkTempFile)
+	local _tmpdir
+	_tmpdir=$(mkTempDir)
 	local -a _channelDirs=($(for i in ${channels[@]}; do echo $_tmpdir/$i; done))
 	local -a _resultDirs=($(for i in ${channels[@]}; do echo $_tmpdir/$i/{stable,staging,unstable}; done))
 	local -a _stdoutFiles=($(for i in ${channels[@]}; do echo $_tmpdir/$i/{stable,staging,unstable}/stdout; done))
@@ -1441,10 +1461,13 @@ function submitMetric() {
 	# Set FLOX_SEND_METRICS=1 to force sending it anyway.
 	if [ -z "$FLOX_SEND_METRICS" ]; then
 		# If the file hasn't been modified for over an hour then always send.
-		local -i time_since_file_modification=$(($now - $file_timestamp))
+		local -i time_since_file_modification
+		time_since_file_modification=$(($now - $file_timestamp))
 		if [ $time_since_file_modification -lt 3600 ]; then
-			local -i first_timestamp_in_file=$($_jq -r 'if input_line_number == 1 then .timestamp else halt end' "$FLOX_METRICS")
-			local -i time_since_first_event=$(($now - $first_timestamp_in_file))
+			local -i first_timestamp_in_file
+			first_timestamp_in_file=$($_jq -r 'if input_line_number == 1 then .timestamp else halt end' "$FLOX_METRICS")
+			local -i time_since_first_event
+			time_since_first_event=$(($now - $first_timestamp_in_file))
 			[ $time_since_first_event -ge 3600 ] || exit 0
 		fi
 	fi

@@ -69,7 +69,8 @@ function floxSubscribe() {
 		error "invalid channel name '$flakeName', valid regexp: ^[a-zA-Z][a-zA-Z0-9_-]*$" < /dev/null
 	if [ -z "$flakeUrl" ]; then
 		local prompt="Enter URL for '$flakeName' channel: "
-		local value=$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master)
+		local value
+		value=$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master)
 		read -e -p "$prompt" -i "$value" flakeUrl
 	fi
 	validateFlakeURL "$flakeUrl" || \

@@ -106,7 +106,8 @@
 #
 
 snipline="------------------------ >8 ------------------------"
-declare protoManifestToml=$($_cat <<EOF
+declare protoManifestToml
+protoManifestToml=$($_cat <<EOF
 # This is a prototype profile declarative manifest in TOML format,
 # supporting comments and the ability to invoke "shellHook" commands
 # upon profile activation. See the flox(1) man page for more details.
@@ -167,7 +168,8 @@ function temporaryAssert007Schema {
 	for file in $($_git -C "$repoDir" ls-files); do
 		case "$file" in
 		[0-9]*.json)
-			local gen=$($_basename "$file" .json)
+			local gen
+			gen=$($_basename "$file" .json)
 			$invoke_mkdir -p "$repoDir/${gen}"
 			$invoke_git -C "$repoDir" mv "$file" "${gen}/manifest.json"
 			# Constructing the manifest.toml is not as straightforward.
@@ -218,8 +220,10 @@ function temporaryAssert008Schema {
 	local repoDir="$1"; shift
 	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
-	local currentGen=$($_readlink $workDir/current || :)
-	local nextGen=$($_readlink $workDir/next)
+	local currentGen
+	currentGen=$($_readlink $workDir/current || :)
+	local nextGen
+	nextGen=$($_readlink $workDir/next)
 	local currentGenDir="$repoDir/$currentGen"
 	local nextGenDir="$repoDir/$nextGen"
 
@@ -238,7 +242,8 @@ function temporaryAssert008Schema {
 	$_git -C $workDir add $nextGen
 
 	# Use nix-editor to transfer packages from the current manifest.json file.
-	local tmpScript=$(mkTempFile)
+	local tmpScript
+	tmpScript=$(mkTempFile)
 	manifest $currentGenDir/manifest.json convert007to008 $_nix_editor $nextGenDir/pkgs/default/flox.nix > $tmpScript
 
 	# Similarly use nix-editor to transfer aliases and env vars from manifest.toml.
@@ -258,8 +263,10 @@ function temporaryAssert008Schema {
 	fi
 
 	# Hooks are different. Nix editor doesn't know how to poke those in-between '' blocks.
-	local hookScript=$(mkTempFile)
-	local tmpFloxNix=$(mkTempFile)
+	local hookScript
+	hookScript=$(mkTempFile)
+	local tmpFloxNix
+	tmpFloxNix=$(mkTempFile)
 	$invoke_dasel -w json -f $currentGenDir/manifest.toml | \
 		$invoke_jq -r '(.hooks//{}) | to_entries | map(.value | gsub("\n"; "; "))[]' > $hookScript
 	$invoke_awk "{print} /hook = / {system(\"cat $hookScript\")}" $nextGenDir/pkgs/default/flox.nix > $tmpFloxNix
@@ -299,7 +306,8 @@ function temporaryAssert009LinkLayout() {
 	local environmentBasename="${environmentName/$environmentSystem\./}"
 	for i in ${environmentParentDir}/${environmentBasename} ${environmentParentDir}/${environmentBasename}-*-link; do
 		if [ -L "$i" ]; then
-			local x=$($_readlink "$i")
+			local x
+			x=$($_readlink "$i")
 			case "$x" in
 			$environmentSystem.$environmentBasename*)
 				# Already renamed, all good.
@@ -398,10 +406,12 @@ function syncEnvironment() {
 	local environment="$1"; shift
 	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
-	local environmentRealDir=$($_readlink -f $environmentParentDir)
+	local environmentRealDir
+	environmentRealDir=$($_readlink -f $environmentParentDir)
 
 	# Create shared clone for performing work.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 0
 
 	# Run snippet to generate links using data from metadata repo.
@@ -411,7 +421,8 @@ function syncEnvironment() {
 	# 1. build all the packages in a [nix] profile
 	# 2. build the [nix] profile package itself
 	# 3. create the GCroot symlinks and top generational symlink
-	local snippet=$(environmentRegistry "$workDir" "$environment" syncGenerations)
+	local snippet
+	snippet=$(environmentRegistry "$workDir" "$environment" syncGenerations)
 	eval "$snippet" || true
 
 	# FIXME REFACTOR based on detecting actual change.
@@ -445,13 +456,15 @@ function commitMessage() {
 	# ... so, we mock up a tmpDir with the qualities of #2 above.
 	# Not fun but better than nothing.
 	#
-	local tmpDir=$(mkTempDir)
+	local tmpDir
+	tmpDir=$(mkTempDir)
 	# `nix profile history` requires generations to be in sequential
 	# order, so for the purpose of this invocation we set the generations
 	# as 1 and 2 if both are defined, or 1 if there is only one generation.
 	local myEndGen=
 	if [ $startGen -gt 0 ]; then
-		local startGenPath=$($_readlink "${environment}-${startGen}-link")
+		local startGenPath
+		startGenPath=$($_readlink "${environment}-${startGen}-link")
 		if [ -n "$startGenPath" ]; then
 			$invoke_ln -s $startGenPath $tmpDir/${environmentName}-1-link
 			myEndGen=2
@@ -473,9 +486,12 @@ function commitMessage() {
 			/^Version '${myEndGen}' / {p=1}' | \
 		while read _cline
 		do
-			local flakeref=$(echo "$_cline" | $_cut -d: -f1,2)
-			local detail=$(echo "$_cline" | $_cut -d: -f3-)
-			local floxpkg=$(manifest $environment/manifest.json flakerefToFloxpkg "$flakeref")
+			local flakeref
+			flakeref=$(echo "$_cline" | $_cut -d: -f1,2)
+			local detail
+			detail=$(echo "$_cline" | $_cut -d: -f3-)
+			local floxpkg
+			floxpkg=$(manifest $environment/manifest.json flakerefToFloxpkg "$flakeref")
 			echo "  ${floxpkg}:${detail}"
 		done > $tmpDir/commitMessageBody
 
@@ -560,7 +576,8 @@ function promptMetaOrigin() {
 	[ -n "$organization" ] ||
 		read -e -p "organization (or username) on $server for creating the 'floxmeta' repository: " organization
 
-	local protocol=$(
+	local protocol
+	protocol=$(
 		multChoice "What is your preferred protocol for Git operations?" \
 			"protocol" "https" "ssh+git"
 	)
@@ -601,7 +618,8 @@ function getSetOrigin() {
 	eval $(decodeEnvironment "$environment")
 
 	# Check to see if the origin is already set.
-	local origin=$([ -d "$environmentMetaDir" ] && $_git -C "$environmentMetaDir" \
+	local origin
+	origin=$([ -d "$environmentMetaDir" ] && $_git -C "$environmentMetaDir" \
 		"config" "--get" "remote.origin.url" || true)
 	if [ -z "$origin" ]; then
 
@@ -642,7 +660,8 @@ function getSetOrigin() {
 
 		# A few final cleanup steps.
 		if [ "$environmentOwner" == "local" ]; then
-			local newEnvironmentOwner=$($_dirname $origin); newEnvironmentOwner=${newEnvironmentOwner/*[:\/]/} # XXX hack
+			local newEnvironmentOwner
+			newEnvironmentOwner=$($_dirname $origin); newEnvironmentOwner=${newEnvironmentOwner/*[:\/]/} # XXX hack
 
 			# rename .cache/flox/meta/{local -> owner} &&
 			#   replace with symlink from local -> owner
@@ -780,7 +799,8 @@ function beginTransaction() {
 	# (But don't add them to the git index.)
 
 	# Record starting generation.
-	local -i startGen=$(registry "$workDir/metadata.json" 1 currentGen)
+	local -i startGen
+	startGen=$(registry "$workDir/metadata.json" 1 currentGen)
 	if [ $startGen -gt 0 ]; then
 		$invoke_ln -s $startGen "$workDir/current"
 	fi
@@ -789,7 +809,8 @@ function beginTransaction() {
 	# (startGen + 1), but rather (max(generations) + 1) as recorded
 	# in the environment registry. (We're no longer using symlinks
 	# to record this in the floxmeta repo.)
-	local -i nextGen=$(registry "$workDir/metadata.json" 1 nextGen)
+	local -i nextGen
+	nextGen=$(registry "$workDir/metadata.json" 1 nextGen)
 	$invoke_mkdir -p $workDir/$nextGen
 	$invoke_ln -s $nextGen $workDir/next
 
@@ -837,8 +858,10 @@ function cmpEnvironments() {
 		2)
 			# floxEnv environments are referenced by way of helper symlinks.
 			# Use realpath to follow those links and compare the packages.
-			local realpathEnv1=$($_realpath "$env1")
-			local realpathEnv2=$($_realpath "$env2")
+			local realpathEnv1
+			realpathEnv1=$($_realpath "$env1")
+			local realpathEnv2
+			realpathEnv2=$($_realpath "$env2")
 			[ "$realpathEnv1" = "$realpathEnv2" ] || return 1
 			;;
 		esac
@@ -875,8 +898,10 @@ function commitTransaction() {
 	fi
 
 	# Glean current and next generations from clone.
-	local -i currentGen=$($_readlink $workDir/current || echo 0)
-	local -i nextGen=$($_readlink $workDir/next)
+	local -i currentGen
+	currentGen=$($_readlink $workDir/current || echo 0)
+	local -i nextGen
+	nextGen=$($_readlink $workDir/next)
 
 	# XXX temporary: as we change to version 0.0.9 the layout of environment
 	# links changes to embed the system type. Take this opportunity to rename
@@ -941,7 +966,8 @@ function commitTransaction() {
 		currentGenVersion=1
 	fi
 	# Unification TODO: use catalog.json instead of relying on manifest.json
-	local message=$(commitMessage \
+	local message
+	message=$(commitMessage \
 		"$environment" $currentGen $nextGen \
 		"$logMessage" "${invocation[@]}")
 
@@ -963,7 +989,8 @@ function listEnvironments() {
 	trace "$@"
 	local system="$1"; shift
 	local environmentMetaDir="$1"; shift
-	local environmentOwner=$($_basename $environmentMetaDir)
+	local environmentOwner
+	environmentOwner=$($_basename $environmentMetaDir)
 
 	# Quick sanity check .. is this a git repo?
 	[ -d "$environmentMetaDir/.git" ] || \
@@ -1020,14 +1047,16 @@ function listEnvironments() {
 			__alias="$__name"
 		fi
 		if [ -n "$__local" ]; then
-			local __metadata=$(mkTempFile)
+			local __metadata
+			__metadata=$(mkTempFile)
 			if $invoke_git -C $environmentMetaDir show $__local:metadata.json > $__metadata 2>/dev/null; then
 				__commit="$__local"
 				__generation=$($invoke_jq -r .currentGen $__metadata)
 			fi
 		fi
 		if [ -n "$__origin" -a "$__origin" != "$__local" ]; then
-			local __metadata=$(mkTempFile)
+			local __metadata
+			__metadata=$(mkTempFile)
 			if $invoke_git -C $environmentMetaDir show $__origin:metadata.json > $__metadata 2>/dev/null; then
 				__commit="$__commit (remote $__origin)"
 				__printCommit=1
@@ -1089,14 +1118,17 @@ function updateAvailable() {
 
 	# First calculate current generation number.
 	if [ -d "$environmentMetaDir" ]; then
-		local tmpfile=$(mkTempFile)
+		local tmpfile
+		tmpfile=$(mkTempFile)
 		if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName"; then
 			$invoke_git -C "$environmentMetaDir" show "${branchName}:metadata.json" > $tmpfile
-			if local -i currentGen=$(registry $tmpfile 1 get currentGen); then
+			local -i currentGen
+			if currentGen=$(registry $tmpfile 1 get currentGen); then
 				# If that worked then calculate generation number upstream.
 				if $_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branchName"; then
 					$invoke_git -C "$environmentMetaDir" show "origin/${branchName}:metadata.json" > $tmpfile
-					if local -i currentOriginGen=$(registry $tmpfile 1 get currentGen); then
+					local -i currentOriginGen
+					if currentOriginGen=$(registry $tmpfile 1 get currentGen); then
 						if [ $currentGen -lt $currentOriginGen ]; then
 							echo $currentOriginGen
 							return 0

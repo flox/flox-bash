@@ -70,7 +70,8 @@ nix_show_config()
 		case "${_cline[0]}" in
 		# List below the parameters you want to use within the script.
 		system)
-			local _xline=$(echo "${_cline[@]}" | $_tr -d ' \t')
+			local _xline
+			_xline=$(echo "${_cline[@]}" | $_tr -d ' \t')
 			echo NIX_CONFIG_"$_xline"
 			;;
 		*)

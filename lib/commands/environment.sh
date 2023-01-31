@@ -127,7 +127,8 @@ function floxList() {
 
 	# Extract manifest.json for inspection and flag if environment is
 	# corrupt or not found.
-	local manifestJSON=$(mkTempFile)
+	local manifestJSON
+	manifestJSON=$(mkTempFile)
 	metaGitShow $environment $listGeneration/manifest.json > $manifestJSON
 	if [ ! -s $manifestJSON ]; then
 		if [ "$listGeneration" == "$currentGeneration" ]; then
@@ -198,7 +199,8 @@ function floxCreate() {
 	eval $(decodeEnvironment "$environment")
 
 	# Create shared clone for creating new environment.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 1
 
 	# To see if it already exists simply assert that the workdir doesn't
@@ -264,12 +266,15 @@ function floxInstall() {
 	local args="$@"
 
 	# Create shared clone for importing new generation.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 1
 
 	# Glean current and next generations from clone.
-	local currentGen=$($_readlink $workDir/current || :)
-	local nextGen=$($_readlink $workDir/next)
+	local currentGen
+	currentGen=$($_readlink $workDir/current || :)
+	local nextGen
+	nextGen=$($_readlink $workDir/next)
 
 	# Step through installables deriving floxpkg equivalents.
 	local -a pkgArgs=()
@@ -310,12 +315,14 @@ function floxInstall() {
 		# Now we want to construct the manifest.json entries for incorporating
 		# the new installables into our environments, and the easiest way to
 		# do that is to just install them to an ephemeral profile.
-		local environmentWorkDir=$(mkTempDir)
+		local environmentWorkDir
+		environmentWorkDir=$(mkTempDir)
 		if ! $invoke_nix profile install --profile "$environmentWorkDir/x" --impure "${pkgArgs[@]}"; then
 			# If that failed then repeat the build of each pkgArg individually
 			# to report which one(s) failed.
 			local -a failedPkgArgs=()
-			local _stderr=$(mkTempFile)
+			local _stderr
+			_stderr=$(mkTempFile)
 			for pkgArg in ${pkgArgs[@]}; do
 				if ! $invoke_nix build --no-link --impure "$pkgArg" >$_stderr 2>&1; then
 					failedPkgArgs+=("$pkgArg")
@@ -458,16 +465,21 @@ function floxRemove() {
 	local args="$@"
 
 	# Create shared clone for modifying environment.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 0
 
 	# Glean current and next generations from clone.
-	local currentGen=$($_readlink $workDir/current || :)
-	local nextGen=$($_readlink $workDir/next)
+	local currentGen
+	currentGen=$($_readlink $workDir/current || :)
+	local nextGen
+	nextGen=$($_readlink $workDir/next)
 
 	# Create an ephemeral copy of the current generation to delete from.
-	local environmentWorkDir=$(mkTempDir)
-	local envPackage=$($_jq -r '.generations[.currentGen].path' $workDir/metadata.json)
+	local environmentWorkDir
+	environmentWorkDir=$(mkTempDir)
+	local envPackage
+	envPackage=$($_jq -r '.generations[.currentGen].path' $workDir/metadata.json)
 	$_ln -s $envPackage $environmentWorkDir/x-$currentGen-link
 	$_ln -s x-$currentGen-link $environmentWorkDir/x
 
@@ -603,16 +615,21 @@ function floxUpgrade() {
 	local args="$@"
 
 	# Create shared clone for modifying environment.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 0
 
 	# Glean current and next generations from clone.
-	local currentGen=$($_readlink $workDir/current)
-	local nextGen=$($_readlink $workDir/next)
+	local currentGen
+	currentGen=$($_readlink $workDir/current)
+	local nextGen
+	nextGen=$($_readlink $workDir/next)
 
 	# Create an ephemeral copy of the current generation to upgrade.
-	local environmentWorkDir=$(mkTempDir)
-	local envPackage=$($_jq -r '.generations[.currentGen].path' $workDir/metadata.json)
+	local environmentWorkDir
+	environmentWorkDir=$(mkTempDir)
+	local envPackage
+	envPackage=$($_jq -r '.generations[.currentGen].path' $workDir/metadata.json)
 	$_ln -s $envPackage $environmentWorkDir/x-$currentGen-link
 	$_ln -s x-$currentGen-link $environmentWorkDir/x
 
@@ -705,7 +722,8 @@ EOF
 			$_rm $workDir/$nextGen/pkgs/default/catalog.json
 		else
 			# Delete all pkgCatalogPath references from catalog.json.
-			local concatPkgCatalogPaths=$(IFS=","; echo "${pkgCatalogPaths[*]}")
+			local concatPkgCatalogPaths
+			concatPkgCatalogPaths=$(IFS=","; echo "${pkgCatalogPaths[*]}")
 			$invoke_jq "del($concatPkgCatalogPaths)" \
 				$workDir/$currentGen/pkgs/default/catalog.json \
 				> $workDir/$nextGen/pkgs/default/catalog.json
@@ -743,12 +761,15 @@ function floxEdit() {
 	local -a invocation=("$@")
 
 	# Create shared clone for importing new generation.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 1
 
 	# Glean current and next generations from clone.
-	local currentGen=$($_readlink $workDir/current || :)
-	local nextGen=$($_readlink $workDir/next)
+	local currentGen
+	currentGen=$($_readlink $workDir/current || :)
+	local nextGen
+	nextGen=$($_readlink $workDir/next)
 
 	local -i currentGenVersion
 	if [ -z "$currentGen" ]; then
@@ -809,7 +830,8 @@ EOF
 
 		# Now render the environment package from the manifest.toml. This pulls
 		# from the latest catalog by design and will upgrade everything.
-		local envPackage=$(renderManifestTOML $workDir/$nextGen/manifest.toml)
+		local envPackage
+		envPackage=$(renderManifestTOML $workDir/$nextGen/manifest.toml)
 		[ -n "$envPackage" ] || error "failed to render new environment" </dev/null
 		;;
 	2)
@@ -883,21 +905,25 @@ function floxImport() {
 	local -a invocation=("$@")
 
 	# Create shared clone for importing new generation.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 1
 
 	# Glean next generation from clone.
-	local nextGen=$($_readlink $workDir/next)
+	local nextGen
+	nextGen=$($_readlink $workDir/next)
 
 	# New tarball coming in on STDIN. Extract to tmpDir.
-	local tmpDir=$(mkTempDir)
+	local tmpDir
+	tmpDir=$(mkTempDir)
 	$_tar -C $tmpDir -xf - || \
 		usage | error "tar extraction failed - try using same flox version for import and export"
 
 	# Inspect extracted data.
 	[ -f $tmpDir/metadata.json ] || \
 		usage | error "metadata.json not found - was tar created with flox export?"
-	local currentGen=$(registry $tmpDir/metadata.json 1 get currentGen) || \
+	local currentGen
+	currentGen=$(registry $tmpDir/metadata.json 1 get currentGen) || \
 		usage | error "metadata.json does not contain currentGen"
 
 	# Move latest generation from extracted data and insert as nextGen.
@@ -1020,11 +1046,13 @@ function floxRollback() {
 	local -a invocation=("$@")
 
 	# Create shared clone for importing new generation.
-	local workDir=$(mkTempDir)
+	local workDir
+	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 0
 
 	# Glean current and next generations from clone.
-	local currentGen=$($_readlink $workDir/current)
+	local currentGen
+	currentGen=$($_readlink $workDir/current)
 
 	# Look for target generation from command arguments.
 	local -i targetGeneration=0
@@ -1231,13 +1259,15 @@ function floxPushPull() {
 	# First verify that the clone has an origin defined.
 	# XXX: BUG no idea why, but this is reporting origin twice
 	#      when first creating the repository; hack with sort.
-	local origin=$(getSetOrigin "$environment" | $_sort -u)
+	local origin
+	origin=$(getSetOrigin "$environment" | $_sort -u)
 
 	# Perform a fetch to get remote data into sync.
 	githubHelperGit -C "$environmentMetaDir" fetch origin
 
 	# Create an ephemeral clone with which to perform the synchronization.
-	local tmpDir=$(mkTempDir)
+	local tmpDir
+	tmpDir=$(mkTempDir)
 	$invoke_git clone --quiet --shared "$environmentMetaDir" $tmpDir
 
 	# Add the upstream remote to the ephemeral clone.

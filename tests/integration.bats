@@ -611,15 +611,18 @@ load test_support.bash
 @test "flox search should return results quickly" {
   # "timeout 15 flox search" does not work? Haven't investigated why, just
   # fall back to doing the math manually and report when it takes too long.
-  local -i start=$(date +%s)
+  local -i start
+  start=$(date +%s)
   run $FLOX_CLI search hello
-  local -i end=$(date +%s)
+  local -i end
+  end=$(date +%s)
   assert_success
   assert_output --partial "stable.nixpkgs-flox.hello"
   assert_output --partial "staging.nixpkgs-flox.hello"
   assert_output --partial "unstable.nixpkgs-flox.hello"
   # Assert we spent less than 15 seconds in the process.
-  local -i elapsed=$(($end - $start))
+  local -i elapsed
+  elapsed=$(($end - $start))
   echo spent $elapsed seconds
   [ $elapsed -lt 15 ]
 }

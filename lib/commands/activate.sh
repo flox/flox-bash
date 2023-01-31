@@ -150,9 +150,11 @@ function floxActivate() {
 	# Before possibly bailing out, check to see if any of the active or
 	# about-to-be-activated environments have updates pending.
 	for environment in "${floxmeta_environments[@]}"; do
-		local -i autoUpdate=$(doAutoUpdate "$environment")
+		local -i autoUpdate
+		autoUpdate=$(doAutoUpdate "$environment")
 		if [ $autoUpdate -ne 0 ]; then
-			local -i updateGen=$(updateAvailable "$environment" 2>/dev/null)
+			local -i updateGen
+			updateGen=$(updateAvailable "$environment" 2>/dev/null)
 			if [ $updateGen -gt 0 ]; then
 				if [ $autoUpdate -eq 1 ]; then
 					# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
@@ -238,7 +240,8 @@ function floxActivate() {
 	fi
 
 	# Create "rc" script.
-	local rcScript=$(mktemp) # cleans up after itself, do not use mkTempFile()
+	local rcScript
+	rcScript=$(mktemp) # cleans up after itself, do not use mkTempFile()
 	case $rcShell in
 	*bash)
 		bashRC "${_environments_to_activate[@]}" >> $rcScript

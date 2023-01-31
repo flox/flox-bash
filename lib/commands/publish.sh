@@ -92,7 +92,8 @@ function floxPublish() {
 	local uploadTo
 	local downloadFrom
 	local renderPath="catalog"
-	local tmpdir=$(mkTempDir)
+	local tmpdir
+	tmpdir=$(mkTempDir)
 	local gitClone # separate from tmpdir out of abundance of caution
 	local keyFile
 	local publishSystem=$FLOX_SYSTEM
@@ -262,7 +263,8 @@ function floxPublish() {
 		;;
 	*)
 		# Figure out the HEAD version to derive canonical flake URL.
-		local upstreamRev=$(githubHelperGit ls-remote "$buildRepository" HEAD)
+		local upstreamRev
+		upstreamRev=$(githubHelperGit ls-remote "$buildRepository" HEAD)
 		# Keep only first 40 characters to remove the extra spaces and "HEAD" label.
 		upstreamRev=${upstreamRev:0:40}
 		canonicalFlakeRef="${buildRepository}?rev=${upstreamRev}"
@@ -393,7 +395,8 @@ function floxPublish() {
 	[ -z "$downloadFrom" ] || warn "download from: $downloadFrom"
 
 	# Construct string encapsulating entire command invocation.
-	local entirePublishCommand=$(printf \
+	local entirePublishCommand
+	entirePublishCommand=$(printf \
 		"flox publish -A %s --build-repo %s --channel-repo %s" \
 		"$packageAttrPath" "$buildRepository" "$channelRepository")
 	[ -z "$uploadTo" ] || entirePublishCommand=$(printf "%s --upload-to %s" "$entirePublishCommand" "$uploadTo")
@@ -437,7 +440,8 @@ function floxPublish() {
 
 	# Then build package.
 	warn "Building $packageAttrPath ..."
-	local outpaths=$(floxBuild "${_nixArgs[@]}" --no-link --print-out-paths "$canonicalFlakeURL" "${buildArgs[@]}")
+	local outpaths
+	outpaths=$(floxBuild "${_nixArgs[@]}" --no-link --print-out-paths "$canonicalFlakeURL" "${buildArgs[@]}")
 	[ -n "$outpaths" ] || error "could not build $canonicalFlakeURL" < /dev/null
 
 	# TODO Make content addressable (remove "false" below).
@@ -466,7 +470,8 @@ function floxPublish() {
 	# TODO: bundle lib/analysis.nix with flox CLI to avoid dependency on remote flake
 	local analyzer="path:$_lib/catalog-ingest"
 	# Nix eval command is noisy so filter out the expected output.
-	local tmpstderr=$(mkTempFile)
+	local tmpstderr
+	tmpstderr=$(mkTempFile)
 	evalAndBuild=$($invoke_nix "${_nixArgs[@]}" eval --json \
 		--override-input target "$canonicalFlakeRef" \
 		--override-input target/flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
@@ -491,7 +496,8 @@ function floxPublish() {
 	fi
 
 	# Gather buildRepository package outpath metadata.
-	local buildMetadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$canonicalFlakeRef" --no-write-lock-file --json)
+	local buildMetadata
+	buildMetadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$canonicalFlakeRef" --no-write-lock-file --json)
 
 	# shellcheck disable=SC2086 # since jq variables don't need to be quoted
 	evalAndBuildAndSource=$($_jq -n \
@@ -531,7 +537,8 @@ function floxPublish() {
 	')
 
 	if [ "$channelRepository" != "-" ]; then
-		local epAttrPath=$($_jq -r .attrPath <<< "$elementPath")
+		local epAttrPath
+		epAttrPath=$($_jq -r .attrPath <<< "$elementPath")
 		$_mkdir -p $($_dirname "$epAttrPath")
 		echo "$elementPath" | $_jq -r '.analysis' > "$( echo "$elementPath" | $_jq -r '.attrPath' )"
 		warn "flox publish completed"

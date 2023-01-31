@@ -41,9 +41,11 @@ function floxInit() {
 
 	# Identify pname.
 	if [[ -z "$pname" ]]; then
-		local origin=$($_git remote get-url origin)
+		local origin
+		origin=$($_git remote get-url origin)
 		local bn=${origin//*\//}
-		local pname=$($_gum input --value "${bn//.git/}" --prompt "Enter package name: ")
+		local pname
+		pname=$($_gum input --value "${bn//.git/}" --prompt "Enter package name: ")
 		[ -n "$pname" ] || exit 1
 	fi
 
@@ -321,10 +323,12 @@ function floxDevelop() {
 	local packageFlakeURL="${installableFlakeRef}#.packages.$FLOX_SYSTEM.$installableAttrPath"
 
 	# Compute the GCRoot path to be created/activated.
-	local topLevel=$(flakeTopLevel "$installableFlakeRef" "${developArgs[@]}")
+	local topLevel
+	topLevel=$(flakeTopLevel "$installableFlakeRef" "${developArgs[@]}")
 	[ -n "$topLevel" ] || \
 		error "could not determine toplevel directory from '$installableFlakeRef' (syntax error?)" < /dev/null
-	local metaDir=$(flakeMetaDir "$topLevel")
+	local metaDir
+	metaDir=$(flakeMetaDir "$topLevel")
 	local floxEnvGCRoot="$metaDir/envs/$FLOX_SYSTEM.$installableAttrPath"
 	local protoPkgDir="$topLevel/pkgs/$installableAttrPath"
 
@@ -541,7 +545,8 @@ function selectDefaultEnvironment() {
 		;;
 	esac
 
-	local topLevel=$(flakeTopLevel "." 2>/dev/null) || :
+	local topLevel
+	topLevel=$(flakeTopLevel "." 2>/dev/null) || :
 	[ -n "$topLevel" ] || topLevel="."
 	# This could fail noisily, so quietly try a lookup before calling
 	# selectAttrPath() which needs to prompt to stderr.
