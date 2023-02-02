@@ -1198,7 +1198,9 @@ function validateFlakeURL() {
 function getChannelsJSON() {
 	trace "$@"
 	# Combine flox-provided and user channels in a single stream.
-	floxUserMetaRegistry get channels | $_jq -S -r '
+	# Be careful to handle the case where user registry is corrupt or
+	# missing the 'channels' hash.
+	( floxUserMetaRegistry get channels || echo '{}' ) | $_jq -S -r '
 		( . | with_entries(.value={type:"user",url:.value}) ) as $userChannels |
 		(
 		  {
