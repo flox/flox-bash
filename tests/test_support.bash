@@ -16,7 +16,7 @@ setup_file() {
     export FLOX_CLI=$FLOX_PACKAGE/bin/flox
     export FLOX_PACKAGE_FIRST8=$(echo $FLOX_PACKAGE | dd bs=c skip=11 count=8 2>/dev/null)
   fi
-  export FLOX_DISABLE_METRICS=1
+  export FLOX_DISABLE_METRICS="true"
   # Remove any vestiges of previous test runs.
   $FLOX_CLI destroy -e $TEST_ENVIRONMENT --origin -f || :
   export TEST_ENVIRONMENT=_testing_
