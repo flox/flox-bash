@@ -1,20 +1,20 @@
 {
-  packages = {
-    nixpkgs-flox = {
-      # ripgrep = {version = "13.0.0";};
-    };
-  };
-  shell = {
-    aliases = {
-      # gg = "git grep";
-    };
-    # POSIX shell hook run by flox activate, except curly braces have to be
-    # escaped like ''${
-    hook = ''
-      # echo "Supercharged by flox!" 1>&2
-    '';
-  };
-  environmentVariables = {
-    # LANG = "en_US.UTF-8";
-  };
+  # Packages
+  # "version" is optional, otherwise the latest is used. Try `flox search`
+  # packages.nixpkgs-flox.figlet = {};
+  # packages.nixpkgs-flox.bat = { version = "0.22.1"; };
+
+  # Aliases available when environment is active
+  # shell.aliases.cat = "bat";
+
+  # Script run upon environment activation
+  # Warning: Be careful when using `${}` in shell hook.
+  #          Due to conflicts with Nix language you have to escape it with '' (two single quotes)
+  #          Example: ` ''${ENV_VARIABLE} `
+  # shell.hook = ''
+  #   echo Flox Environment | figlet
+  # '';
+
+  # Environment variables
+  # environmentVariables.LANG = "en_US.UTF-8";
 }
