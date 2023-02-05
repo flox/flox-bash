@@ -357,7 +357,7 @@ function floxPublish() {
 				"Enter git URL (required)" \
 				"channel repository:" \
 				"$channelRepository")
-			if ensureGHRepoExists "$channelRepository" public "https://github.com/flox/floxpkgs-template.git"; then
+			if ensureGHRepoExists "$channelRepository" private "https://github.com/flox/floxpkgs-template.git"; then
 				[ -z "$channelRepository" ] || break
 			fi
 			warn "please enter a valid URL with which to 'flox subscribe'"
