@@ -967,7 +967,7 @@ function floxImport() {
 }
 
 _environment_commands+=("export")
-_usage["export"]="export declarative environment manifest of current generation"
+_usage["export"]="export environment for use with 'flox import'"
 function floxExport() {
 	trace "$@"
 	local environment="$1"; shift
