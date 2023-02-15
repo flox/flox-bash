@@ -1324,9 +1324,12 @@ function searchChannels() {
 	  -e "\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)" \
 	  ${_stderrFiles[@]} 1>&2 || true
 	$invoke_jq -r -f "$_lib/merge-search-results.jq" ${_stdoutFiles[@]} | \
-		$_jq -r -s add && $_rm -f ${_stdoutFiles[@]}
-	$_rm -f ${_stderrFiles[@]}
-	$_rmdir ${_resultDirs[@]} ${_channelDirs[@]} $_tmpdir
+		$_jq -r -s add
+	if [ $debug -eq 0 ]; then
+		$_rm -f ${_stdoutFiles[@]}
+		$_rm -f ${_stderrFiles[@]}
+		$_rmdir ${_resultDirs[@]} ${_channelDirs[@]} $_tmpdir
+	fi
 }
 
 #

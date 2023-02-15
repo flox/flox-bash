@@ -188,7 +188,8 @@ function floxSearch() {
 		export GREP_COLOR='1;32'
 	fi
 	if [ $jsonOutput -gt 0 ]; then
-		cmd=(searchChannels "$packageregexp" ${channels[@]} $refreshArg)
+		searchChannels "$packageregexp" ${channels[@]} $refreshArg | \
+			$_jq -r -f "$_lib/searchJSON.jq"
 	else
 		# Use grep to highlight text matches, but also include all the lines
 		# around the matches by using the `-C` context flag with a big number.
