@@ -89,6 +89,13 @@ SRC_JQ = $(filter %.jq,$(GIT_LS_FILES))
 SRC = $(SRC_BASH) $(SRC_BATS) $(SRC_JQ)
 
 SHFMT = shfmt --language-dialect bash
+# SC1090 (warning): ShellCheck can't follow non-constant source. Use a directive to specify location.
+# SC1091 (info): Not following: ./init.sh was not specified as input (see shellcheck -x).
+# SC2034 (warning): floxMetricsConsent appears unused. Verify use (or export if used externally).
+# SC2086 (info): Double quote to prevent globbing and word splitting.
+# SC2154 (warning): _nix is referenced but not assigned.
+# SC2166 (warning): Prefer [ p ] && [ q ] as [ p -a q ] is not well defined.
+SHELLCHECK = shellcheck -s bash -e SC1090,SC1091,SC2034,SC2086,SC2154,SC2166
 
 all: $(BIN) $(MAN)
 
@@ -130,6 +137,8 @@ $(PREFIX)/lib/%: lib/%
 	  -e 's%@@NIXPKGS_CACERT_BUNDLE_CRT@@%$(NIXPKGS_CACERT_BUNDLE_CRT)%' \
 	  $< > $@
 	$(if $(filter %.sh,$@),$(SHFMT) $@ >/dev/null)
+	# TODO: clean up and remove "-" once shellcheck runs cleanly on libs
+	-$(if $(filter %.sh,$@),$(SHELLCHECK) $@)
 
 $(PREFIX)/libexec/flox/flox: flox.sh
 	-@rm -f $@
@@ -140,6 +149,7 @@ $(PREFIX)/libexec/flox/flox: flox.sh
 	  -e 's%@@FLOXPATH@@%$(FLOXPATH)%' \
 	  $< > $@
 	$(SHFMT) $@ >/dev/null
+	$(SHELLCHECK) $@
 	chmod +x $@
 
 $(PREFIX)/libexec/%: libexec/%

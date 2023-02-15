@@ -56,13 +56,13 @@ while [ $# -ne 0 ]; do
 		shift
 		;;
 	-v | --verbose)
-		let ++verbose
+		(( ++verbose ))
 		shift
 		;;
 	--debug)
-		let ++debug
+		(( ++debug ))
 		[ $debug -le 1 ] || set -x
-		let ++verbose
+		(( ++verbose ))
 		shift
 		;;
 	--prefix)
@@ -84,7 +84,7 @@ while [ $# -ne 0 ]; do
 done
 
 # Save the original invocation string.
-declare invocation_string="$0 $@"
+declare invocation_string="$0 $*"
 
 # Perform initialization with benefit of flox CLI args set above.
 . $_lib/init.sh
@@ -161,11 +161,11 @@ activate | history | create | install | list | remove | rollback | \
 		esac
 	done
 	if [ ${#environments[@]} -eq 0 ]; then
-		environments+=$(selectDefaultEnvironment "$subcommand" "$defaultEnv")
+		environments+=("$(selectDefaultEnvironment "$subcommand" "$defaultEnv")")
 	else
 		declare -a environmentArgs=()
 		for i in "${environments[@]}"; do
-			environmentArgs+=($(environmentArg "$i"))
+			environmentArgs+=("$(environmentArg "$i")")
 		done
 		environments=("${environmentArgs[@]}")
 	fi
@@ -217,7 +217,7 @@ activate | history | create | install | list | remove | rollback | \
 	list)
 		floxList "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	push | pull)
-		floxPushPull "$subcommand" "$environment" "$FLOX_SYSTEM" ${args[@]};;
+		floxPushPull "$subcommand" "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	remove)
 		floxRemove "$environment" "$FLOX_SYSTEM" "${args[@]}";;
 	rollback|switch-generation)
@@ -246,10 +246,10 @@ build | develop | print-dev-env | eval | publish | run | shell)
 		floxBuild "$@"
 		;;
 	develop|print-dev-env)
-		if [ "$subcommand" == "develop" -a $interactive -eq 0 ]; then
+		if [ "$subcommand" = "develop" -a $interactive -eq 0 ]; then
 			usage | error "'flox develop' must be invoked interactively"
 		fi
-		if [ "$subcommand" == "print-dev-env" ]; then
+		if [ "$subcommand" = "print-dev-env" ]; then
 			# Force non-interactive mode
 			interactive=0
 			# Also make sure to print bash syntax compatible with that

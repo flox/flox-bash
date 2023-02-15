@@ -30,6 +30,7 @@
 , nixStable
 , pandoc
 , pkgs
+, shellcheck
 , shfmt
 , substituteAll
 , util-linuxMinimal
@@ -85,7 +86,7 @@ in stdenv.mkDerivation rec {
   pname = "flox";
   version = "0.0.10-${getRev src}";
   src = self;
-  nativeBuildInputs = [ bats entr makeWrapper pandoc shfmt which ]
+  nativeBuildInputs = [ bats entr makeWrapper pandoc shellcheck shfmt which ]
     # nix-provided expect not working on Darwin (#441)
     ++ lib.optionals hostPlatform.isLinux [ expect ];
   buildInputs = [

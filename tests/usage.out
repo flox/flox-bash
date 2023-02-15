@@ -35,7 +35,7 @@ environment commands:
          - upgrade packages using their most recent flake
     flox edit - edit declarative environment manifest
     flox import - import declarative environment manifest as new generation
-    flox export - export declarative environment manifest of current generation
+    flox export - export environment for use with 'flox import'
     flox history [--oneline] [--json]
          - show all versions of an environment
     flox generations - list environment generations with contents
