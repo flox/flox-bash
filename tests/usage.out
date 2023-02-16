@@ -33,8 +33,8 @@ environment commands:
     flox (rm|remove) - remove packages from an environment
     flox upgrade [--force]
          - upgrade packages using their most recent flake
-    flox edit - edit declarative environment manifest
-    flox import - import declarative environment manifest as new generation
+    flox edit - edit declarative form of an environment
+    flox import - import a tar created with 'flox export' as a new generation
     flox export - export environment for use with 'flox import'
     flox history [--oneline] [--json]
          - show all versions of an environment

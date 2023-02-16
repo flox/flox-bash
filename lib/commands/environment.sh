@@ -753,7 +753,7 @@ EOF
 }
 
 _environment_commands+=("edit")
-_usage["edit"]="edit declarative environment manifest"
+_usage["edit"]="edit declarative form of an environment"
 function floxEdit() {
 	trace "$@"
 	local environment="$1"; shift
@@ -897,7 +897,7 @@ EOF
 }
 
 _environment_commands+=("import")
-_usage["import"]="import declarative environment manifest as new generation"
+_usage["import"]="import a tar created with 'flox export' as a new generation"
 function floxImport() {
 	trace "$@"
 	local environment="$1"; shift
