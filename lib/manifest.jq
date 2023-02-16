@@ -150,7 +150,7 @@ def flakerefToPname(args): expectedArgs(1; args) |
 ( $manifest[].elements | to_entries | map(
   ( .value.storePaths[0] | .[44:] ) as $packageName |
   ( if ( .value | has("attrPath") ) then (
-    ( .value | elementToFloxpkg | split(".")[2:] | join(".") ) as $packagePName |
+    ( .value | elementToFloxpkg | split(".")[2:] | join(".") | split("@")[0] ) as $packagePName |
     ( $packageName | ltrimstr("\($packagePName)-") ) as $packageVersion |
     [ $packagePName, $packageVersion ]
   ) else (
@@ -233,11 +233,6 @@ def floxpkgFromElement:
   else
     floxpkgFromElementV1
   end;
-
-def floxpkgFromElementWithRunPath:
-  if .attrPath then
-    flakerefToFloxpkg(["\(.originalUrl)#\(.attrPath)"]) + " " + (.storePaths | join(","))
-  else .storePaths[] end;
 
 def catalogPathFromElement:
   if .attrPath then
@@ -349,7 +344,11 @@ def listEnvironment(args):
     error("excess arguments: " + (args[1:] | join(" ")))
   elif args[0] == "--out-path" then
     $elements | map(
-      (.position | tostring) + " " + floxpkgFromElementWithRunPath
+      . as $datum |
+      ($datum | floxpkgFromElement) as $floxpkgArg |
+      ($datum | .storePaths | join(",")) as $storePaths |
+      ($datum | .position) as $position |
+      "\($position | tostring) \($floxpkgArg) \($storePaths)"
     ) | join("\n")
   elif args[0] == "--json" then (
     $elements | sort_by(.packageIdentifier) | unique_by(.packageIdentifier) | map(
