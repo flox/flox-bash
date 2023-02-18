@@ -1023,17 +1023,40 @@ function floxHistory() {
 
 _environment_commands+=("generations")
 _usage["generations"]="list environment generations with contents"
+_usage_options["generations"]="[--json]"
 function floxGenerations() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
+
+	local -i displayJSON=0
+	while test $# -gt 0; do
+		# 'flox list' args.
+		case "$1" in
+		--json) # takes zero args
+			displayJSON=1
+			shift
+			;;
+		# Any other options are unrecognised.
+		-*)
+			usage | error "unknown option '$1'"
+			;;
+		*)
+			usage | error "extra argument '$1'"
+			;;
+		esac
+	done
 
 	# Infer existence of generations from the registry (i.e. the database),
 	# rather than the symlinks on disk so that we can have a history of all
 	# generations long after they've been deleted for the purposes of GC.
 	tmpfile=$(mkTempFile)
 	metaGitShow $environment metadata.json > $tmpfile
-	registry $tmpfile 1 listGenerations
+	if [ $displayJSON -gt 0 ]; then
+		registry $tmpfile 1 listGenerations --json
+	else
+		registry $tmpfile 1 listGenerations
+	fi
 }
 
 _environment_commands+=("rollback")

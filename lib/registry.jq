@@ -126,8 +126,15 @@ def listGeneration:
   ] else [] end;
 
 def listGenerations(args):
-  $registry | .generations | to_entries |
-    map(listGeneration) | flatten | .[];
+  (args | length) as $argc |
+  if $argc == 0 then
+    $registry | .generations | to_entries |
+      map(listGeneration) | flatten | .[]
+  elif args[0] == "--json" then
+    $registry | .generations
+  else
+    error("unknown arg/option: " + args[0])
+  end;
 
 #
 # Call requested function with provided args.
