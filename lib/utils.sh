@@ -1309,8 +1309,12 @@ function searchChannels() {
 		done
 	done
 	echo "wait" >> $_script
-	# gum BUG: writes the spinner to stdout (dumb) - redirect that to stderr
-	$_gum spin --title="Searching channels: ${channels[*]}" 1>&2 -- $_bash $_script
+	if [ $interactive -eq 1 ]; then
+		# gum BUG: writes the spinner to stdout (dumb) - redirect that to stderr
+		$_gum spin --title="Searching channels: ${channels[*]}" 1>&2 -- $_bash $_script
+	else
+		$_bash $_script
+	fi
 
 	# The results directory is composed of files of the form:
 	#     <channel>/{stdout,stderr}
