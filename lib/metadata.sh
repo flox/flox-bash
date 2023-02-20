@@ -1106,8 +1106,8 @@ function doAutoUpdate() {
 # updateAvailable($environment)
 #
 # Checks to see if origin/branchname is ahead of the local branchname,
-# and if so returns the generation number of the upstream version, and
-# otherwise returns 0 to indicate that the generations are the same.
+# and if so echoes the generation number of the upstream version, and
+# otherwise echoes 0 to indicate that the generations are the same.
 #
 function updateAvailable() {
 	trace "$@"
@@ -1118,20 +1118,22 @@ function updateAvailable() {
 
 	# First calculate current generation number.
 	if [ -d "$environmentMetaDir" ]; then
-		local tmpfile
-		tmpfile=$(mkTempFile)
-		if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName"; then
-			$invoke_git -C "$environmentMetaDir" show "${branchName}:metadata.json" > $tmpfile
-			local -i currentGen
-			if currentGen=$(registry $tmpfile 1 get currentGen); then
-				# If that worked then calculate generation number upstream.
-				if $_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branchName"; then
-					$invoke_git -C "$environmentMetaDir" show "origin/${branchName}:metadata.json" > $tmpfile
-					local -i currentOriginGen
-					if currentOriginGen=$(registry $tmpfile 1 get currentGen); then
-						if [ $currentGen -lt $currentOriginGen ]; then
-							echo $currentOriginGen
-							return 0
+		if $_git -C "$environmentMetaDir" show-ref --quiet refs/heads/"$branchName" 2>/dev/null; then
+			local tmpfile
+			tmpfile=$(mkTempFile)
+			if $invoke_git -C "$environmentMetaDir" show "${branchName}:metadata.json" >$tmpfile 2>/dev/null; then
+				local -i currentGen
+				if currentGen=$(registry $tmpfile 1 get currentGen); then
+					# If that worked then calculate generation number upstream.
+					if $_git -C "$environmentMetaDir" show-ref --quiet refs/remotes/origin/"$branchName" 2>/dev/null; then
+						if $invoke_git -C "$environmentMetaDir" show "origin/${branchName}:metadata.json" >$tmpfile 2>/dev/null; then
+							local -i currentOriginGen
+							if currentOriginGen=$(registry $tmpfile 1 get currentGen); then
+								if [ $currentGen -lt $currentOriginGen ]; then
+									echo $currentOriginGen
+									return 0
+								fi
+							fi
 						fi
 					fi
 				fi

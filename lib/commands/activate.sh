@@ -154,7 +154,7 @@ function floxActivate() {
 		autoUpdate=$(doAutoUpdate "$environment")
 		if [ $autoUpdate -ne 0 ]; then
 			local -i updateGen
-			updateGen=$(updateAvailable "$environment" 2>/dev/null)
+			updateGen=$(updateAvailable "$environment")
 			if [ $updateGen -gt 0 ]; then
 				if [ $autoUpdate -eq 1 ]; then
 					# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
