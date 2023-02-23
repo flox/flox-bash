@@ -107,6 +107,12 @@ in stdenv.mkDerivation rec {
     "NIX_COREFOUNDATION_RPATH=${pkgs.darwin.CF}/Library/Frameworks"
     "PATH_LOCALE=${pkgs.darwin.locale}/share/locale"
   ];
+
+  postPatch = ''
+    cp ${inputs.flox-floxpkgs}/lib/readPackage.nix lib/catalog-ingest/lib/readPackage.nix
+    cp ${inputs.flox-floxpkgs}/lib/inspectBuild.nix lib/catalog-ingest/lib/inspectBuild.nix
+  '';
+
   postInstall = ''
     # Some programs cannot function without git, ssh, and other
     # programs in their PATH. We have gone gone to great lengths

@@ -29,11 +29,10 @@
   in {
     value =
       readPackage {
-            inherit attrPath namespace;
-            channel = flakePath;
-          }
-          buildOptions
-          (lib.getAttrFromPath namespace target.packages.${system});
+        inherit attrPath namespace;
+      }
+      buildOptions
+      (lib.getAttrFromPath namespace target.packages.${system});
     path = attrPath;
     use = !flatten || isCapacitated;
   };
