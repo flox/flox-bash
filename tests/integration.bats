@@ -393,23 +393,23 @@ load test_support.bash
 }
 
 # To generate the test cases in tests/upgrade, use the following commands:
-# flox subscribe nixpkgs-flox-upgrade-test github:flox/nixpkgs-flox/bdbc8eb8d716ba74861b4aebf49a89a62b40a597
+# flox subscribe nixpkgs-flox-upgrade-test github:flox/nixpkgs-flox/e4327de84f3aa8417e332a864c3b58c83b44832b
 # flox install nixpkgs-flox-upgrade-test.curl -e _upgrade_test_
 # flox install nixpkgs-flox-upgrade-test.ripgrep -e _upgrade_test_
 # flox export -e _upgrade_test_ > upgrade.tar
 # mkdir tests/upgrade/$system
-# tar -xvf upgrade.tar -C tests/upgrade/$system
+# tar -xvf upgrade.tar --exclude flake.nix --exclude flake.lock -C tests/upgrade/$system
 # rm upgrade.tar
 # flox unsubscribe nixpkgs-flox-upgrade-test
 @test "flox upgrade" {
   case $NIX_SYSTEM in
   aarch64-darwin)
-    RG_PATH="/nix/store/mxqb114cj1lb9zi9qf83bfm2ilp055pn-ripgrep-13.0.0/bin/rg"
-    CURL_PATH="/nix/store/m5zisbaps5dzpg5gsq2fxd3cp2jbzz9p-curl-7.85.0/bin/curl"
+    RG_PATH="/nix/store/ix73alhygpflvq50fimdgwl1x2f8yv7y-ripgrep-13.0.0/bin/rg"
+    CURL_PATH="/nix/store/8nv1g4ymxi2f96pbl1jy9h625v2risd8-curl-7.86.0-bin/bin/curl"
     ;;
   x86_64-linux)
-    RG_PATH="/nix/store/02ayr4zw6qvfrgkvxl42wrdavr3vybwn-ripgrep-13.0.0/bin/rg"
-    CURL_PATH="/nix/store/34qg4fjcfl2ww2cn9glqiqcrjvqa5vjr-curl-7.85.0/bin/curl"
+    RG_PATH="/nix/store/cv1ska2lnafi6l650d4943bm0r3qvixy-ripgrep-13.0.0/bin/rg"
+    CURL_PATH="/nix/store/b7xwyhb5zy4x26jvk9vl84ihb7gcijrn-curl-7.86.0/bin/curl"
     ;;
   *)
     echo "unsupported system for upgrade test"

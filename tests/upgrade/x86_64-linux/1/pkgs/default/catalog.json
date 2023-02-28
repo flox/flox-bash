@@ -4,6 +4,26 @@
       "stable": {
         "curl": {
           "latest": {
+            "cache": {
+              "bin": {
+                "https://cache.nixos.org": {}
+              },
+              "debug": {
+                "https://cache.nixos.org": {}
+              },
+              "dev": {
+                "https://cache.nixos.org": {}
+              },
+              "devdoc": {
+                "https://cache.nixos.org": {}
+              },
+              "man": {
+                "https://cache.nixos.org": {}
+              },
+              "out": {
+                "https://cache.nixos.org": {}
+              }
+            },
             "element": {
               "attrPath": [
                 "legacyPackages",
@@ -13,10 +33,10 @@
               "originalUrl": "flake:nixpkgs",
               "outputs": null,
               "storePaths": [
-                "/nix/store/2c0nffwfayzsqfli6rh8s4mfwjs47y63-curl-7.85.0-bin",
-                "/nix/store/sg65nm008nq91hp290j4xp4c3sf2bj4p-curl-7.85.0-man"
+                "/nix/store/m2h1p50yvcq5j9b3hkrwqnmrr9pbkzpz-curl-7.86.0-bin",
+                "/nix/store/qcq693pj82skmi25qd8qdcjf45rp41ar-curl-7.86.0-man"
               ],
-              "url": "github:flox/nixpkgs/f994293d1eb8812f032e8919e10a594567cf6ef7"
+              "url": "github:flox/nixpkgs/fad51abd42ca17a60fc1d4cb9382e2d79ae31836"
             },
             "eval": {
               "meta": {
@@ -25,24 +45,23 @@
                   "bin",
                   "man"
                 ],
-                "position": "/nix/store/9m8drnpifyl5qsx93g6ll2xw6wkps03z-source/pkgs/tools/networking/curl/default.nix:185",
+                "position": "/nix/store/wh4nnz2ga9lpxl406ia1cnsi891xaa4x-source/pkgs/tools/networking/curl/default.nix:185",
                 "unfree": false
               },
-              "name": "curl-7.85.0",
+              "name": "curl-7.86.0",
               "outputs": {
-                "bin": "/nix/store/2c0nffwfayzsqfli6rh8s4mfwjs47y63-curl-7.85.0-bin",
-                "debug": "/nix/store/4z4fswjyad12gnp6jczkj6yk0kavwj73-curl-7.85.0-debug",
-                "dev": "/nix/store/5gzjb032ghnhwa5alpjp72vrnjyznbrh-curl-7.85.0-dev",
-                "devdoc": "/nix/store/281lgwbc1kc56jfxahxd3m1kxjqwq2q7-curl-7.85.0-devdoc",
-                "man": "/nix/store/sg65nm008nq91hp290j4xp4c3sf2bj4p-curl-7.85.0-man",
-                "out": "/nix/store/1mdiz3knga8234bigm4hgz35rgxkypa4-curl-7.85.0"
+                "bin": "/nix/store/m2h1p50yvcq5j9b3hkrwqnmrr9pbkzpz-curl-7.86.0-bin",
+                "debug": "/nix/store/5670s9179123vnddn8hxri6frn62yqkd-curl-7.86.0-debug",
+                "dev": "/nix/store/gf8iqpcwdnwqk4mfm1qnz56pf7kkahdp-curl-7.86.0-dev",
+                "devdoc": "/nix/store/3dq0536c38d889bzia1c443wnp1j7nsc-curl-7.86.0-devdoc",
+                "man": "/nix/store/qcq693pj82skmi25qd8qdcjf45rp41ar-curl-7.86.0-man",
+                "out": "/nix/store/cgmpl823df6sjgc9qbb9wrw379x8yvwk-curl-7.86.0"
               },
               "pname": "curl",
               "system": "x86_64-linux",
-              "version": "7.85.0"
+              "version": "7.86.0"
             },
             "publish_element": {
-              "active": true,
               "attrPath": [
                 "evalCatalog",
                 "x86_64-linux",
@@ -51,10 +70,19 @@
               ],
               "originalUrl": "flake:nixpkgs-flox-upgrade-test",
               "storePaths": [
-                "/nix/store/4wig68iqd08bzfdqhbyx9ddn25krpvnl-curl-7.85.0"
+                "/nix/store/m2h1p50yvcq5j9b3hkrwqnmrr9pbkzpz-curl-7.86.0-bin",
+                "/nix/store/qcq693pj82skmi25qd8qdcjf45rp41ar-curl-7.86.0-man"
               ],
-              "url": "flake:nixpkgs-flox-upgrade-test/bdbc8eb8d716ba74861b4aebf49a89a62b40a597"
-            }
+              "url": "flake:nixpkgs-flox-upgrade-test/e4327de84f3aa8417e332a864c3b58c83b44832b"
+            },
+            "schema": 1,
+            "source": {
+              "locked": {
+                "lastModified": 1671983799,
+                "revCount": 437630
+              }
+            },
+            "type": "catalogRender"
           }
         }
       }

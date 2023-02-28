@@ -1,24 +1,24 @@
 {
-  "version": 1,
   "currentGen": "2",
   "generations": {
     "1": {
-      "path": "/nix/store/96dx8zqqfvd14a061h9c0hwcw5f4wlj2-floxShell",
+      "created": 1677518186,
+      "lastActive": 1677518188,
       "logMessage": [
         "matthew installed stable.nixpkgs-flox-upgrade-test.curl"
       ],
-      "created": 1671667505,
-      "lastActive": 1671667515,
+      "path": "/nix/store/c6kddc0sllkvl4k9xr030hifdp1jq1qb-floxShell",
       "version": 2
     },
     "2": {
-      "path": "/nix/store/5mz05gsd3qc9175rm87zmzwik9blx80s-floxShell",
+      "created": 1677518188,
+      "lastActive": 1677518188,
       "logMessage": [
         "matthew installed stable.nixpkgs-flox-upgrade-test.ripgrep"
       ],
-      "created": 1671667515,
-      "lastActive": 1671667515,
+      "path": "/nix/store/d51c0jq8f0cwrngbj2n1ml8122jvcvbc-floxShell",
       "version": 2
     }
-  }
+  },
+  "version": 1
 }

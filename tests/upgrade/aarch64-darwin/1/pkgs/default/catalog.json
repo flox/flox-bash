@@ -4,6 +4,23 @@
       "stable": {
         "curl": {
           "latest": {
+            "cache": {
+              "bin": {
+                "https://cache.nixos.org": {}
+              },
+              "dev": {
+                "https://cache.nixos.org": {}
+              },
+              "devdoc": {
+                "https://cache.nixos.org": {}
+              },
+              "man": {
+                "https://cache.nixos.org": {}
+              },
+              "out": {
+                "https://cache.nixos.org": {}
+              }
+            },
             "element": {
               "attrPath": [
                 "legacyPackages",
@@ -13,10 +30,10 @@
               "originalUrl": "flake:nixpkgs",
               "outputs": null,
               "storePaths": [
-                "/nix/store/7vswk3w7sqgsyk1c8mplrmwdads6ywjf-curl-7.85.0-bin",
-                "/nix/store/1zsmcw7q2hmvyjjwwydfn3hybj3idb1v-curl-7.85.0-man"
+                "/nix/store/8nv1g4ymxi2f96pbl1jy9h625v2risd8-curl-7.86.0-bin",
+                "/nix/store/i6jgil3y6pdbgi29vrsz8frg0y4d02lp-curl-7.86.0-man"
               ],
-              "url": "github:flox/nixpkgs/f994293d1eb8812f032e8919e10a594567cf6ef7"
+              "url": "github:flox/nixpkgs/fad51abd42ca17a60fc1d4cb9382e2d79ae31836"
             },
             "eval": {
               "meta": {
@@ -25,23 +42,22 @@
                   "bin",
                   "man"
                 ],
-                "position": "/nix/store/9m8drnpifyl5qsx93g6ll2xw6wkps03z-source/pkgs/tools/networking/curl/default.nix:185",
+                "position": "/nix/store/wh4nnz2ga9lpxl406ia1cnsi891xaa4x-source/pkgs/tools/networking/curl/default.nix:185",
                 "unfree": false
               },
-              "name": "curl-7.85.0",
+              "name": "curl-7.86.0",
               "outputs": {
-                "bin": "/nix/store/7vswk3w7sqgsyk1c8mplrmwdads6ywjf-curl-7.85.0-bin",
-                "dev": "/nix/store/vr4d4hdqj9jcwj6b338jb2d3caih2c6j-curl-7.85.0-dev",
-                "devdoc": "/nix/store/fjs5bkivsd4k1wn6krb3hi5jyb8m55hv-curl-7.85.0-devdoc",
-                "man": "/nix/store/1zsmcw7q2hmvyjjwwydfn3hybj3idb1v-curl-7.85.0-man",
-                "out": "/nix/store/q4xbbqzsf4dq941l58fx5mgfarqawaaj-curl-7.85.0"
+                "bin": "/nix/store/8nv1g4ymxi2f96pbl1jy9h625v2risd8-curl-7.86.0-bin",
+                "dev": "/nix/store/24hd4g9gs48jxchr5xx61c4g80sy0b63-curl-7.86.0-dev",
+                "devdoc": "/nix/store/31xqm3siypp0zljicczjgja2mmj1cf2j-curl-7.86.0-devdoc",
+                "man": "/nix/store/i6jgil3y6pdbgi29vrsz8frg0y4d02lp-curl-7.86.0-man",
+                "out": "/nix/store/rks22dffq1j06d1q2840c5dylvlz97dl-curl-7.86.0"
               },
               "pname": "curl",
               "system": "aarch64-darwin",
-              "version": "7.85.0"
+              "version": "7.86.0"
             },
             "publish_element": {
-              "active": true,
               "attrPath": [
                 "evalCatalog",
                 "aarch64-darwin",
@@ -50,10 +66,19 @@
               ],
               "originalUrl": "flake:nixpkgs-flox-upgrade-test",
               "storePaths": [
-                "/nix/store/j4d52qz31jc2vgrykqfiydap56c24pwa-curl-7.85.0"
+                "/nix/store/8nv1g4ymxi2f96pbl1jy9h625v2risd8-curl-7.86.0-bin",
+                "/nix/store/i6jgil3y6pdbgi29vrsz8frg0y4d02lp-curl-7.86.0-man"
               ],
-              "url": "flake:nixpkgs-flox-upgrade-test/bdbc8eb8d716ba74861b4aebf49a89a62b40a597"
-            }
+              "url": "flake:nixpkgs-flox-upgrade-test/e4327de84f3aa8417e332a864c3b58c83b44832b"
+            },
+            "schema": 1,
+            "source": {
+              "locked": {
+                "lastModified": 1671983799,
+                "revCount": 437630
+              }
+            },
+            "type": "catalogRender"
           }
         }
       }
