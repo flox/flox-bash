@@ -486,15 +486,6 @@ function floxPublish() {
 		error "eval of $analyzer#analysis.eval.packages.$publishSystem.$packageAttrPath failed - see above" < /dev/null
 	}
 
-	# Copy to binary cache (optional).
-	if [ -n "$uploadTo" ]; then
-		local builtfilter="flake:flox#builtfilter"
-		$invoke_nix "${_nixArgs[@]}" copy --to "$uploadTo" $outpaths
-		# Enhance eval data with remote binary substituter.
-		evalAndBuild=$(echo "$evalAndBuild" | \
-			$invoke_nix "${_nixArgs[@]}" run "$builtfilter" -- --substituter "$downloadFrom")
-	fi
-
 	# Gather buildRepository package outpath metadata.
 	local buildMetadata
 	buildMetadata=$($invoke_nix "${_nixArgs[@]}" flake metadata "$canonicalFlakeRef" --no-write-lock-file --json)
@@ -516,6 +507,15 @@ function floxPublish() {
 			}
 		}
 	')
+
+	# Copy to binary cache (optional).
+	if [ -n "$uploadTo" ]; then
+		local builtfilter="flake:flox#builtfilter"
+		$invoke_nix "${_nixArgs[@]}" copy --to "$uploadTo" $outpaths
+		# Enhance eval data with remote binary substituter.
+		evalAndBuildAndSource=$(echo "$evalAndBuildAndSource" | \
+			$invoke_nix "${_nixArgs[@]}" run "$builtfilter" -- --substituter "$downloadFrom")
+	fi
 
 	### Next section cribbed from: github:flox/catalog-ingest#publish
 	warn "publishing render to $renderPath ..."
