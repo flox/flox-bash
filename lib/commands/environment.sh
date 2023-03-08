@@ -161,13 +161,48 @@ function floxList() {
 	# by way of a commandline argument. Should revisit based on needs of
 	# SaaS/environment manager project.
 	if [ $displayJSON -gt 0 ]; then
+		# Create shared clone for modifying environment.
+		local workDir
+		workDir=$(mkTempDir)
+		beginTransaction "$environment" "$workDir" 0
+
+		# Glean current and next generations from clone.
+		local currentGen
+		currentGen=$($_readlink $workDir/current)
+		local nextGen
+		nextGen=$($_readlink $workDir/next)
+
+		local oldCatalogJSON="$workDir/$currentGen/pkgs/default/catalog.json"
+		local newCatalogJSON="$workDir/$nextGen/pkgs/default/catalog.json"
+		local upgradeDiffs="$workDir/upgradeDiffs"
+
+		# Create an ephemeral copy of the current generation to upgrade.
+		# -T so we don't copy the parent directory
+		$_cp -rT $workDir/$currentGen $workDir/$nextGen
+		# Always refresh the flake.{nix,lock} files with each new generation.
+		$_cp -f --no-preserve=mode $_lib/templateFloxEnv/flake.{nix,lock} -t $workDir/$nextGen
+		# Remove the catalog.nix file (if found).
+		$_rm -f $newCatalogJSON
+		# Otherwise Nix eval won't be able to find any of the files.
+		$_git -C $workDir add $nextGen
+
+		if $invoke_nix eval "$workDir/$nextGen#floxEnvs.$environmentSystem.default.catalog" --impure --raw > $newCatalogJSON; then
+			$invoke_jq -n -f $_lib/diff-catalogs.jq \
+				--slurpfile c1 $oldCatalogJSON --slurpfile c2 $newCatalogJSON > $upgradeDiffs
+		else
+			# TODO: once environments have been upgraded and the above eval can
+			# reasonably be expected to succeed then call this out as an error,
+			# but in the meantime just report an empty set of available upgrades.
+			echo '{"add":[],"remove":[],"upgrade":[]}' > $upgradeDiffs
+		fi
 		manifest $manifestJSON listEnvironment --json | $_jq -r \
+			--slurpfile d $upgradeDiffs \
 			--arg n "$environmentOwner/$environmentName" \
 			--arg a "$environmentAlias" \
 			--arg s "$environmentSystem" \
 			--arg p "$environmentBaseDir" \
 			--arg l "$listGeneration" \
-			'{"name":$n,"alias":$a,"system":$s,"path":$p,"currentGeneration":$l} * .'
+			'{"name":$n,"alias":$a,"system":$s,"path":$p,"currentGeneration":$l,"upgrades":$d[0]} * .'
 	else
 		$_cat <<EOF
 $environmentOwner/$environmentName

@@ -48,6 +48,7 @@ LIB = \
 	lib/commands/general.sh \
 	lib/commands/publish.sh \
 	lib/commands/shells/activate.bash \
+	lib/diff-catalogs.jq \
 	lib/diff-manifests.jq \
 	lib/init.sh \
 	lib/manifest.jq \
