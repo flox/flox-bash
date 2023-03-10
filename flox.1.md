@@ -78,7 +78,7 @@ runtime environments, developer environments, and administration.
 :   Unsubscribe from the named channel.
     Will prompt for the channel name if not provided.
 
-**search** `<name>` [ (-c|\--channel) `<channel>` ] [ \--refresh ]
+**search** `<name>` [ (-c|\--channel) `<channel>` ] [ \--verbose ] [ \--refresh ]
 :   Search for available packages matching name.
 
     All channels are searched by default, but if provided

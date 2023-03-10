@@ -1,6 +1,7 @@
 # Invoke with:
 #   nix search --json "flake:floxpkgs#catalog.$system" "$packageregexp" | \
-#       jq -r -f <this file>.jq | column --keep-empty-lines -t -s "|"
+#       jq -r --argjson showDetail (true|false) -f <this file>.jq | \
+#       column --keep-empty-lines -t -s "|"
 
 # Start by parsing and enhancing data into fields
 with_entries(
@@ -38,7 +39,8 @@ reduce .[] as $x (
   # The first time seeing a floxref construct an array containing a
   # header as the previous value, otherwise use the previous array.
   ( if .[$f] then .[$f] else [$header] end ) as $prev |
-  . * { "\($f)": ($prev + [($indent + $line)]) }
+  ( if $showDetail then ($prev + [($indent + $line)]) else $prev end ) as $result |
+  . * { "\($f)": $result }
 ) |
 
 # Sort by key.
@@ -50,4 +52,5 @@ map(.value | join("\n")) |
 # `--keep-empty-lines` option is not available on Darwin, so we
 # instead place a line with "---" between groupings and then use
 # `sed` to remove that on the flox.sh end.
-join("\n---\n")
+( if $showDetail then "\n---\n" else "\n" end ) as $joinString |
+join($joinString)

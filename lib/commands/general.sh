@@ -130,11 +130,12 @@ function floxUnsubscribe() {
 
 _general_commands+=("search")
 _usage["search"]="search packages in subscribed channels"
-_usage_options["search"]="[(-c|--channel) <channel>] [--json] <args>"
+_usage_options["search"]="[(-c|--channel) <channel>] [(-v|--verbose)] [--json] <args>"
 function floxSearch() {
 	trace "$@"
 	packageregexp=
 	declare -i jsonOutput=0
+	declare showDetail="false"
 	declare refreshArg
 	declare -a channels=()
 	while test $# -gt 0; do
@@ -158,6 +159,10 @@ function floxSearch() {
 			;;
 		--json)
 			jsonOutput=1
+			shift
+			;;
+		-v|--verbose)
+			showDetail="true"
 			shift
 			;;
 		*)
@@ -198,7 +203,8 @@ function floxSearch() {
 		# so we instead embed a line with "---" between groupings and then use
 		# `sed` below to replace it with a blank line.
 		searchChannels "$packageregexp" ${channels[@]} $refreshArg | \
-			$_jq -r -f "$_lib/search.jq" | $_column -t -s "|" | $_sed 's/^---$//' | \
+			$_jq -r -f --argjson showDetail $showDetail "$_lib/search.jq" | \
+			$_column -t -s "|" | $_sed 's/^---$//' | \
 			$_grep -C 1000000 --ignore-case --color -E "$packageregexp"
 	fi
 }
