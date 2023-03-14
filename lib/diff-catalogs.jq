@@ -124,7 +124,7 @@ def mapTuples(data):
     data[1] as $package |
     # Join "pname" attrPaths with "." to maintain a constant depth structure
     # for use with WebUI display elements, command construction, etc.
-    ($packagePath[0:2] + [$packagePath[3:] | join(".")]) as $squashedPackagePath |
+    ($packagePath[0:3] + [$packagePath[3:] | join(".")]) as $squashedPackagePath |
     [ {} | setpath($squashedPackagePath; $package) ]
   ) end;
 
