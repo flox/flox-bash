@@ -1120,7 +1120,7 @@ function parseURL() {
 }
 
 #
-# Convert gitBaseURL to URL for use in flake registry.
+# Convert git_base_url to URL for use in flake registry.
 #
 # Flake URLs specify branches in different ways,
 # e.g. these are all equivalent:
@@ -1130,9 +1130,9 @@ function parseURL() {
 #   github:flox/floxpkgs/master
 #
 # Usage:
-#	gitBaseURLToFlakeURL ${gitBaseURL} ${organization}/floxpkgs master
+#	git_base_urlToFlakeURL ${git_base_url} ${organization}/floxpkgs master
 #
-function gitBaseURLToFlakeURL() {
+function git_base_urlToFlakeURL() {
 	trace "$@"
 	local baseurl="$1"; shift
 	local path="$1"; shift

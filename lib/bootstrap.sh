@@ -16,7 +16,7 @@ EOF
 }
 
 # Bootstrap the personal metadata.
-declare gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
+declare git_base_url="$FLOX_CONF_git_base_url"
 declare floxUserMeta
 floxUserMeta=$(mkTempFile)
 function bootstrap() {
@@ -28,10 +28,6 @@ function bootstrap() {
 	if [ -t 1 ]; then
 		# Interactive mode
 		interactive=1
-		gitBaseURL=$(floxUserMetaRegistry get gitBaseURL) || {
-			gitBaseURL="$FLOX_CONF_floxpkgs_gitBaseURL"
-			floxUserMetaRegistry set gitBaseURL "$gitBaseURL"
-		}
 
 		# Collect the user's express consent to submit telemetry data.
 		if [ -z "$FLOX_DISABLE_METRICS" ]; then
@@ -66,8 +62,6 @@ function bootstrap() {
 		#
 		# Non-interactive mode. Use all defaults if not found in registry.
 		#
-		gitBaseURL=$(floxUserMetaRegistry get gitBaseURL || \
-			echo "$FLOX_CONF_floxpkgs_gitBaseURL")
 		if [ -z "$FLOX_DISABLE_METRICS" ]; then
 			floxMetricsConsent=$(floxUserMetaRegistry get floxMetricsConsent) || \
 				floxMetricsConsent=0

@@ -70,7 +70,7 @@ function floxSubscribe() {
 	if [ -z "$flakeUrl" ]; then
 		local prompt="Enter URL for '$flakeName' channel: "
 		local value
-		value=$(gitBaseURLToFlakeURL ${gitBaseURL} ${flakeName}/floxpkgs master)
+		value=$(git_base_urlToFlakeURL ${git_base_url} ${flakeName}/floxpkgs master)
 		read -e -p "$prompt" -i "$value" flakeUrl
 	fi
 	validateFlakeURL "$flakeUrl" || \

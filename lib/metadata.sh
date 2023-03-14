@@ -635,7 +635,7 @@ function getSetOrigin() {
 				# Strange to have a profile on disk in a named without a
 				# remote origin. Prompt user to confirm floxmeta repo on
 				# github.
-				defaultOrigin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
+				defaultOrigin="${git_base_url/+ssh/}$environmentOwner/floxmeta"
 			fi
 			echo 1>&2
 			read -e \
@@ -647,14 +647,14 @@ function getSetOrigin() {
 				# based on GitHub handle observed by `gh` client.
 				local ghAuthHandle
 				if ghAuthHandle=$($_gh auth status |& $_awk '/Logged in to github.com as/ {print $7}'); then
-					origin="${gitBaseURL/+ssh/}$ghAuthHandle/floxmeta"
+					origin="${git_base_url/+ssh/}$ghAuthHandle/floxmeta"
 				else
 					# No chance to discover origin; just create repo and return empty origin.
 					[ -d "$environmentMetaDir" ] || gitInitFloxmeta "$environmentMetaDir"
 					return 0
 				fi
 			else
-				origin="${gitBaseURL/+ssh/}$environmentOwner/floxmeta"
+				origin="${git_base_url/+ssh/}$environmentOwner/floxmeta"
 			fi
 		fi
 

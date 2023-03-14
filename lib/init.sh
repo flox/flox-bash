@@ -25,7 +25,7 @@ shopt -s nullglob
 #
 # 1. package defaults from $PREFIX/etc/flox.toml
 # 2. installation defaults from /etc/flox.toml
-# 3. user customizations from $HOME/.floxrc
+# 3. user customizations from $FLOX_CONFIG_HOME/flox.toml
 #
 # Latter definitions override/redefine the former ones.
 #
@@ -36,7 +36,7 @@ read_flox_conf()
 	# because it only accepts one query per invocation.  In benchmarks it claims
 	# to be 3x faster than jq so this is better than converting to json in a
 	# single invocation and then selecting multiple values using jq.
-	for f in "$_prefix/etc/flox.toml" "/etc/flox.toml" "$HOME/.floxrc"
+	for f in "$_prefix/etc/flox.toml" "/etc/flox.toml" "$FLOX_CONFIG_HOME/flox.toml"
 	do
 		if [ -f "$f" ]; then
 		for i in $@
@@ -52,11 +52,7 @@ read_flox_conf()
 				# values.
 				$_cat "$f" | \
 				$_dasel -r toml -w json | \
-				$_jq -r --arg var $i '
-					select(has($var)) | .[$var] | to_entries | map(
-						"FLOX_CONF_\($var)_\(.key)=\(.value | tojson)"
-					) | join("\n")
-				'
+				$_jq -r --arg var $i 'if has($var) then "FLOX_CONF_\($var)=\(.[$var] | tojson)" else empty end'
 			done
 		fi
 	done
@@ -334,7 +330,17 @@ declare defaultEnv="$FLOX_ENVIRONMENTS/$defaultEnvironmentOwner/$FLOX_SYSTEM.def
 # Note: not using this data for anything yet but keeping it here as
 # placeholder for functionality. Expect it to figure prominently in
 # tenant customizations.
-eval $(read_flox_conf floxpkgs)
+eval "$(read_flox_conf git_base_url)"
+if [ -z "$FLOX_CONF_git_base_url" ]; then
+	# attempt to read old bash floxpkgs.gitBaseURL value from old flox.toml
+	eval "$(read_flox_conf floxpkgs)"
+	if [ -n "$FLOX_CONF_floxpkgs" ]; then
+		FLOX_CONF_git_base_url="$($_jq -r -n --argjson floxpkgs "$FLOX_CONF_floxpkgs" '$floxpkgs["gitBaseURL"]')"
+	else
+		warn "could not read git_base_url from config; defaulting to https://github.com/"
+		FLOX_CONF_git_base_url="https://github.com/"
+	fi
+fi
 
 # Bootstrap user-specific configuration.
 . $_lib/bootstrap.sh
