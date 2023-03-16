@@ -53,6 +53,7 @@ let
       ./nix-patches/multiple-github-tokens.2.13.2.patch
       ./nix-patches/curl_flox_version.patch
       ./nix-patches/no-default-prefixes-hash.patch
+      ./nix-patches/subflake-outPaths.patch
     ];
   });
 
