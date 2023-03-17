@@ -617,9 +617,9 @@ load test_support.bash
   local -i end
   end=$(date +%s)
   assert_success
-  assert_output --partial "stable.nixpkgs-flox.hello"
-  assert_output --partial "staging.nixpkgs-flox.hello"
-  assert_output --partial "unstable.nixpkgs-flox.hello"
+  assert_output --partial "hello"
+  ! assert_output --partial "stable"
+  ! assert_output --partial "nixpkgs-flox"
   # Assert we spent less than 15 seconds in the process.
   local -i elapsed
   elapsed=$(($end - $start))
