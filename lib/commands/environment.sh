@@ -462,10 +462,22 @@ EOF
 	esac
 
 	# That went well. Go ahead and commit the transaction.
-	commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction $environment $workDir $envPackage \
 		"$USER installed ${pkgNames[*]}" \
 		$currentGenVersion \
-		"$me install ${invocation[*]}"
+		"$me install ${invocation[*]}")
+
+	# Display user friendly message
+	local packageList=$(joinString "', '" "${installables[@]}")
+	eval $(decodeEnvironment "$environment")
+	case $result in
+	"project-environment-no-changes" | "named-environment-no-changes")
+		warn "No change! Package(s) '$packageList' already installed into '$environmentAlias' environment."
+		;;
+	"project-environment-modified" | "named-environment-switch-to-generation" | "named-environment-created-generation")
+		warn "Installed '$packageList' package(s) into '$environmentAlias' environment."
+		;;
+	esac
 }
 
 _environment_commands+=("(rm|remove)")
@@ -523,6 +535,8 @@ function floxRemove() {
 		currentGenVersion=1
 	fi
 
+	eval $(decodeEnvironment "$environment")
+
 	# The remove and upgrade commands operate on flake references and
 	# require the package to be present in the manifest. Take this
 	# opportunity to look up the flake reference from the manifest
@@ -535,12 +549,12 @@ function floxRemove() {
 		position=
 		if [[ "$pkgArg" == *#* ]]; then
 			position=$(manifest $environmentWorkDir/x/manifest.json flakerefToPosition "$pkgArg") ||
-				error "package \"$pkg\" not found in environment $environment" </dev/null
+				error "Package '$pkg' not found in '$environmentAlias' environment." </dev/null
 		elif [[ "$pkgArg" =~ ^[0-9]+$ ]]; then
 			position="$pkgArg"
 		else
 			position=$(manifest $environmentWorkDir/x/manifest.json storepathToPosition "$pkgArg") ||
-				error "package \"$pkg\" not found in environment $environment" </dev/null
+				error "Package '$pkg' not found in '$environmentAlias' environment." </dev/null
 		fi
 		pkgPositionArgs+=($position)
 	done
@@ -612,10 +626,21 @@ EOF
 	esac
 
 	# That went well. Go ahead and commit the transaction.
-	commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction $environment $workDir $envPackage \
 		"$USER removed ${pkgNames[*]}" \
 		$currentGenVersion \
-		"$me remove ${invocation[*]}"
+		"$me remove ${invocation[*]}")
+
+	# Display user friendly message
+	local packageList=$(joinString "', '" "${removeArgs[@]}")
+	case $result in
+	"project-environment-no-changes" | "named-environment-no-changes")
+		warn "No change! Package(s) '$packageList' not present in '$environmentAlias' environment."
+		;;
+	"project-environment-modified" | "named-environment-switch-to-generation" | "named-environment-created-generation")
+		warn "Removed '$packageList' package(s) from '$environmentAlias' environment."
+		;;
+	esac
 }
 
 _environment_commands+=("upgrade")
@@ -781,10 +806,10 @@ EOF
 	esac
 
 	# That went well. Go ahead and commit the transaction.
-	commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction $environment $workDir $envPackage \
 		"$USER upgraded ${pkgNames[*]}" \
 		$currentGenVersion \
-		"$me upgrade ${invocation[*]}"
+		"$me upgrade ${invocation[*]}")
 }
 
 _environment_commands+=("edit")
@@ -925,10 +950,10 @@ EOF
 	$_git -C $workDir add $nextGen/manifest.json
 
 	# That went well. Go ahead and commit the transaction.
-	commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction $environment $workDir $envPackage \
 		"$USER edited declarative profile (generation $nextGen)" \
 		$currentGenVersion \
-		"$me edit ${invocation[*]}"
+		"$me edit ${invocation[*]}")
 }
 
 _environment_commands+=("import")
@@ -995,10 +1020,10 @@ function floxImport() {
 	$_git -C $workDir add $nextGen/manifest.json
 
 	# That went well. Go ahead and commit the transaction.
-	commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction $environment $workDir $envPackage \
 		"$USER imported generation $nextGen" \
 		$currentGenVersion \
-		"$me import ${invocation[*]}"
+		"$me import ${invocation[*]}")
 }
 
 _environment_commands+=("export")
@@ -1143,10 +1168,10 @@ function floxRollback() {
 	ln -s $targetGeneration $workDir/next
 
 	# ... and commit.
-	commitTransaction $environment $workDir UNUSED \
+	local result=$(commitTransaction $environment $workDir UNUSED \
 		"$USER switched to generation $targetGeneration" \
 		1 \
-		"$me $subcommand ${invocation[*]}"
+		"$me $subcommand ${invocation[*]}")
 }
 
 _environment_commands+=("switch-generation")

@@ -284,9 +284,10 @@ function temporaryAssert008Schema {
 	$_git -C $repoDir add $nextGen/pkgs/default/catalog.json
 	$_git -C $repoDir add $nextGen/manifest.json
 
-	commitTransaction $environment $repoDir $envPackage \
+	local resultCommitTransaction
+	result=$(commitTransaction $environment $repoDir $envPackage \
 		"$USER converted to 0.0.8 floxmeta schema" 2 \
-		"$me automatic conversion"
+		"$me automatic conversion")
 
 	warn "Conversion complete. Please re-run command."
 	exit 0
@@ -882,6 +883,8 @@ function commitTransaction() {
 	local logMessage="$1"; shift
 	local nextGenVersion="$1"; shift
 	local invocation="${@}"
+	local result=""
+
 	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
@@ -890,10 +893,19 @@ function commitTransaction() {
 	# to do in this instance is update the activation link and bid a hasty
 	# retreat.
 	if [ -z "$environmentMetaDir" ]; then
+		if $_cmp -s "$workDir/next/pkgs/default/flox.nix" "$protoPkgDir/flox.nix";
+		then
+			result="project-environment-no-changes"
+		else
+			result="project-environment-modified"
+		fi
+
 		$invoke_nix_store --add-root "$environmentBaseDir" -r $environmentPackage >/dev/null
 		$invoke_cp "$workDir/next/pkgs/default/flox.nix" "$protoPkgDir/flox.nix"
 		$invoke_cp "$workDir/next/pkgs/default/catalog.json" "$protoPkgDir/catalog.json"
 		$invoke_git -C "$protoPkgDir" add flox.nix catalog.json
+
+		echo -n $result
 		return 0
 	fi
 
@@ -918,7 +930,10 @@ function commitTransaction() {
 
 	# Check to see if there has been a change.
 	if [ -n "$oldEnvPackage" ] && cmpEnvironments $nextGenVersion "$environmentPackage" "$oldEnvPackage"; then
-		warn "No environment changes detected .. exiting"
+		if [ $verbose -ge 1 ]; then
+			warn "No environment changes detected .. exiting"
+		fi
+		echo -n "named-environment-no-changes"
 		return 0
 	fi
 
@@ -928,8 +943,10 @@ function commitTransaction() {
 	# Figure out if we're creating or switching to an existing generation.
 	local createdOrSwitchedTo="created"
 	if $invoke_jq -e --arg gen $nextGen '.generations | has($gen)' $workDir/metadata.json >/dev/null; then
+		result="named-environment-switch-to-generation"
 		createdOrSwitchedTo="switched to"
 	else
+		result="named-environment-created-generation"
 		# Update environment metadata with new end generation information.
 		registry "$workDir/metadata.json" 1 set generations \
 			${nextGen} path $environmentPackage
@@ -977,9 +994,10 @@ function commitTransaction() {
 	# Tom's feature: teach a man to fish with (-v|--verbose)
 	if [ $verbose -ge 1 -a $currentGenVersion -eq 2 -a $nextGenVersion -eq 2 ]; then
 		$invoke_git -C $workDir diff HEAD:{$currentGen,$nextGen}/pkgs/default/flox.nix
+		warn "$createdOrSwitchedTo generation $nextGen"
 	fi
 
-	warn "$createdOrSwitchedTo generation $nextGen"
+	echo -n $result
 }
 
 #
