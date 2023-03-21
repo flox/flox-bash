@@ -35,7 +35,7 @@ load test_support.bash
 @test "flox install by /nix/store path" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT $FLOX_PACKAGE
   assert_success
-  assert_output --partial "created generation 1"
+  assert_output --partial "Installed '$FLOX_PACKAGE' package(s) into '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox list after installing by store path should contain package" {

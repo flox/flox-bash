@@ -810,6 +810,17 @@ EOF
 		"$USER upgraded ${pkgNames[*]}" \
 		$currentGenVersion \
 		"$me upgrade ${invocation[*]}")
+
+	# Display user friendly message
+	eval $(decodeEnvironment "$environment")
+	case $result in
+	"project-environment-no-changes" | "named-environment-no-changes")
+		warn "No change! Environment '$environmentAlias' _not_ upgraded."
+		;;
+	"project-environment-modified" | "named-environment-switch-to-generation" | "named-environment-created-generation")
+		warn "Environment '$environmentAlias' upgraded."
+		;;
+	esac
 }
 
 _environment_commands+=("edit")
@@ -954,6 +965,17 @@ EOF
 		"$USER edited declarative profile (generation $nextGen)" \
 		$currentGenVersion \
 		"$me edit ${invocation[*]}")
+
+	# Display user friendly message
+	eval $(decodeEnvironment "$environment")
+	case $result in
+	"project-environment-no-changes" | "named-environment-no-changes")
+		warn "No change! Environment '$environmentAlias' _not_ modified."
+		;;
+	"project-environment-modified" | "named-environment-switch-to-generation" | "named-environment-created-generation")
+		warn "Environment '$environmentAlias' modified."
+		;;
+	esac
 }
 
 _environment_commands+=("import")
@@ -1024,6 +1046,17 @@ function floxImport() {
 		"$USER imported generation $nextGen" \
 		$currentGenVersion \
 		"$me import ${invocation[*]}")
+
+	# Display user friendly message
+	eval $(decodeEnvironment "$environment")
+	case $result in
+	"project-environment-no-changes" | "named-environment-no-changes")
+		warn "No change! Environment '$environmentAlias' _not_ imported."
+		;;
+	"project-environment-modified" | "named-environment-switch-to-generation" | "named-environment-created-generation")
+		warn "Environment '$environmentAlias' imported."
+		;;
+	esac
 }
 
 _environment_commands+=("export")
@@ -1172,6 +1205,21 @@ function floxRollback() {
 		"$USER switched to generation $targetGeneration" \
 		1 \
 		"$me $subcommand ${invocation[*]}")
+
+	# Display user friendly message
+	eval $(decodeEnvironment "$environment")
+	local rollbackOrSwitch="Rolled back"
+	if [ "$subcommand" = "switch-generation" ]; then
+	  rollbackOrSwitch="Switched"
+	fi
+	case $result in
+	"project-environment-no-changes" | "named-environment-no-changes")
+		warn "No change! Environment '$environmentAlias' was _not_ changed."
+		;;
+	"project-environment-modified" | "named-environment-switch-to-generation" | "named-environment-created-generation")
+		warn "$rollbackOrSwitch environment '$environmentAlias' from generation $currentGen to $targetGeneration."
+		;;
+	esac
 }
 
 _environment_commands+=("switch-generation")

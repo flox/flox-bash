@@ -187,7 +187,7 @@ load test_support.bash
 @test "flox install hello" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT hello
   assert_success
-  assert_output --partial "created generation 1"
+  assert_output --partial "Installed 'hello' package(s) into '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox export -> import is a no-op" {
@@ -199,13 +199,13 @@ load test_support.bash
 @test "flox install nixpkgs-flox.hello" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT nixpkgs-flox.hello
   assert_success
-  assert_output --partial "No environment changes detected"
+  assert_output --partial "No change! Package(s) 'nixpkgs-flox.hello' already installed into '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox install stable.nixpkgs-flox.hello" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT stable.nixpkgs-flox.hello
   assert_success
-  assert_output --partial "No environment changes detected"
+  assert_output --partial "No change! Package(s) 'stable.nixpkgs-flox.hello' already installed into '$TEST_ENVIRONMENT' environment."
 }
 
 # A rose by any other name ...
@@ -253,7 +253,7 @@ load test_support.bash
 @test "flox edit remove hello" {
   EDITOR=./tests/remove-hello run $FLOX_CLI edit -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "created generation 3"
+  assert_output --partial "Environment '$TEST_ENVIRONMENT' modified."
 }
 
 @test "verify flox edit removed hello from manifest.json" {
@@ -279,7 +279,7 @@ load test_support.bash
 @test "flox edit add hello" {
   EDITOR=./tests/add-hello run $FLOX_CLI edit -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "created generation 4"
+  assert_output --partial "Environment '$TEST_ENVIRONMENT' modified."
 }
 
 @test "verify flox edit added hello to manifest.json" {
@@ -305,7 +305,7 @@ load test_support.bash
 @test "flox remove hello" {
   run $FLOX_CLI remove -e $TEST_ENVIRONMENT hello
   assert_success
-  assert_output --partial "created generation 5"
+  assert_output --partial "Removed 'hello' package(s) from '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox list after remove should not contain hello" {
@@ -358,7 +358,7 @@ load test_support.bash
 
   run $FLOX_CLI remove -e $TEST_CASE_ENVIRONMENT 0
   assert_success
-  assert_output --partial "created generation 2"
+  assert_output --partial "Removed '0' package(s) from '$TEST_CASE_ENVIRONMENT' environment."
 
   run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
   assert_success
@@ -381,7 +381,7 @@ load test_support.bash
 
   run $FLOX_CLI remove -e $TEST_CASE_ENVIRONMENT 0
   assert_success
-  assert_output --partial "created generation 2"
+  assert_output --partial "Removed '0' package(s) from '$TEST_CASE_ENVIRONMENT' environment."
 
   run $FLOX_CLI list -e $TEST_CASE_ENVIRONMENT
   assert_success
@@ -399,6 +399,10 @@ load test_support.bash
 # flox export -e _upgrade_test_ > upgrade.tar
 # mkdir tests/upgrade/$system
 # tar -xvf upgrade.tar --exclude flake.nix --exclude flake.lock -C tests/upgrade/$system
+# ln -s ../../../../lib/templateFloxEnv/flake.lock tests/upgrade/$system/1/flake.lock
+# ln -s ../../../../lib/templateFloxEnv/flake.nix tests/upgrade/$system/1/flake.nix
+# ln -s ../../../../lib/templateFloxEnv/flake.lock tests/upgrade/$system/2/flake.lock
+# ln -s ../../../../lib/templateFloxEnv/flake.nix tests/upgrade/$system/2/flake.nix
 # rm upgrade.tar
 # flox unsubscribe nixpkgs-flox-upgrade-test
 @test "flox upgrade" {
@@ -406,6 +410,10 @@ load test_support.bash
   aarch64-darwin)
     RG_PATH="/nix/store/ix73alhygpflvq50fimdgwl1x2f8yv7y-ripgrep-13.0.0/bin/rg"
     CURL_PATH="/nix/store/8nv1g4ymxi2f96pbl1jy9h625v2risd8-curl-7.86.0-bin/bin/curl"
+    ;;
+  aarch64-linux)
+    RG_PATH="/nix/store/zcq437znz7080wc7gbhijdm5x66qk5lj-ripgrep-13.0.0/bin/rg"
+    CURL_PATH="/nix/store/0b3a9wbhss293wd8qv6q6gfh2wgk34c6-curl-7.86.0-bin/bin/curl"
     ;;
   x86_64-linux)
     RG_PATH="/nix/store/cv1ska2lnafi6l650d4943bm0r3qvixy-ripgrep-13.0.0/bin/rg"
@@ -432,7 +440,7 @@ load test_support.bash
   # upgrade ripgrep but not curl
   run $FLOX_CLI upgrade -e _upgrade_testing_ ripgrep
   assert_success
-  assert_output --partial "created generation 2"
+  assert_output --partial "Environment '_upgrade_testing_' upgraded."
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
   ! assert_output --partial "$RG_PATH"
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
@@ -441,7 +449,7 @@ load test_support.bash
   # upgrade everything
   run $FLOX_CLI upgrade -e _upgrade_testing_
   assert_success
-  assert_output --partial "created generation 3"
+  assert_output --partial "Environment '_upgrade_testing_' upgraded."
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
   ! assert_output --partial "$RG_PATH"
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
@@ -475,7 +483,7 @@ load test_support.bash
 @test "flox rollback" {
   run $FLOX_CLI rollback -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "switched to generation 4"
+  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 5 to 4."
 }
 
 @test "flox list after rollback should reflect generation 2" {
@@ -491,7 +499,7 @@ load test_support.bash
 @test "flox rollback --to 3" {
   run $FLOX_CLI rollback --to 3 -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "switched to generation 3"
+  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 4 to 3."
 }
 
 @test "flox list after rollback --to 3 should reflect generation 3" {
@@ -507,7 +515,7 @@ load test_support.bash
 @test "flox switch-generation 1" {
   run $FLOX_CLI switch-generation 1 -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "switched to generation 1"
+  assert_output --partial "Switched environment '$TEST_ENVIRONMENT' from generation 3 to 1."
 }
 
 @test "flox list after switch-generation 1 should reflect generation 1" {
@@ -628,9 +636,9 @@ load test_support.bash
 }
 
 @test "flox install by /nix/store path" {
-  run $FLOX_CLI --debug install -e $TEST_ENVIRONMENT $FLOX_PACKAGE
+  run $FLOX_CLI install -e $TEST_ENVIRONMENT $FLOX_PACKAGE
   assert_success
-  assert_output --partial "created generation 6"
+  assert_output --partial "Installed '$FLOX_PACKAGE' package(s) into '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox list after installing by store path should contain package" {
@@ -644,13 +652,13 @@ load test_support.bash
 @test "flox remove hello again" {
   run $FLOX_CLI remove -e $TEST_ENVIRONMENT hello
   assert_success
-  assert_output --partial "created generation 7"
+  assert_output --partial "Removed 'hello' package(s) from '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox install by nixpkgs flake" {
   run $FLOX_CLI install -e $TEST_ENVIRONMENT "nixpkgs#hello"
   assert_success
-  assert_output --partial "created generation 8"
+  assert_output --partial "Installed 'nixpkgs#hello' package(s) into '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox list after installing by nixpkgs flake should contain package" {
@@ -677,7 +685,7 @@ load test_support.bash
 @test "flox remove by nixpkgs flake 1" {
   run $FLOX_CLI remove -e $TEST_ENVIRONMENT "nixpkgs#hello"
   assert_success
-  assert_output --partial "created generation 9"
+  assert_output --partial "Removed 'nixpkgs#hello' package(s) from '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox list after remove by nixpkgs flake 1 should not contain package" {
@@ -692,7 +700,7 @@ load test_support.bash
 @test "flox rollback after flake removal 1" {
   run $FLOX_CLI rollback -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "switched to generation 8"
+  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 9 to 8."
 }
 
 # @test "flox remove by nixpkgs flake 2" {
@@ -713,7 +721,7 @@ load test_support.bash
 @test "flox remove by nixpkgs flake 2" {
   run $FLOX_CLI remove -e $TEST_ENVIRONMENT "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
   assert_success
-  assert_output --partial "created generation 10"
+  assert_output --partial "Removed 'flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello' package(s) from '$TEST_ENVIRONMENT' environment."
 }
 
 @test "flox list after remove by nixpkgs flake 2 should not contain package" {
@@ -734,7 +742,7 @@ load test_support.bash
 @test "flox import from $FLOX_TEST_HOME/floxExport.tar" {
   run sh -c "$FLOX_CLI import -e $TEST_ENVIRONMENT < $FLOX_TEST_HOME/floxExport.tar"
   assert_success
-  assert_output --partial "created generation 11"
+  assert_output --partial "Environment '$TEST_ENVIRONMENT' imported."
 }
 
 @test "flox list to verify contents of generation 8 at generation 12" {
