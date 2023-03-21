@@ -218,7 +218,7 @@ function temporaryAssert008Schema {
 	trace "$@"
 	local environment="$1"; shift
 	local repoDir="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local currentGen
 	currentGen=$($_readlink $workDir/current || :)
@@ -299,7 +299,7 @@ function temporaryAssert008Schema {
 function temporaryAssert009LinkLayout() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	# The alias is either "owner/name" or "name" based on the owner, so
 	# we can't use that. Instead construct our own fully-qualified
@@ -372,7 +372,7 @@ function githubHelperGit() {
 function metaGit() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# First verify that the clone is not out of date and check
@@ -388,7 +388,7 @@ function metaGitShow() {
 	trace "$@"
 	local environment="$1"; shift
 	local filename="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# First assert the relevant branch exists.
@@ -405,7 +405,7 @@ function metaGitShow() {
 function syncEnvironment() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local environmentRealDir
 	environmentRealDir=$($_readlink -f $environmentParentDir)
@@ -437,7 +437,7 @@ function commitMessage() {
 	local -i endGen=$1; shift
 	local logMessage="$1"; shift
 	local invocation="${@}"
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	#
@@ -615,7 +615,7 @@ function rewriteURLs() {
 function getSetOrigin() {
 	trace "$@"
 	local environment="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# Check to see if the origin is already set.
@@ -711,7 +711,7 @@ function beginTransaction() {
 	local environment="$1"; shift
 	local workDir="$1"; shift
 	local -i createBranch="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# If this is a project environment there will be no $environmentMetaDir.
@@ -737,11 +737,11 @@ function beginTransaction() {
 		$_mkdir "$workDir/1"
 		$invoke_ln -s 1 "$workDir/current"
 		$_mkdir "$workDir/current/pkgs"
-		if [ -f "$protoPkgDir/flox.nix" ]; then
+		if [ -f "$floxNixDir/flox.nix" ]; then
 			$_mkdir "$workDir/current/pkgs/default"
-			$_cp "$protoPkgDir/flox.nix" "$workDir/current/pkgs/default/flox.nix"
-			[ ! -f "$protoPkgDir/catalog.json" ] ||
-				$_cp "$protoPkgDir/catalog.json" "$workDir/current/pkgs/default/catalog.json"
+			$_cp "$floxNixDir/flox.nix" "$workDir/current/pkgs/default/flox.nix"
+			[ ! -f "$floxNixDir/catalog.json" ] ||
+				$_cp "$floxNixDir/catalog.json" "$workDir/current/pkgs/default/catalog.json"
 			$_cp --no-preserve=mode $_lib/templateFloxEnv/pkgs/default/default.nix "$workDir/current/pkgs/default/default.nix"
 		else
 			$_cp --no-preserve=mode -rT $_lib/templateFloxEnv "$workDir/current/."
@@ -884,8 +884,7 @@ function commitTransaction() {
 	local nextGenVersion="$1"; shift
 	local invocation="${@}"
 	local result=""
-
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# If this is a project environment there will be no $environmentMetaDir,
@@ -901,9 +900,8 @@ function commitTransaction() {
 		fi
 
 		$invoke_nix_store --add-root "$environmentBaseDir" -r $environmentPackage >/dev/null
-		$invoke_cp "$workDir/next/pkgs/default/flox.nix" "$protoPkgDir/flox.nix"
-		$invoke_cp "$workDir/next/pkgs/default/catalog.json" "$protoPkgDir/catalog.json"
-		$invoke_git -C "$protoPkgDir" add flox.nix catalog.json
+		$invoke_cp "$workDir/next/pkgs/default/flox.nix" "$floxNixDir/flox.nix"
+		$invoke_cp "$workDir/next/pkgs/default/catalog.json" "$floxNixDir/catalog.json"
 
 		echo -n $result
 		return 0
@@ -1131,7 +1129,7 @@ function updateAvailable() {
 	trace "$@"
 	local environment="$1"; shift
 
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# First calculate current generation number.
@@ -1179,7 +1177,7 @@ function trailingAsyncFetch() {
 	[ $# -gt 0 ] || return 0
 	local -A trailingAsyncFetchMetaDirs
 	for environment in "$@"; do
-		# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+		# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 		eval $(decodeEnvironment "$environment")
 		# $environmentMetaDir will be blank for project environments.
 		if [ -n "$environmentMetaDir" ]; then

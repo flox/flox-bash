@@ -16,7 +16,7 @@ function bashRC() {
 	done
 	# Add environment-specific activation commands.
 	for i in "$@"; do
-		# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+		# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 		eval $(decodeEnvironment "$i")
 		if [ -f "$environmentBaseDir/activate" ]; then
 			$invoke_cat $environmentBaseDir/activate
@@ -157,7 +157,7 @@ function floxActivate() {
 			updateGen=$(updateAvailable "$environment")
 			if [ $updateGen -gt 0 ]; then
 				if [ $autoUpdate -eq 1 ]; then
-					# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+					# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 					eval $(decodeEnvironment "$environment")
 					if $_gum confirm "'$environmentAlias' is at generation $updateGen, pull latest version?"; then
 						floxPushPull pull "$environment" "$system" ${invocation[@]}
@@ -206,7 +206,7 @@ function floxActivate() {
 	local -a flox_active_environments_prepend=()
 	local -a flox_prompt_environments_prepend=()
 	for environment in "${_environments_to_activate[@]}"; do
-		# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+		# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 		eval $(decodeEnvironment "$environment")
 		path_prepend+=("$environmentBinDir")
 		xdg_data_dirs_prepend+=("$environment/share")

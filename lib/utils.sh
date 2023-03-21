@@ -724,7 +724,7 @@ function environmentRegistry() {
 	local workDir="$1"; shift
 	local environment="$1"; shift
 	local registry="$workDir/metadata.json"
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local version=1
 
@@ -883,7 +883,7 @@ function checkValidSystem() {
 # decodeEnvironment($environment)
 #
 # Parses environment path and returns code to define:
-#   $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+#   $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 #
 # Called with: eval $(decodeEnvironment $environment)
 #
@@ -893,7 +893,7 @@ function decodeEnvironment() {
 
 	# Other variables to be populated based on environment type.
 	local branchName=""
-	local protoPkgDir=""
+	local floxNixDir=""
 	local environmentAlias=""
 	local environmentSystem=""
 	local environmentBaseDir=""
@@ -961,7 +961,16 @@ function decodeEnvironment() {
 		IFS="$_old_ifs"
 
 		environmentBaseDir="$metaDir/envs/$FLOX_SYSTEM.$installableAttrPath"
-		protoPkgDir="$topLevel/pkgs/$installableAttrPath"
+
+		local floxEnvFlakeURL="${installableFlakeRef}#.floxEnvs.$FLOX_SYSTEM.$installableAttrPath"
+		local floxNixStorePath
+		floxNixStorePath="$($invoke_nix eval "$floxEnvFlakeURL".meta.position --impure --raw 2>/dev/null || true)"
+		[ -n "$floxNixStorePath" ] || \
+			error "could not determine directory for '$installableFlakeRef'" < /dev/null
+		local floxNixDir
+		floxNixDir="$topLevel/${floxNixStorePath#/*/*/*/}"
+		floxNixDir="$($_dirname "$floxNixDir")"
+
 		environmentAlias=".#$installableAttrPath"
 		environmentSystem="$FLOX_SYSTEM"
 		environmentBinDir="$environmentBaseDir/bin"
@@ -972,7 +981,7 @@ function decodeEnvironment() {
 
 	fi
 
-	for i in branchName protoPkgDir environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}; do
+	for i in branchName floxNixDir environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}; do
 		echo "local $i='${!i}'"
 	done
 }
@@ -1342,14 +1351,20 @@ function searchChannels() {
 function lookupAttrPaths() {
 	trace "$@"
 	local flakeRef=$1; shift
-	minverbosity=2 $invoke_nix eval "$flakeRef#.packages.$FLOX_SYSTEM" --json --apply builtins.attrNames | $_jq -r '. | sort[]'
+	local attrTypes=("$@"); shift
+	for type in "${attrTypes[@]}"; do
+		(minverbosity=2 $invoke_nix eval "$flakeRef#.$type.$FLOX_SYSTEM" --impure --json --apply builtins.attrNames 2>/dev/null || true)
+	# Don't differentiate between identical attrpaths with different prefixes.
+	# Technically that's incorrect, but it's currently desirable for develop.
+	done | $_jq -s -r '. | add | unique[]'
 }
 
 function selectAttrPath() {
 	trace "$@"
 	local flakeRef="$1"; shift
 	local subcommand="$1"; shift
-	local -a attrPaths=($(lookupAttrPaths $flakeRef))
+	local attrTypes="$@"; shift
+	local -a attrPaths=($(lookupAttrPaths $flakeRef $attrTypes))
 	local attrPath
 	if [ ${#attrPaths[@]} -eq 0 ]; then
 		error "cannot find attribute path - have you run 'flox init'?" < /dev/null

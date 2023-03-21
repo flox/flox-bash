@@ -26,6 +26,8 @@ setup_file() {
   export REAL_XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
   export FLOX_TEST_HOME=$(mktemp -d)
   export XDG_CACHE_HOME=$FLOX_TEST_HOME/.cache
+  mkdir $XDG_CACHE_HOME
+  ln -s ~/.cache/nix $XDG_CACHE_HOME/nix
   export XDG_DATA_HOME=$FLOX_TEST_HOME/.local/share
   export XDG_CONFIG_HOME=$FLOX_TEST_HOME/.config
   export FLOX_CACHE_HOME=$XDG_CACHE_HOME/flox

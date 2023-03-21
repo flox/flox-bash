@@ -10,7 +10,7 @@ function floxListProject() {
 	local system="$1"; shift
 	local displayOutPath="$1"; shift
 	local displayJSON="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# Increase verbosity when invoking list command.
@@ -55,7 +55,7 @@ function floxList() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	parseNixArgs "$@" && set -- "${_cmdArgs[@]}"
 	local -a invocation=("$@")
@@ -230,7 +230,7 @@ function floxCreate() {
 	local environment="$1"; shift
 	local system="$1"; shift
 	local -a invocation=("$@")
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# Create shared clone for creating new environment.
@@ -1065,7 +1065,7 @@ function floxExport() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	# This is the easy one; just export all the generations. It's up to the
 	# import function to weed out and renumber the current generation.
@@ -1079,7 +1079,7 @@ function floxHistory() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 
 	# Default to verbose log format (like git).
@@ -1235,7 +1235,7 @@ function floxDestroy() {
 	trace "$@"
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local originArg=
 	local -i force=0
@@ -1351,7 +1351,7 @@ function floxPushPull() {
 	local action="$1"; shift
 	local environment="$1"; shift
 	local system="$1"; shift
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	local forceArg=
 	local -i noRender=0
@@ -1468,7 +1468,7 @@ function floxGit() {
 	trace "$@"
 	local environment="$1"; shift
 	local -a invocation=("$@")
-	# set $branchName,$protoPkgDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
+	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 	eval $(decodeEnvironment "$environment")
 	githubHelperGit -C $environmentMetaDir ${args[@]}
 }

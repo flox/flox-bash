@@ -112,7 +112,7 @@ function floxBuild() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath . build)"
+		local attrPath="$(selectAttrPath . build packages)"
 		installables=(".#$attrPath")
 	fi
 
@@ -161,7 +161,7 @@ function floxEval() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath . eval)"
+		local attrPath="$(selectAttrPath . eval packages)"
 		installables=(".#$attrPath")
 	fi
 
@@ -292,7 +292,7 @@ function floxDevelop() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath . develop)"
+		local attrPath="$(selectAttrPath . develop packages floxEnvs devShells)"
 		installables=(".#$attrPath")
 	fi
 
@@ -321,6 +321,7 @@ function floxDevelop() {
 	# Compute the canonical build and floxEnv flakerefs for the installable.
 	local floxEnvFlakeURL="${installableFlakeRef}#.floxEnvs.$FLOX_SYSTEM.$installableAttrPath"
 	local packageFlakeURL="${installableFlakeRef}#.packages.$FLOX_SYSTEM.$installableAttrPath"
+	local devShellFlakeURL="${installableFlakeRef}#.devShells.$FLOX_SYSTEM.$installableAttrPath"
 
 	# Compute the GCRoot path to be created/activated.
 	local topLevel
@@ -330,10 +331,11 @@ function floxDevelop() {
 	local metaDir
 	metaDir=$(flakeMetaDir "$topLevel")
 	local floxEnvGCRoot="$metaDir/envs/$FLOX_SYSTEM.$installableAttrPath"
-	local protoPkgDir="$topLevel/pkgs/$installableAttrPath"
+	local floxNixStorePath
+	floxNixStorePath="$($invoke_nix eval "$floxEnvFlakeURL".meta.position --impure --raw 2>/dev/null || true)"
 
 	# Figure out whether we're operating in a floxified project.
-	if [ -e "$protoPkgDir/flox.nix" ]; then
+	if [ -n "$floxNixStorePath" ]; then
 		# The flox "happy path" is to stick to only the package derivations
 		# and associated floxEnvs, so take this opportunity to rewrite the
 		# installable to be the specific package derivation only and hide
@@ -348,6 +350,18 @@ function floxDevelop() {
 			--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
 			"${remainingArgs[@]}"
 	else
+
+		local nixDevelopInvocation
+		if [ $interactive -eq 1 ]; then
+			nixDevelopInvocation="$_nix ${_nixArgs[*]} develop $installable ${developArgs[*]} \
+						--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+						${remainingArgs[*]}"
+		else
+			nixDevelopInvocation="$_nix ${_nixArgs[*]} print-dev-env $installable ${developArgs[*]} \
+						--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
+						${remainingArgs[*]}"
+		fi
+		#
 		# Next steps:
 		# 1. build floxEnv for the installable (if there is one), creating a
 		#    GCRoot for that package in the process
@@ -355,43 +369,37 @@ function floxDevelop() {
 		# 3. finish by exec'ing "nix develop" or "nix print-dev-env" for the
 		#    installable's package flakeref
 
-		# Try to build the floxEnv if there is one.
-		if [ -e "$protoPkgDir/flox.nix" ]; then
+		if [ -n "$floxNixStorePath" ]; then
+			local floxNixDir
+			floxNixDir="$topLevel/${floxNixStorePath#/*/*/*/}"
+			floxNixDir="$($_dirname "$floxNixDir")"
+			# Try to build the floxEnv if there is one.
 			# The following build could fail; let it.
 			floxBuild "${_nixArgs[@]}" --out-link "$floxEnvGCRoot" "$floxEnvFlakeURL" "${developArgs[@]}" || \
-				error "failed to build floxEnv from $protoPkgDir/flox.nix" < /dev/null
+				error "failed to build floxEnv from $floxNixDir/flox.nix" < /dev/null
 
 			# The build was successful so copy the newly rendered catalog and
 			# manifest data into the installable directory.
-			$_jq . --sort-keys "$floxEnvGCRoot/catalog.json" > "$protoPkgDir/catalog.json"
-			$_jq . --sort-keys "$floxEnvGCRoot/manifest.json" > "$protoPkgDir/manifest.json"
+			$_jq . --sort-keys "$floxEnvGCRoot/catalog.json" > "$floxNixDir/catalog.json"
+			$_jq . --sort-keys "$floxEnvGCRoot/manifest.json" > "$floxNixDir/manifest.json"
 
+			# Only attempt layering when associated package exists
+			if ! $invoke_nix eval "$packageFlakeURL".name --impure --raw 2>/dev/null >/dev/null; then
+					nixDevelopInvocation=""
+			fi
 			# That's all there is to it - just hand over control to flox activate
 			# to take it from here.
 			# flox develop
 			if [ $interactive -eq 1 ]; then
-				floxActivate "$floxEnvFlakeURL" "$FLOX_SYSTEM" -- \
-					$_nix "${_nixArgs[@]}" develop "$installable" "${developArgs[@]}" \
-						--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
-						"${remainingArgs[@]}"
+				floxActivate "$floxEnvFlakeURL" "$FLOX_SYSTEM" -- $nixDevelopInvocation
 			# print-dev-env
 			else
 				floxActivate "$floxEnvFlakeURL" "$FLOX_SYSTEM"
-				verboseExec $_nix "${_nixArgs[@]}" print-dev-env "$installable" "${developArgs[@]}" \
-					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
-					"${remainingArgs[@]}"
+				verboseExec $nixDevelopInvocation
 			fi
 		else
 			# Otherwise we just proceed with 'nix (develop|print-dev-env)'.
-			if [ $interactive -eq 1 ]; then
-				verboseExec $_nix "${_nixArgs[@]}" develop "$installable" "${developArgs[@]}"
-					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
-					"${remainingArgs[@]}"
-			else
-				verboseExec $_nix "${_nixArgs[@]}" print-dev-env "$installable" "${developArgs[@]}"
-					--override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY \
-					"${remainingArgs[@]}"
-			fi
+			verboseExec $nixDevelopInvocation
 		fi
 	fi
 }
@@ -453,7 +461,7 @@ function floxRun() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath . run)"
+		local attrPath="$(selectAttrPath . run packages)"
 		installables=(".#$attrPath")
 	fi
 
@@ -514,7 +522,7 @@ function floxShell() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake.
 	if [ ${#installables[@]} -eq 0 ]; then
-		local attrPath="$(selectAttrPath . shell)"
+		local attrPath="$(selectAttrPath . shell packages)"
 		installables=(".#$attrPath")
 	fi
 
@@ -550,9 +558,9 @@ function selectDefaultEnvironment() {
 	[ -n "$topLevel" ] || topLevel="."
 	# This could fail noisily, so quietly try a lookup before calling
 	# selectAttrPath() which needs to prompt to stderr.
-	local -a attrPaths=($(lookupAttrPaths $topLevel 2>/dev/null))
+	local -a attrPaths=($(lookupAttrPaths $topLevel floxEnvs 2>/dev/null))
 	if [ ${#attrPaths[@]} -gt 0 ]; then
-		local attrPath="$(selectAttrPath $topLevel $subcommand)"
+		local attrPath="$(selectAttrPath $topLevel $subcommand floxEnvs)"
 		if [ -n "$attrPath" ]; then
 			echo "$topLevel#$attrPath"
 		else

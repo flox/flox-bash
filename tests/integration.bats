@@ -139,8 +139,13 @@ load test_support.bash
 }
 
 @test "assert no access to private repository" {
-  run $FLOX_CLI flake metadata github:flox-examples/floxpkgs-private --no-write-lock-file --json
+  # otherwise a cached version of the private repo may be used
+  run unlink $XDG_CACHE_HOME/nix
+  assert_success
+  run $FLOX_CLI flake metadata github:flox-examples/floxpkgs-private --no-eval-cache --no-write-lock-file --json
   assert_failure
+  run ln -s ~/.cache/nix $XDG_CACHE_HOME/nix
+  assert_success
 }
 
 @test "flox subscribe private without creds" {
@@ -758,7 +763,7 @@ load test_support.bash
   # since develop tests use expect, flox thinks it's being used interactively and asks about metrics
   $FLOX_CLI config --setNumber floxMetricsConsent 0
   # Note the use of --dereference to copy flake.{nix,lock} as files.
-  run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR ./develop | tar -C $FLOX_TEST_HOME -xf -"
+  run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR/develop ./develop | tar -C $FLOX_TEST_HOME -xf -"
   assert_success
   # note the develop flake may have an out of date lock
 }
@@ -776,7 +781,7 @@ function assertAndRemoveFiles {
 
 @test "flox develop no installable" {
   pushd "$FLOX_TEST_HOME/develop"
-    expect "$TESTS_DIR/develop.exp" ""
+    expect "$TESTS_DIR/develop/develop.exp" ""
     assert_success
     assertAndRemoveFiles
   popd
@@ -785,7 +790,7 @@ function assertAndRemoveFiles {
 @test "flox develop from flake root" {
   pushd "$FLOX_TEST_HOME/develop"
     for attr in "" my-pkg .#my-pkg .#packages.$NIX_SYSTEM.my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
-      expect "$TESTS_DIR/develop.exp" "$attr"
+      expect "$TESTS_DIR/develop/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
     done
@@ -795,7 +800,7 @@ function assertAndRemoveFiles {
 @test "flox develop from flake subdirectory" {
   pushd "$FLOX_TEST_HOME/develop/pkgs"
     for attr in .#my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
-      expect "$TESTS_DIR/develop.exp" "$attr"
+      expect "$TESTS_DIR/develop/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
     done
@@ -804,7 +809,7 @@ function assertAndRemoveFiles {
 
 @test "flox develop from different directory" {
   pushd "$FLOX_TEST_HOME"
-    expect "$TESTS_DIR/develop.exp" ./develop#my-pkg
+    expect "$TESTS_DIR/develop/develop.exp" ./develop#my-pkg
     assert_success
   popd
 }
@@ -814,7 +819,7 @@ function assertAndRemoveFiles {
     git init
     git add .
     for attr in .#my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
-      expect "$TESTS_DIR/develop.exp" "$attr"
+      expect "$TESTS_DIR/develop/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
     done
@@ -822,7 +827,50 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop fails with remote flake" {
-  expect "$TESTS_DIR/develop-fail.exp" "git+ssh://git@github.com/flox/flox-bash-private?dir=tests/develop#my-pkg"
+  expect "$TESTS_DIR/develop/develop-fail.exp" "git+ssh://git@github.com/flox/flox-bash-private?dir=tests/develop#my-pkg"
+}
+
+@test "flox develop toplevel with package" {
+  # Note the use of --dereference to copy flake.{nix,lock} as files.
+  run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR/develop ./toplevel-flox-nix-with-pkg | tar -C $FLOX_TEST_HOME -xf -"
+  assert_success
+  pushd "$FLOX_TEST_HOME/toplevel-flox-nix-with-pkg"
+    expect "$TESTS_DIR/develop/develop.exp" ""
+    assert_success
+    assert [ -h .flox/envs/$NIX_SYSTEM.default ]
+    assert [ -f catalog.json ]
+    assert [ -f manifest.json ]
+  popd
+}
+
+@test "flox develop toplevel" {
+  # Note the use of --dereference to copy flake.{nix,lock} as files.
+  run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR/develop ./toplevel-flox-nix | tar -C $FLOX_TEST_HOME -xf -"
+  assert_success
+  pushd "$FLOX_TEST_HOME/toplevel-flox-nix"
+    run $FLOX_CLI install -e .#default hello
+    assert_success
+    # for some reason expect hangs forever when SHELL=zsh and I don't feel like
+    # debugging why
+    SHELL=bash expect "$TESTS_DIR/develop/toplevel-flox-nix.exp" ""
+    assert_success
+    assert [ -h .flox/envs/$NIX_SYSTEM.default ]
+    assert [ -f catalog.json ]
+    assert [ -f manifest.json ]
+  popd
+}
+
+@test "flox develop devShell" {
+  # Note the use of --dereference to copy flake.lock as file.
+  run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR/develop ./devShell | tar -C $FLOX_TEST_HOME -xf -"
+  assert_success
+  pushd "$FLOX_TEST_HOME/devShell"
+    expect "$TESTS_DIR/develop/devShell.exp" ""
+    assert_success
+    assert [ ! -h .flox/envs/$NIX_SYSTEM.default ]
+    assert [ ! -f catalog.json ]
+    assert [ ! -f manifest.json ]
+  popd
 }
 
 @test "tear down install test state" {
