@@ -687,6 +687,12 @@ function floxUserMetaRegistry() {
 		$_git -C "$userFloxMetaCloneDir" show "$defaultBranch:floxUserMeta.json" >$floxUserMeta
 	fi
 
+	# XXX TEMPORARY: write back contents to $OLDfloxUserMeta while we work
+	# to update the rust CLI to read this information from git.
+	if [ ! -f $OLDfloxUserMeta ]; then
+		$_cp -f $floxUserMeta $OLDfloxUserMeta
+	fi
+
 	case "$verb" in
 	get|dump)
 		# Perform the registry query.
