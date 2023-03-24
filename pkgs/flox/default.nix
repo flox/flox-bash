@@ -141,4 +141,6 @@ in stdenv.mkDerivation rec {
     # catches most of them.
     env -i USER=`id -un` HOME=$PWD $out/bin/flox help > /dev/null
   '';
+
+  passthru.nixPatched = nixPatched;
 }
