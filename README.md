@@ -56,6 +56,7 @@ created environment default (aarch64-linux)
 ```
 
 #### Activate an environment:
+
 ``` { .console .no-copy }
 $ flox install cowsay
 created generation 2
