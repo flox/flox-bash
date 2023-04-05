@@ -781,7 +781,7 @@ function assertAndRemoveFiles {
 
 @test "flox develop no installable" {
   pushd "$FLOX_TEST_HOME/develop"
-    expect "$TESTS_DIR/develop/develop.exp" ""
+    run expect "$TESTS_DIR/develop/develop.exp" ""
     assert_success
     assertAndRemoveFiles
   popd
@@ -790,7 +790,7 @@ function assertAndRemoveFiles {
 @test "flox develop from flake root" {
   pushd "$FLOX_TEST_HOME/develop"
     for attr in "" my-pkg .#my-pkg .#packages.$NIX_SYSTEM.my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
-      expect "$TESTS_DIR/develop/develop.exp" "$attr"
+      run expect "$TESTS_DIR/develop/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
     done
@@ -800,7 +800,7 @@ function assertAndRemoveFiles {
 @test "flox develop from flake subdirectory" {
   pushd "$FLOX_TEST_HOME/develop/pkgs"
     for attr in .#my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
-      expect "$TESTS_DIR/develop/develop.exp" "$attr"
+      run expect "$TESTS_DIR/develop/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
     done
@@ -809,7 +809,7 @@ function assertAndRemoveFiles {
 
 @test "flox develop from different directory" {
   pushd "$FLOX_TEST_HOME"
-    expect "$TESTS_DIR/develop/develop.exp" ./develop#my-pkg
+    run expect "$TESTS_DIR/develop/develop.exp" ./develop#my-pkg
     assert_success
   popd
 }
@@ -819,7 +819,7 @@ function assertAndRemoveFiles {
     git init
     git add .
     for attr in .#my-pkg "$FLOX_TEST_HOME/develop#my-pkg"; do
-      expect "$TESTS_DIR/develop/develop.exp" "$attr"
+      run expect "$TESTS_DIR/develop/develop.exp" "$attr"
       assert_success
       assertAndRemoveFiles
     done
@@ -827,7 +827,8 @@ function assertAndRemoveFiles {
 }
 
 @test "flox develop fails with remote flake" {
-  expect "$TESTS_DIR/develop/develop-fail.exp" "git+ssh://git@github.com/flox/flox-bash-private?dir=tests/develop#my-pkg"
+  run expect "$TESTS_DIR/develop/develop-fail.exp" "git+ssh://git@github.com/flox/flox-bash-private?dir=tests/develop#my-pkg"
+  assert_success
 }
 
 @test "flox develop toplevel with package" {
@@ -835,7 +836,7 @@ function assertAndRemoveFiles {
   run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR/develop ./toplevel-flox-nix-with-pkg | tar -C $FLOX_TEST_HOME -xf -"
   assert_success
   pushd "$FLOX_TEST_HOME/toplevel-flox-nix-with-pkg"
-    expect "$TESTS_DIR/develop/develop.exp" ""
+    run expect "$TESTS_DIR/develop/develop.exp" ""
     assert_success
     assert [ -h .flox/envs/$NIX_SYSTEM.default ]
     assert [ -f catalog.json ]
@@ -852,7 +853,7 @@ function assertAndRemoveFiles {
     assert_success
     # for some reason expect hangs forever when SHELL=zsh and I don't feel like
     # debugging why
-    SHELL=bash expect "$TESTS_DIR/develop/toplevel-flox-nix.exp" ""
+    SHELL=bash run expect "$TESTS_DIR/develop/toplevel-flox-nix.exp" ""
     assert_success
     assert [ -h .flox/envs/$NIX_SYSTEM.default ]
     assert [ -f catalog.json ]
@@ -865,7 +866,7 @@ function assertAndRemoveFiles {
   run sh -c "tar -cf - --dereference --mode u+w -C $TESTS_DIR/develop ./devShell | tar -C $FLOX_TEST_HOME -xf -"
   assert_success
   pushd "$FLOX_TEST_HOME/devShell"
-    expect "$TESTS_DIR/develop/devShell.exp" ""
+    run expect "$TESTS_DIR/develop/devShell.exp" ""
     assert_success
     assert [ ! -h .flox/envs/$NIX_SYSTEM.default ]
     assert [ ! -f catalog.json ]
