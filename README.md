@@ -1,5 +1,7 @@
 <p>
-    <a href="https://floxdev.com" target="_blank"><img src="img/flox_blue_small.png" alt="flox logo" /></a>
+    <a href="https://floxdev.com" target="_blank">
+        <img src="img/flox_blue_small.png" alt="flox logo" />
+    </a>
 </p>
 
 ![license](https://badgen.net/badge/license/GPLv2/green)
@@ -13,7 +15,7 @@ built on [Nix](https://github.com/nixOS/nix).
 
 <img style="float:right" alt="flox flywheel" align="right" width="280" src="img/310703783_812187779826049_7314390197914243071_n.png">
 
-With flox you can:
+With `flox` you can:
 
 1. Install and run software anywhere
 2. Share collections of software that others can use
@@ -24,7 +26,8 @@ With flox you can:
 
 ## Installation
 
-You can download the flox CLI via one of our native installers for Mac, Linux, or Windows WSL [here](https://floxdev.com/docs).
+You can download the `flox` CLI via one of our native installers for Mac, Linux,
+or Windows WSL [here](https://floxdev.com/docs#install-flox).
 
 ## Usage
 
@@ -96,35 +99,49 @@ flox [flox-examples/demo default] $ exit
 
 ## `nixpkgs-flox`
 
-The flox CLI gets its packages from the
+The `flox` CLI gets its packages from the
 [nixpkgs-flox](https://github.com/flox/nixpkgs-flox) channel, which is created
-using Nixpkgs.
-Using packages from a flox channel adds a few features as compared to using
-Nixpkgs directly: semantic versioning, stabilities, and guaranteed cache hits.
-See the [docs](https://floxdev.com/docs/basics) for more.
+using [Nixpkgs](https://github.com/NixOS/nixpkgs).
+Using packages from a `flox` channel adds a few features to
+[Nixpkgs](https://github.com/NixOS/nixpkgs) such as: semantic versioning,
+stabilities, and guaranteed cache hits.
+See the [docs](https://floxdev.com/docs/basics) for more info.
 
 ## Contributing
 
-We welcome contributions to this project. Please read the [Contributor guide](./CONTRIBUTING.md) first.
+We welcome bug fixes for this project.
+Please read the [Contributor guide](./CONTRIBUTING.md) first.
 
-#### Building from source
+## Building from source
 
-The flox CLI is written in Rust. Building flox requires a running Nix daemon.
+The `flox` CLI is written in Rust.
+Building `flox` requires a running Nix daemon.
 
-The simplest way to build flox is via flox!
-- Download `flox` and run `flox build` in the project directory.
+The simplest way to build `flox` is via `flox`!
+- [Download and install](https://floxdev.com/docs/#install-flox) `flox`, then
+  run `flox build` in the project directory.
 
 If you're a Nix user, you can run the following:
-`nix build .#flox --extra-experimental-features "nix-command flakes"`.
 
-See the [contributor guide](./CONTRIBUTING.md) for more information.
+``` shell
+nix build '.#flox' --extra-experimental-features "nix-command flakes";
+```
+
+## Testing
+
+Tests can be run by invoking:
+```shell
+flox develop '.#flox';
+make test;
+```
 
 ## License
 
-The flox CLI is licensed under the GPLv2. See [LICENSE](./LICENSE).
+The `flox` CLI is licensed under the GPLv2. See [LICENSE](./LICENSE).
 
 ## Community
 
 Find us on [Twitter](https://twitter.com/floxdevelopment) and [Discourse](https://discourse.floxdev.com).
 
-For updates to the flox CLI, follow this repo on [GitHub](https://github.com/flox/flox)!
+For updates to the `flox` CLI, follow this repo on
+[GitHub](https://github.com/flox/flox)!
