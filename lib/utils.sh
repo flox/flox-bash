@@ -1641,7 +1641,7 @@ function joinString() {
 	local accum=
 	local -A seen
 	while test $# -gt 0; do
-		for i in $(IFS=$separator; echo $1); do
+		while IFS=$separator read -r i; do
 			case "$i" in
 			"") : ;;
 			*)
@@ -1655,7 +1655,7 @@ function joinString() {
 				fi
 				;;
 			esac
-		done
+		done <<< $(echo "$1")
 		shift
 	done
 	echo "$accum"
