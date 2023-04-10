@@ -1009,7 +1009,7 @@ function listEnvironments() {
 	environmentOwner=$($_basename $environmentMetaDir)
 
 	# Quick sanity check .. is this a git repo?
-	[ -d "$environmentMetaDir/.git" ] || \
+	$_git -C "$environmentMetaDir" rev-parse 2> /dev/null || \
 		error "not a git clone? Please remove: $environmentMetaDir" < /dev/null
 
 	# Start by updating all remotes in the clone dir.
