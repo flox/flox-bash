@@ -186,7 +186,7 @@ function floxList() {
 		# Otherwise Nix eval won't be able to find any of the files.
 		$_git -C $workDir add $nextGen
 
-		if $invoke_nix eval "$workDir/$nextGen#floxEnvs.$environmentSystem.default.catalog" --impure --raw > $newCatalogJSON; then
+		if $invoke_nix eval "$workDir/$nextGen#floxEnvs.$environmentSystem.default.catalog" --impure --json > $newCatalogJSON; then
 			$invoke_jq -n -f $_lib/diff-catalogs.jq \
 				--slurpfile c1 $oldCatalogJSON --slurpfile c2 $newCatalogJSON > $upgradeDiffs
 		else
