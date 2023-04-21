@@ -160,10 +160,10 @@ function floxActivate() {
 					# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
 					eval $(decodeEnvironment "$environment")
 					if $_gum confirm "'$environmentAlias' is at generation $updateGen, pull latest version?"; then
-						floxPushPull pull "$environment" "$system" ${invocation[@]}
+						floxPushPull pull "$environment" "$system"
 					fi
 				else # $autoUpdate == 2, aka always pull without prompting
-					floxPushPull pull "$environment" "$system" ${invocation[@]}
+					floxPushPull pull "$environment" "$system"
 				fi
 			fi
 		fi
