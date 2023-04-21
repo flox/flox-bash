@@ -229,20 +229,20 @@ load test_support.bash
 @test "flox list after install should contain hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  1"
+  assert_output --partial "Curr Gen  2"
   assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
 }
 
 @test "flox install cowsay jq dasel" {
   run $FLOX_CLI --debug install -e $TEST_ENVIRONMENT cowsay jq dasel
   assert_success
-  assert_output --partial "created generation 2"
+  assert_output --partial "created generation 3"
 }
 
 @test "flox list after install should contain cowsay and hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  2"
+  assert_output --partial "Curr Gen  3"
   assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
   assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
@@ -264,7 +264,7 @@ load test_support.bash
 @test "verify flox edit removed hello from manifest.json" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  3"
+  assert_output --partial "Curr Gen  4"
   assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
   assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.hello"
@@ -290,7 +290,7 @@ load test_support.bash
 @test "verify flox edit added hello to manifest.json" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  4"
+  assert_output --partial "Curr Gen  5"
   assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
   assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
@@ -316,17 +316,17 @@ load test_support.bash
 @test "flox list after remove should not contain hello" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  5"
+  assert_output --partial "Curr Gen  6"
   assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
   assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   assert_output --regexp "2  stable.nixpkgs-flox.jq +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
-@test "flox list of generation 2 should contain hello" {
-  run $FLOX_CLI list -e $TEST_ENVIRONMENT 2
+@test "flox list of generation 3 should contain hello" {
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT 3
   assert_success
-  assert_output --partial "Curr Gen  2"
+  assert_output --partial "Curr Gen  3"
   assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
   assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
@@ -415,14 +415,17 @@ load test_support.bash
   aarch64-darwin)
     RG_PATH="/nix/store/ix73alhygpflvq50fimdgwl1x2f8yv7y-ripgrep-13.0.0/bin/rg"
     CURL_PATH="/nix/store/8nv1g4ymxi2f96pbl1jy9h625v2risd8-curl-7.86.0-bin/bin/curl"
+    CURL_PATH_2="/nix/store/8nv1g4ymxi2f96pbl1jy9h625v2risd8-curl-7.86.0-bin/bin/curl"
     ;;
   aarch64-linux)
     RG_PATH="/nix/store/zcq437znz7080wc7gbhijdm5x66qk5lj-ripgrep-13.0.0/bin/rg"
     CURL_PATH="/nix/store/0b3a9wbhss293wd8qv6q6gfh2wgk34c6-curl-7.86.0-bin/bin/curl"
+    CURL_PATH_2="/nix/store/0b3a9wbhss293wd8qv6q6gfh2wgk34c6-curl-7.86.0-bin/bin/curl"
     ;;
   x86_64-linux)
     RG_PATH="/nix/store/cv1ska2lnafi6l650d4943bm0r3qvixy-ripgrep-13.0.0/bin/rg"
     CURL_PATH="/nix/store/b7xwyhb5zy4x26jvk9vl84ihb7gcijrn-curl-7.86.0/bin/curl"
+    CURL_PATH_2="/nix/store/m2h1p50yvcq5j9b3hkrwqnmrr9pbkzpz-curl-7.86.0-bin/bin/curl"
     ;;
   *)
     echo "unsupported system for upgrade test"
@@ -449,7 +452,9 @@ load test_support.bash
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which rg)'
   ! assert_output --partial "$RG_PATH"
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
-  assert_output --partial "$CURL_PATH"
+  # Even though it hasn't been upgraded, the path to curl can still change due
+  # to how it's wrapped by buildenv
+  assert_output --partial "$CURL_PATH_2"
 
   # upgrade everything
   run $FLOX_CLI upgrade -e _upgrade_testing_
@@ -459,6 +464,7 @@ load test_support.bash
   ! assert_output --partial "$RG_PATH"
   run $FLOX_CLI activate -e _upgrade_testing_ -- sh -c 'readlink $(which curl)'
   ! assert_output --partial "$CURL_PATH"
+  ! assert_output --partial "$CURL_PATH_2"
 
   # teardown
   run $FLOX_CLI unsubscribe nixpkgs-flox-upgrade-test
@@ -488,49 +494,58 @@ load test_support.bash
 @test "flox rollback" {
   run $FLOX_CLI rollback -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 5 to 4."
+  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 6 to 5."
 }
 
 @test "flox list after rollback should reflect generation 2" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  4"
+  assert_output --partial "Curr Gen  5"
   assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
   assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   assert_output --regexp "2  stable.nixpkgs-flox.hello +"$VERSION_REGEX
   assert_output --regexp "3  stable.nixpkgs-flox.jq +"$VERSION_REGEX
 }
 
-@test "flox rollback --to 3" {
-  run $FLOX_CLI rollback --to 3 -e $TEST_ENVIRONMENT
+@test "flox rollback --to 4" {
+  run $FLOX_CLI rollback --to 4 -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 4 to 3."
+  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 5 to 4."
 }
 
-@test "flox list after rollback --to 3 should reflect generation 3" {
+@test "flox list after rollback --to 4 should reflect generation 4" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  3"
+  assert_output --partial "Curr Gen  4"
   assert_output --regexp "0  stable.nixpkgs-flox.cowsay +"$VERSION_REGEX
   assert_output --regexp "1  stable.nixpkgs-flox.dasel +"$VERSION_REGEX
   assert_output --regexp "2  stable.nixpkgs-flox.jq +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.hello"
 }
 
-@test "flox switch-generation 1" {
-  run $FLOX_CLI switch-generation 1 -e $TEST_ENVIRONMENT
+@test "flox switch-generation 2" {
+  run $FLOX_CLI switch-generation 2 -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Switched environment '$TEST_ENVIRONMENT' from generation 3 to 1."
+  assert_output --partial "Switched environment '$TEST_ENVIRONMENT' from generation 4 to 2."
 }
 
-@test "flox list after switch-generation 1 should reflect generation 1" {
+@test "flox list after switch-generation 2 should reflect generation 2" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  1"
+  assert_output --partial "Curr Gen  2"
   assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.cowsay"
   ! assert_output --partial "stable.nixpkgs-flox.dasel"
   ! assert_output --partial "stable.nixpkgs-flox.jq"
+}
+
+@test "flox rollback to 1" {
+  run $FLOX_CLI rollback -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 2 to 1."
+  run $FLOX_CLI list -e $TEST_ENVIRONMENT
+  # generation 1 has no packages
+  assert_output --regexp ".*Packages"
 }
 
 @test "flox rollback to 0" {
@@ -539,14 +554,17 @@ load test_support.bash
   assert_output --partial "ERROR: invalid generation '0'"
 }
 
-@test "flox switch-generation 6" {
-  run $FLOX_CLI switch-generation 6 -e $TEST_ENVIRONMENT
+@test "flox switch-generation 7" {
+  run $FLOX_CLI switch-generation 7 -e $TEST_ENVIRONMENT
   assert_failure
-  assert_output --partial "ERROR: could not find environment data for generation '6'"
+  assert_output --partial "ERROR: could not find environment data for generation '7'"
 }
 
-@test "flox rollback --to 1" {
-  run $FLOX_CLI rollback --to 1 -e $TEST_ENVIRONMENT
+@test "flox rollback --to 2" {
+  run $FLOX_CLI switch-generation 2 -e $TEST_ENVIRONMENT
+  assert_success
+  assert_output --partial "Switched environment '$TEST_ENVIRONMENT' from generation 1 to 2."
+  run $FLOX_CLI rollback --to 2 -e $TEST_ENVIRONMENT
   assert_success
   assert_output --partial "start and target generations are the same"
 }
@@ -554,19 +572,19 @@ load test_support.bash
 @test "flox generations" {
   run $FLOX_CLI generations -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Generation 1:"
+  assert_output --partial "Generation 2:"
   assert_output --partial "Path:"
   assert_output --partial "Created:"
   assert_output --partial "Last active:"
   assert_output --partial "Log entries:"
   assert_output --partial "installed stable.nixpkgs-flox.hello"
-  assert_output --partial "Generation 2:"
-  assert_output --partial "installed stable.nixpkgs-flox.cowsay stable.nixpkgs-flox.jq stable.nixpkgs-flox.dasel"
   assert_output --partial "Generation 3:"
-  assert_output --partial "edited declarative profile (generation 3)"
+  assert_output --partial "installed stable.nixpkgs-flox.cowsay stable.nixpkgs-flox.jq stable.nixpkgs-flox.dasel"
   assert_output --partial "Generation 4:"
   assert_output --partial "edited declarative profile (generation 4)"
   assert_output --partial "Generation 5:"
+  assert_output --partial "edited declarative profile (generation 5)"
+  assert_output --partial "Generation 6:"
   assert_output --partial "removed stable.nixpkgs-flox.hello"
 }
 
@@ -614,7 +632,7 @@ load test_support.bash
 @test "flox list after flox pull should be exactly as before" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  1"
+  assert_output --partial "Curr Gen  2"
   assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
   ! assert_output --partial "stable.nixpkgs-flox.cowsay"
   ! assert_output --partial "stable.nixpkgs-flox.dasel"
@@ -649,7 +667,7 @@ load test_support.bash
 @test "flox list after installing by store path should contain package" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  6"
+  assert_output --partial "Curr Gen  7"
   assert_output --regexp "0  stable.nixpkgs-flox.hello +"$VERSION_REGEX
   assert_output --partial "1  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
 }
@@ -669,7 +687,7 @@ load test_support.bash
 @test "flox list after installing by nixpkgs flake should contain package" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  8"
+  assert_output --partial "Curr Gen  9"
   assert_output --regexp "0  nixpkgs#hello +hello-"$VERSION_REGEX
   assert_output --partial "1  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
@@ -696,7 +714,7 @@ load test_support.bash
 @test "flox list after remove by nixpkgs flake 1 should not contain package" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  9"
+  assert_output --partial "Curr Gen  10"
   assert_output --partial "0  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "nixpkgs#hello"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
@@ -705,7 +723,7 @@ load test_support.bash
 @test "flox rollback after flake removal 1" {
   run $FLOX_CLI rollback -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 9 to 8."
+  assert_output --partial "Rolled back environment '$TEST_ENVIRONMENT' from generation 10 to 9."
 }
 
 # @test "flox remove by nixpkgs flake 2" {
@@ -717,7 +735,7 @@ load test_support.bash
 # @test "flox list after remove by nixpkgs flake 2 should not contain package" {
 #   run $FLOX_CLI list -e $TEST_ENVIRONMENT
 #   assert_success
-#   assert_output --partial "Curr Gen  10"
+#   assert_output --partial "Curr Gen  11"
 #   assert_output --partial "0  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
 #   ! assert_output --partial "flake:nixpkgs#legacyPackages.$NIX_SYSTEM.hello"
 #   ! assert_output --partial "stable.nixpkgs-flox.hello"
@@ -732,7 +750,7 @@ load test_support.bash
 @test "flox list after remove by nixpkgs flake 2 should not contain package" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  10"
+  assert_output --partial "Curr Gen  11"
   assert_output --partial "0  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "nixpkgs#hello"
   ! assert_output --partial "stable.nixpkgs-flox.hello"
@@ -750,10 +768,10 @@ load test_support.bash
   assert_output --partial "Environment '$TEST_ENVIRONMENT' imported."
 }
 
-@test "flox list to verify contents of generation 8 at generation 12" {
+@test "flox list to verify contents of generation 9 at generation 12" {
   run $FLOX_CLI list -e $TEST_ENVIRONMENT
   assert_success
-  assert_output --partial "Curr Gen  11"
+  assert_output --partial "Curr Gen  12"
   assert_output --regexp "0  nixpkgs#hello +hello-"$VERSION_REGEX
   assert_output --partial "1  $FLOX_PACKAGE  $FLOX_PACKAGE_FIRST8"
   ! assert_output --partial "stable.nixpkgs-flox.hello"

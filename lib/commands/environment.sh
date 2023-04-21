@@ -238,14 +238,38 @@ function floxCreate() {
 	workDir=$(mkTempDir)
 	beginTransaction "$environment" "$workDir" 1
 
+	# Glean current and next generations from clone.
+	local -i currentGenVersion=2
+	local nextGen
+	nextGen=$($_readlink $workDir/next)
+
 	# To see if it already exists simply assert that the workdir doesn't
 	# already have an "origin" reference for the branch.
 	if $invoke_git -C $workDir show-ref --quiet refs/remotes/origin/"$branchName" >/dev/null; then
 		error "environment $environmentAlias ($system) already exists" < /dev/null
 	fi
 
-	# We don't commit any transaction in this case, just push.
-	$invoke_git -C $workDir push --quiet --set-upstream origin $branchName
+	# Construct and render the new manifest.json in the metadata workDir.
+	$_cp --no-preserve=mode -rT $_lib/templateFloxEnv $workDir/$nextGen
+	# otherwise Nix build won't be able to find any of the files
+	$_git -C $workDir add $nextGen
+
+	local envPackage
+	if ! envPackage=$($invoke_nix build --impure --no-link --print-out-paths "$workDir/$nextGen#.floxEnvs.$system.default"); then
+		error "failed to create environment: ${invocation[*]}" < /dev/null
+	fi
+
+	# catalog.json should be empty, but keep these lines for the sake of consistent boilerplate
+	$_jq . --sort-keys $envPackage/catalog.json > $workDir/$nextGen/pkgs/default/catalog.json
+	$_jq . --sort-keys $envPackage/manifest.json > $workDir/$nextGen/manifest.json
+	$_git -C $workDir add $nextGen/pkgs/default/catalog.json
+	$_git -C $workDir add $nextGen/manifest.json
+
+	# Commit the transaction.
+	commitTransaction $environment $workDir $envPackage \
+		"$USER created environment" \
+		$currentGenVersion \
+		"$me create" > /dev/null
 
 	warn "created environment $environmentAlias ($system)"
 }
@@ -1414,12 +1438,11 @@ function floxPushPull() {
 	elif $invoke_git -C "$tmpDir" show-ref --quiet refs/remotes/upstream/"$branchName"; then
 		$invoke_git -C "$tmpDir" checkout --quiet --track upstream/"$branchName"
 	else
-		$invoke_git -C "$tmpDir" checkout --orphan "$branchName"
-		$invoke_git -C "$tmpDir" ls-files | $_xargs --no-run-if-empty $_git -C "$tmpDir" rm --quiet -f
-		# A commit is needed in order to make the branch visible.
-		$invoke_git -C "$tmpDir" commit --quiet --allow-empty \
-			-m "$USER created $branchName environment"
-		$invoke_git -C "$tmpDir" push --quiet --set-upstream origin "$branchName"
+		# XXX Why would you ever push/pull a branch that does not exist?
+		# We previously created the branch when pulling a nonexistent
+		# branch, but this breaks the API env creation logic which performs
+		# a pull to verify the environment does not exist before creating it.
+		error "environment $environmentName ($system) does not exist" < /dev/null
 	fi
 
 	# Then push or pull.

@@ -433,8 +433,9 @@ function syncEnvironment() {
 function commitMessage() {
 	trace "$@"
 	local environment="$1"; shift
-	local -i startGen=$1; shift
-	local -i endGen=$1; shift
+	# may be empty
+	local startGenPath="$1"; shift
+	local endGenPath="$1"; shift
 	local logMessage="$1"; shift
 	local invocation="${@}"
 	# set $branchName,$floxNixDir,$environment{Name,Alias,Owner,System,BaseDir,BinDir,ParentDir,MetaDir}
@@ -463,20 +464,13 @@ function commitMessage() {
 	# order, so for the purpose of this invocation we set the generations
 	# as 1 and 2 if both are defined, or 1 if there is only one generation.
 	local myEndGen=
-	if [ $startGen -gt 0 ]; then
-		local startGenPath
-		startGenPath=$($_readlink "${environment}-${startGen}-link")
-		if [ -n "$startGenPath" ]; then
-			$invoke_ln -s $startGenPath $tmpDir/${environmentName}-1-link
-			myEndGen=2
-		else
-			warn "generation link not found: ${environment}-${startGen}-link"
-			myEndGen=1
-		fi
+	if [ -n "$startGenPath" ]; then
+		$invoke_ln -s "$startGenPath" $tmpDir/${environmentName}-1-link
+		myEndGen=2
 	else
 		myEndGen=1
 	fi
-	$invoke_ln -s $($_readlink "${environment}-${endGen}-link") $tmpDir/${environmentName}-${myEndGen}-link
+	$invoke_ln -s "$endGenPath" $tmpDir/${environmentName}-${myEndGen}-link
 	$invoke_ln -s ${environmentName}-${myEndGen}-link $tmpDir/${environmentName}
 
 	local _cline
@@ -592,7 +586,11 @@ function promptMetaOrigin() {
 		;;
 	esac
 
-	echo "$defaultURL$organization/floxmeta"
+	# Take 'floxmeta' repo name from environment, if defined. Primarily used
+	# for testing repo creation, because you cannot simply rename a repo
+	# without GitHub helpfully redirecting requests to the renamed repo.
+	local repoName="${FLOXMETA_REPO_NAME:-floxmeta}"
+	echo "$defaultURL$organization/$repoName"
 }
 
 #
@@ -625,6 +623,7 @@ function getSetOrigin() {
 	if [ -z "$origin" ]; then
 
 		# Infer/set origin using a variety of information.
+		local repoName="${FLOXMETA_REPO_NAME:-floxmeta}"
 		if [ "$environmentOwner" == "flox" -o "$environmentOwner" == "flox-examples" ]; then
 			# We got this.
 			origin="https://github.com/$environmentOwner/floxmeta"
@@ -636,7 +635,7 @@ function getSetOrigin() {
 				# Strange to have a profile on disk in a named without a
 				# remote origin. Prompt user to confirm floxmeta repo on
 				# github.
-				defaultOrigin="${git_base_url/+ssh/}$environmentOwner/floxmeta"
+				defaultOrigin="${git_base_url/+ssh/}$environmentOwner/$repoName"
 			fi
 			echo 1>&2
 			read -e \
@@ -648,14 +647,14 @@ function getSetOrigin() {
 				# based on GitHub handle observed by `gh` client.
 				local ghAuthHandle
 				if ghAuthHandle=$($_gh auth status |& $_awk '/Logged in to github.com as/ {print $7}'); then
-					origin="${git_base_url/+ssh/}$ghAuthHandle/floxmeta"
+					origin="${git_base_url/+ssh/}$ghAuthHandle/$repoName"
 				else
 					# No chance to discover origin; just create repo and return empty origin.
 					[ -d "$environmentMetaDir" ] || gitInitFloxmeta "$environmentMetaDir"
 					return 0
 				fi
 			else
-				origin="${git_base_url/+ssh/}$environmentOwner/floxmeta"
+				origin="${git_base_url/+ssh/}$environmentOwner/$repoName"
 			fi
 		fi
 
@@ -923,7 +922,7 @@ function commitTransaction() {
 	# and if not then return immediately.
 	local oldEnvPackage
 	if [ -e "$environment" ]; then
-		oldEnvPackage=$($_realpath $environment)
+		oldEnvPackage=$(registry "$workDir/metadata.json" 1 get generations $currentGen path)
 	fi
 
 	# Check to see if there has been a change.
@@ -983,7 +982,7 @@ function commitTransaction() {
 	# Unification TODO: use catalog.json instead of relying on manifest.json
 	local message
 	message=$(commitMessage \
-		"$environment" $currentGen $nextGen \
+		"$environment" "$oldEnvPackage" "$environmentPackage" \
 		"$logMessage" "${invocation[@]}")
 
 	$invoke_git -C $workDir commit -m "$message" --quiet
