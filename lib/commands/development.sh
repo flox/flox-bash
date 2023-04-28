@@ -182,7 +182,7 @@ function flakeTopLevel() {
 	trace "$@"
 	local flakeRef=$1; shift
 	local url
-	if url=$($invoke_nix "${_nixArgs[@]}" flake metadata "$flakeRef" --json "$@" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY | $_jq -r .resolvedUrl); then
+	if url=$($invoke_nix "${_nixArgs[@]}" flake metadata "$flakeRef" --json "$@" --override-input flox-floxpkgs/nixpkgs/nixpkgs flake:nixpkgs-$FLOX_STABILITY 2>/dev/null </dev/null | $_jq -r .resolvedUrl); then
 		# strip git+file://
 		url="${url/git+file:\/\//}"
 		# strip path:
