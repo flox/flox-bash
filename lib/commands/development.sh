@@ -341,6 +341,9 @@ function floxDevelop() {
 		# installable to be the specific package derivation only and hide
 		# anything else (devShells, etc.) that is apt to confuse and distract.
 		installable="$packageFlakeURL"
+	else
+		# Let Nix decide whether to use a package or a devShell
+		installable="$installableFlakeRef#$installableAttrPath"
 	fi
 
 	if [ -n "$FLOX_ORIGINAL_NIX_GET_COMPLETIONS" ]; then
