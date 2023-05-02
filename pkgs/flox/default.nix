@@ -129,7 +129,7 @@ in stdenv.mkDerivation rec {
     makeWrapper ${gh}/bin/gh $out/libexec/flox/gh --argv0 '$0' \
       --prefix PATH : "${lib.makeBinPath([ git ])}"
 
-    # Rewrite /bin/sh to the full path of bashInteractive.
+    # Rewrite /usr/bin/env bash to the full path of bashInteractive.
     # Use --host to resolve using the runtime path.
     patchShebangs --host $out/libexec/flox/flox $out/libexec/flox/darwin-path-fixer
   '';
