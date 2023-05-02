@@ -118,6 +118,9 @@ packagePaths($unique_b) as $unique_b_paths |
   )
 ) | flatten(1) as $removals |
 
+# Tuples data presented as array of:
+#    [ packagePath1, package1, packagePath2, package2, ... ]
+# Recursively consume data in pairs until exhausted.
 def mapTuples(data):
   if ((data | length) == 0) then [] else (
     data[0] as $packagePath |
@@ -125,7 +128,7 @@ def mapTuples(data):
     # Join "pname" attrPaths with "." to maintain a constant depth structure
     # for use with WebUI display elements, command construction, etc.
     ($packagePath[0:3] + [$packagePath[3:] | join(".")]) as $squashedPackagePath |
-    [ {} | setpath($squashedPackagePath; $package) ]
+    [ {} | setpath($squashedPackagePath; $package) ] + mapTuples(data[2:])
   ) end;
 
 # Finally, combine the upgrades, additions and removals. Do this explicitly
