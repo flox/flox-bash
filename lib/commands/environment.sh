@@ -1382,7 +1382,7 @@ function floxPushPull() {
 	local -i floxmain=0
 	while test $# -gt 0; do
 		case "$1" in
-		--force)
+		-f|--force)
 			forceArg="--force"
 			shift
 			;;
