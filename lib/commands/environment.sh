@@ -266,7 +266,7 @@ function floxCreate() {
 	$_git -C $workDir add $nextGen/manifest.json
 
 	# Commit the transaction.
-	commitTransaction $environment $workDir $envPackage \
+	commitTransaction create $environment $workDir $envPackage \
 		"$USER created environment" \
 		$currentGenVersion \
 		"$me create" > /dev/null
@@ -486,7 +486,7 @@ EOF
 	esac
 
 	# That went well. Go ahead and commit the transaction.
-	local result=$(commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction install $environment $workDir $envPackage \
 		"$USER installed ${pkgNames[*]}" \
 		$currentGenVersion \
 		"$me install ${invocation[*]}")
@@ -650,7 +650,7 @@ EOF
 	esac
 
 	# That went well. Go ahead and commit the transaction.
-	local result=$(commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction remove $environment $workDir $envPackage \
 		"$USER removed ${pkgNames[*]}" \
 		$currentGenVersion \
 		"$me remove ${invocation[*]}")
@@ -830,7 +830,7 @@ EOF
 	esac
 
 	# That went well. Go ahead and commit the transaction.
-	local result=$(commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction upgrade $environment $workDir $envPackage \
 		"$USER upgraded ${pkgNames[*]}" \
 		$currentGenVersion \
 		"$me upgrade ${invocation[*]}")
@@ -985,7 +985,7 @@ EOF
 	$_git -C $workDir add $nextGen/manifest.json
 
 	# That went well. Go ahead and commit the transaction.
-	local result=$(commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction edit $environment $workDir $envPackage \
 		"$USER edited declarative profile (generation $nextGen)" \
 		$currentGenVersion \
 		"$me edit ${invocation[*]}")
@@ -1066,7 +1066,7 @@ function floxImport() {
 	$_git -C $workDir add $nextGen/manifest.json
 
 	# That went well. Go ahead and commit the transaction.
-	local result=$(commitTransaction $environment $workDir $envPackage \
+	local result=$(commitTransaction import $environment $workDir $envPackage \
 		"$USER imported generation $nextGen" \
 		$currentGenVersion \
 		"$me import ${invocation[*]}")
@@ -1225,7 +1225,7 @@ function floxRollback() {
 	ln -s $targetGeneration $workDir/next
 
 	# ... and commit.
-	local result=$(commitTransaction $environment $workDir UNUSED \
+	local result=$(commitTransaction $subcommand $environment $workDir UNUSED \
 		"$USER switched to generation $targetGeneration" \
 		1 \
 		"$me $subcommand ${invocation[*]}")

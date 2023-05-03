@@ -307,6 +307,23 @@ load test_support.bash
   ! assert_output --partial "created generation"
 }
 
+@test "flox edit preserves comments" {
+  EDIT_ENVIRONMENT=_edit_testing_
+  run $FLOX_CLI create -e "$EDIT_ENVIRONMENT"
+  assert_success
+
+  EDITOR=./tests/add-comment run $FLOX_CLI edit -e "$EDIT_ENVIRONMENT"
+  assert_success
+  assert_output --partial "Environment '$EDIT_ENVIRONMENT' modified."
+
+  EDITOR=cat run $FLOX_CLI edit -e "$EDIT_ENVIRONMENT"
+  assert_success
+  assert_output --partial "# test comment"
+
+  run $FLOX_CLI destroy --force -e "$EDIT_ENVIRONMENT"
+  assert_success
+}
+
 @test "flox remove hello" {
   run $FLOX_CLI remove -e $TEST_ENVIRONMENT hello
   assert_success

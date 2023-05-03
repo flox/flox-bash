@@ -285,7 +285,7 @@ function temporaryAssert008Schema {
 	$_git -C $repoDir add $nextGen/manifest.json
 
 	local resultCommitTransaction
-	result=$(commitTransaction $environment $repoDir $envPackage \
+	result=$(commitTransaction temporaryAssert008Schema $environment $repoDir $envPackage \
 		"$USER converted to 0.0.8 floxmeta schema" 2 \
 		"$me automatic conversion")
 
@@ -876,6 +876,7 @@ function cmpEnvironments() {
 #
 function commitTransaction() {
 	trace "$@"
+	local action="$1"; shift
 	local environment="$1"; shift
 	local workDir="$1"; shift
 	local environmentPackage="$1"; shift
@@ -927,11 +928,16 @@ function commitTransaction() {
 
 	# Check to see if there has been a change.
 	if [ -n "$oldEnvPackage" ] && cmpEnvironments $nextGenVersion "$environmentPackage" "$oldEnvPackage"; then
-		if [ $verbose -ge 1 ]; then
-			warn "No environment changes detected .. exiting"
+		# The rendered environments are the same, which means this is a no-op
+		# except in the case where someone has done `flox edit` and changed
+		# the flox.nix file.
+		if [ "$action" != "edit" ] || $_cmp --quiet "$workDir/$currentGen/pkgs/default/flox.nix" "$workDir/$nextGen/pkgs/default/flox.nix"; then
+			if [ $verbose -ge 1 ]; then
+				warn "No environment changes detected .. exiting"
+			fi
+			echo -n "named-environment-no-changes"
+			return 0
 		fi
-		echo -n "named-environment-no-changes"
-		return 0
 	fi
 
 	# Update the floxmeta registry to record the new generation.
