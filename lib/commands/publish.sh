@@ -185,7 +185,7 @@ function floxPublish() {
 	# If no installables specified then try identifying attrPath from
 	# capacitated flake in current directory.
 	if [ ${#installables[@]} -eq 0 ]; then
-		packageAttrPath="$(selectAttrPath . publish)"
+		packageAttrPath="$(selectAttrPath . publish packages)"
 		packageFlakeRef="."
 	elif [ ${#installables[@]} -eq 1 ]; then
 		case ${installables[0]} in
@@ -310,7 +310,7 @@ function floxPublish() {
 	# $buildRepository if it's not provided in an explicit flakeURL.
 	if [ -z "$packageAttrPath" ]; then
 		doEducatePublish
-		packageAttrPath="$(selectAttrPath "$canonicalFlakeRef" publish)"
+		packageAttrPath="$(selectAttrPath "$canonicalFlakeRef" publish packages)"
 	fi
 
 	# Stash the canonical and build flake URLs before altering $packageAttrPath.
