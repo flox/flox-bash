@@ -11,7 +11,8 @@ function bashRC() {
 	# Start with required platform-specific Nixpkgs environment variables.
 	$_grep -v '^#' $_lib/commands/shells/activate.bash | $_grep -v '^$'
 	# Add computed environment variables.
-	for i in PATH XDG_DATA_DIRS FLOX_ACTIVE_ENVIRONMENTS FLOX_PROMPT_ENVIRONMENTS FLOX_PROMPT_COLOR_{1,2}; do
+	for i in PATH XDG_DATA_DIRS FLOX_ACTIVE_ENVIRONMENTS                    \
+			FLOX_PROMPT_ENVIRONMENTS FLOX_PROMPT_COLOR_{1,2} FLOX_ENV; do
 		printf 'export %s="%s"\n' $i "${!i}"
 	done
 	# Add environment-specific activation commands.
@@ -217,6 +218,8 @@ function floxActivate() {
 	export XDG_DATA_DIRS="$(joinString ':' "${xdg_data_dirs_prepend[@]}" "$XDG_DATA_DIRS")"
 	export FLOX_ACTIVE_ENVIRONMENTS="$(joinString ':' "${flox_active_environments_prepend[@]}" "$FLOX_ACTIVE_ENVIRONMENTS")"
 	export FLOX_PROMPT_ENVIRONMENTS="$(joinString ' ' "${flox_prompt_environments_prepend[@]}" "$FLOX_PROMPT_ENVIRONMENTS")"
+	FLOX_ENV="$environment"
+	export FLOX_ENV
 
 	# Darwin has a "path_helper" which indiscriminately reorders the path to
 	# put the Apple-preferred items first in the PATH, which completely breaks
